@@ -94,6 +94,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           createdAt: l.created_at
         } as AgentLog)));
       }
+
+      // Parity Check - Phase 4 dual-read simulation
+      import('@/services/firebase/migrationService').then(({ migrationService }) => {
+        migrationService.runParityCheck({
+           clients: cData,
+           vendors: vData,
+           jobs: jData
+        });
+      });
+
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {

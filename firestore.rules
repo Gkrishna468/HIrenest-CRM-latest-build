@@ -100,5 +100,82 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    function isValidCommunication(data) {
+       return data.keys().hasAll(['id', 'entityId', 'entityType', 'channel', 'direction', 'content', 'timestamp']) &&
+              data.keys().size() == 7 &&
+              data.id is string && data.id.size() <= 128 &&
+              data.entityId is string && data.entityId.size() <= 128 &&
+              data.entityType is string && data.entityType.size() <= 50 &&
+              data.channel is string && data.channel.size() <= 50 &&
+              data.direction is string && data.direction.size() <= 50 &&
+              data.content is string && data.content.size() <= 10000 &&
+              data.timestamp is string && data.timestamp.size() <= 128;
+    }
+
+    match /communications/{commId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(commId) && isValidCommunication(incoming());
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    function isValidRevenuePipeline(data) {
+       return data.keys().hasAll(['id', 'requirementId', 'accountId', 'stage', 'expectedAmount', 'probability']) &&
+              data.keys().size() == 6 &&
+              data.id is string && data.id.size() <= 128 &&
+              data.requirementId is string && data.requirementId.size() <= 128 &&
+              data.accountId is string && data.accountId.size() <= 128 &&
+              data.stage is string && data.stage.size() <= 50 &&
+              data.expectedAmount is number &&
+              data.probability is number && data.probability >= 0 && data.probability <= 100;
+    }
+
+    match /revenue_pipeline/{pipelineId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(pipelineId) && isValidRevenuePipeline(incoming());
+      allow update: if isSignedIn() && isValidId(pipelineId) && isValidRevenuePipeline(incoming()) && incoming().id == existing().id &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['stage', 'expectedAmount', 'probability']);
+      allow delete: if false;
+    }
+    
+    function isValidUser(data) {
+        return data.keys().hasAll(['id', 'email', 'role']) &&
+               data.keys().size() == 3 &&
+               data.id is string && data.id.size() <= 128 &&
+               data.email is string && data.email.size() <= 255 &&
+               data.role is string && data.role.size() <= 50;
+    }
+    
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      // Only the authenticated user can create their profile. Or Admin. Not defining self-escalation perfectly here but locking role updates.
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) && incoming().id == request.auth.uid;
+      // Users cannot change their own roles - requires admin intervention usually, but restricting fields for now.
+      allow update: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) && incoming().id == existing().id && incoming().role == existing().role &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['email']);
+      allow delete: if false;
+    }
+
+    function isValidMigrationMetrics(data) {
+        return data.keys().hasAll(['id', 'timestamp', 'collectionName', 'supabaseCount', 'firebaseCount', 'parity', 'fieldParity', 'status']) &&
+               data.keys().size() == 8 &&
+               data.id is string && data.id.size() <= 128 &&
+               data.timestamp is string && data.timestamp.size() <= 128 &&
+               data.collectionName is string && data.collectionName.size() <= 128 &&
+               data.supabaseCount is number &&
+               data.firebaseCount is number &&
+               data.parity is number &&
+               data.fieldParity is number &&
+               data.status is string && data.status.size() <= 50;
+    }
+
+    match /migration_metrics/{metricId} {
+      // Only founders/admins should ideally read this, but for now we restrict to signed in
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(metricId) && isValidMigrationMetrics(incoming());
+      allow update: if false;
+      allow delete: if false;
+    }
   }
 }

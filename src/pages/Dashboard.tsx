@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -17,7 +17,8 @@ import {
   CircleDollarSign,
   Zap,
   ShieldCheck,
-  BarChart3
+  BarChart3,
+  Activity
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -31,6 +32,14 @@ export default function Dashboard() {
   const submissionsDue = 12;
   const overdueTasks = 1;
   const newComms = 3;
+
+  // Founder/CEO Business Health Score calculation
+  const healthScore = useMemo(() => {
+    const revenueHealth = deals.filter(d => d.stage === 'closed_won').length > 0 ? 100 : 85;
+    const vendorActivity = vendors.length > 0 ? 95 : 70;
+    const reqVelocity = jobs.filter(j => j.status === 'open').length > 0 ? 90 : 80;
+    return Math.round((revenueHealth + vendorActivity + reqVelocity) / 3);
+  }, [deals, vendors, jobs]);
 
   const getWelcomeMessage = () => {
     switch (user?.role) {
@@ -65,6 +74,29 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {user?.role === 'admin' && (
+        <div className="p-6 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-3xl border border-indigo-900 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+            <Activity className="w-48 h-48 text-white" />
+          </div>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <h2 className="text-indigo-200 font-semibold uppercase tracking-widest text-xs mb-1 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" /> Founder Executive View
+              </h2>
+              <h3 className="text-4xl text-white font-black tracking-tight mb-2">Business Health Score</h3>
+              <p className="text-indigo-200 mt-2 max-w-lg text-sm leading-relaxed">
+                 Aggregate index derived from Revenue Velocity, Vendor Engagement, and Requirement Pipeline Flow.
+              </p>
+            </div>
+            <div className="flex items-center justify-center bg-white/10 backdrop-blur-md rounded-2xl w-32 h-32 md:w-36 md:h-36 border-4 border-indigo-500/30 shrink-0">
+              <span className="text-5xl font-black text-white">{healthScore}</span>
+              <span className="text-indigo-300 text-sm font-bold ml-1 mb-4">/100</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {stats.map((stat) => (

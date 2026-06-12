@@ -66,6 +66,33 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "eventType", "entityType", "entityId", "timestamp"]
+    },
+    "user": {
+      "title": "User",
+      "description": "User profile and RBAC roles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["FOUNDER", "ADMIN", "RECRUITER", "VENDOR", "CLIENT"] }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "migrationMetrics": {
+      "title": "Migration Metrics",
+      "description": "Logs parity checks between Supabase and Firebase",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "collectionName": { "type": "string" },
+        "supabaseCount": { "type": "number" },
+        "firebaseCount": { "type": "number" },
+        "parity": { "type": "number" },
+        "fieldParity": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "collectionName", "supabaseCount", "firebaseCount", "parity", "fieldParity", "status"]
     }
   },
   "firestore": {
@@ -88,6 +115,14 @@
     "system_events/{eventId}": {
       "schema": { "$ref": "#/entities/systemEvent" },
       "description": "Stores system events"
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/user" },
+      "description": "Stores user roles and profiles"
+    },
+    "migration_metrics/{metricId}": {
+      "schema": { "$ref": "#/entities/migrationMetrics" },
+      "description": "Stores migration parity check reports"
     }
   }
 }
