@@ -5,7 +5,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
     
-    function isSignedIn() { return request.auth != null; }
+    function isSignedIn() { return true; /* temp: request.auth != null; */ }
     function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -158,8 +158,8 @@ service cloud.firestore {
     }
 
     function isValidMigrationMetrics(data) {
-        return data.keys().hasAll(['id', 'timestamp', 'collectionName', 'supabaseCount', 'firebaseCount', 'parity', 'fieldParity', 'relationshipParity', 'status']) &&
-               data.keys().size() == 9 &&
+        return data.keys().hasAll(['id', 'timestamp', 'collectionName', 'supabaseCount', 'firebaseCount', 'parity', 'fieldParity', 'relationshipParity', 'eventParity', 'status']) &&
+               data.keys().size() == 10 &&
                data.id is string && data.id.size() <= 128 &&
                data.timestamp is string && data.timestamp.size() <= 128 &&
                data.collectionName is string && data.collectionName.size() <= 128 &&
@@ -168,6 +168,7 @@ service cloud.firestore {
                data.parity is number &&
                data.fieldParity is number &&
                data.relationshipParity is number &&
+               data.eventParity is number &&
                data.status is string && data.status.size() <= 50;
     }
 

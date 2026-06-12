@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { migrationService } from '@/services/firebase/migrationService';
-import { Activity, Database, CheckCircle2, AlertTriangle, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import { Activity, Database, CheckCircle2, AlertTriangle, RefreshCw, ShieldCheck, Zap, ShieldAlert } from 'lucide-react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 
@@ -14,6 +14,7 @@ interface Metric {
   parity: number;
   fieldParity: number;
   relationshipParity: number;
+  eventParity: number;
   status: string;
 }
 
@@ -46,9 +47,15 @@ export default function MigrationDashboard() {
 
   const cutoverStatus = useMemo(() => {
     if (metrics.length === 0) return 'NOT READY';
-    const recentFailures = metrics.slice(0, 6).some(m => m.status === 'FAIL' || m.fieldParity < 100 || m.relationshipParity < 100);
+    const recentFailures = metrics.slice(0, 6).some(m => m.status === 'FAIL' || m.fieldParity < 100 || m.relationshipParity < 100 || (m.eventParity ?? 100) < 100);
     if (recentFailures) return 'NOT READY';
     return 'READY FOR PHASE 5';
+  }, [metrics]);
+
+  const migrationConfidence = useMemo(() => {
+    if (metrics.length === 0) return 0;
+    const avgScore = metrics.reduce((acc, m) => acc + (m.parity + m.fieldParity + m.relationshipParity + (m.eventParity ?? 100)) / 4, 0) / metrics.length;
+    return avgScore.toFixed(2);
   }, [metrics]);
 
   if (user?.role !== 'admin') {
@@ -77,23 +84,39 @@ export default function MigrationDashboard() {
         </button>
       </div>
       
-      {/* Cutover Status Indicator */}
-      <div className={`p-6 rounded-2xl border ${cutoverStatus === 'READY FOR PHASE 5' ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'} flex items-center justify-between`}>
-        <div className="flex items-center gap-4">
-           <div className={`p-3 rounded-full ${cutoverStatus === 'READY FOR PHASE 5' ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}>
-             {cutoverStatus === 'READY FOR PHASE 5' ? <ShieldCheck className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
-           </div>
-           <div>
-             <p className={`text-sm font-bold uppercase tracking-widest ${cutoverStatus === 'READY FOR PHASE 5' ? 'text-emerald-600' : 'text-orange-600'}`}>System Cutover Status</p>
-             <h2 className={`text-2xl font-black ${cutoverStatus === 'READY FOR PHASE 5' ? 'text-emerald-900' : 'text-orange-900'}`}>{cutoverStatus}</h2>
-           </div>
+      {/* Top Indicators Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Cutover Status Indicator */}
+        <div className={`p-6 rounded-2xl border flex items-center justify-between ${cutoverStatus === 'READY FOR PHASE 5' ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
+          <div className="flex items-center gap-4">
+             <div className={`p-3 rounded-full ${cutoverStatus === 'READY FOR PHASE 5' ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}>
+               {cutoverStatus === 'READY FOR PHASE 5' ? <ShieldCheck className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
+             </div>
+             <div>
+               <p className={`text-sm font-bold uppercase tracking-widest ${cutoverStatus === 'READY FOR PHASE 5' ? 'text-emerald-600' : 'text-orange-600'}`}>System Cutover Status</p>
+               <h2 className={`text-2xl font-black ${cutoverStatus === 'READY FOR PHASE 5' ? 'text-emerald-900' : 'text-orange-900'}`}>{cutoverStatus}</h2>
+             </div>
+          </div>
+          {cutoverStatus === 'READY FOR PHASE 5' && (
+            <button className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Authorize Phase 5
+            </button>
+          )}
         </div>
-        {cutoverStatus === 'READY FOR PHASE 5' && (
-          <button className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2">
-            <Zap className="w-5 h-5" />
-            Authorize Phase 5
-          </button>
-        )}
+
+        {/* Migration Confidence */}
+        <div className="p-6 rounded-2xl border bg-slate-900 border-slate-800 flex items-center justify-between shadow-xl">
+          <div className="flex items-center gap-4">
+             <div className="p-3 rounded-full bg-indigo-500/20 text-indigo-400">
+               <ShieldAlert className="w-8 h-8" />
+             </div>
+             <div>
+               <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Migration Confidence</p>
+               <h2 className="text-3xl font-black text-white">{migrationConfidence}%</h2>
+             </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -119,13 +142,14 @@ export default function MigrationDashboard() {
                 <th className="px-6 py-4 text-center">Record Parity</th>
                 <th className="px-6 py-4 text-center">Field Parity</th>
                 <th className="px-6 py-4 text-center">Rel. Parity</th>
+                <th className="px-6 py-4 text-center">Event Parity</th>
                 <th className="px-6 py-4 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {metrics.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-slate-500">
                     No parity checks recorded yet. They run automatically on data load.
                   </td>
                 </tr>
@@ -151,8 +175,13 @@ export default function MigrationDashboard() {
                         {metric.relationshipParity ?? 0}%
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-2 py-1 rounded font-bold text-xs ${(metric.eventParity ?? 100) === 100 ? 'bg-emerald-100 text-emerald-700' : ((metric.eventParity ?? 100) >= 90 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700')}`}>
+                        {metric.eventParity ?? 100}%
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      {metric.status === 'PASS' && metric.fieldParity === 100 && metric.relationshipParity === 100 ? (
+                      {metric.status === 'PASS' && metric.fieldParity === 100 && metric.relationshipParity === 100 && (metric.eventParity ?? 100) === 100 ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs uppercase tracking-widest">
                           <CheckCircle2 className="w-4 h-4" /> PASS
                         </span>

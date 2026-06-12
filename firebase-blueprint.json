@@ -91,9 +91,10 @@
         "parity": { "type": "number" },
         "fieldParity": { "type": "number" },
         "relationshipParity": { "type": "number" },
+        "eventParity": { "type": "number" },
         "status": { "type": "string" }
       },
-      "required": ["id", "timestamp", "collectionName", "supabaseCount", "firebaseCount", "parity", "fieldParity", "relationshipParity", "status"]
+      "required": ["id", "timestamp", "collectionName", "supabaseCount", "firebaseCount", "parity", "fieldParity", "relationshipParity", "eventParity", "status"]
     }
   },
   "firestore": {
