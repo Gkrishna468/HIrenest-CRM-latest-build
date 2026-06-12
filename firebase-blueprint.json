@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "account": {
+      "title": "Account",
+      "description": "Represents the core business units",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "industry": { "type": "string" },
+        "status": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "companyName", "ownerId"]
+    },
+    "contact": {
+      "title": "Contact",
+      "description": "Represents individuals associated with an Account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "accountId": { "type": "string" },
+        "name": { "type": "string" },
+        "designation": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["id", "accountId", "name"]
+    },
+    "vendor": {
+      "title": "Vendor",
+      "description": "Represents third-party agencies or partners",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "tier": { "type": "string" },
+        "responseRate": { "type": "number" },
+        "performanceScore": { "type": "number" }
+      },
+      "required": ["id", "companyName"]
+    },
+    "requirement": {
+      "title": "Requirement",
+      "description": "Represents job orders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "accountId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" }
+      },
+      "required": ["id", "accountId", "title"]
+    },
+    "systemEvent": {
+      "title": "System Event",
+      "description": "Immutable ledger of actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "eventType": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "eventType", "entityType", "entityId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/account" },
+      "description": "Stores accounts"
+    },
+    "contacts/{contactId}": {
+      "schema": { "$ref": "#/entities/contact" },
+      "description": "Stores contacts"
+    },
+    "vendors/{vendorId}": {
+      "schema": { "$ref": "#/entities/vendor" },
+      "description": "Stores vendors"
+    },
+    "requirements/{requirementId}": {
+      "schema": { "$ref": "#/entities/requirement" },
+      "description": "Stores requirements"
+    },
+    "system_events/{eventId}": {
+      "schema": { "$ref": "#/entities/systemEvent" },
+      "description": "Stores system events"
+    }
+  }
+}

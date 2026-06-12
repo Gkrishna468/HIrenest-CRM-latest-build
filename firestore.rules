@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isValidAccount(data) {
+      return data.keys().hasAll(['id', 'companyName', 'ownerId', 'industry', 'status']) &&
+             data.keys().size() == 5 &&
+             data.id is string && data.id.size() <= 128 &&
+             data.companyName is string && data.companyName.size() <= 200 &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             data.industry is string && data.industry.size() <= 200 &&
+             data.status is string && data.status.size() <= 50;
+    }
+    
+    match /accounts/{accountId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(accountId) && isValidAccount(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(accountId) && isValidAccount(incoming()) && incoming().ownerId == existing().ownerId && incoming().id == existing().id &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'industry', 'status']);
+      allow delete: if false;
+    }
+    
+    function isValidContact(data) {
+       return data.keys().hasAll(['id', 'accountId', 'name', 'designation', 'email', 'phone']) &&
+              data.keys().size() == 6 &&
+              data.id is string && data.id.size() <= 128 &&
+              data.accountId is string && data.accountId.size() <= 128 &&
+              data.name is string && data.name.size() <= 200 &&
+              data.designation is string && data.designation.size() <= 200 &&
+              data.email is string && data.email.size() <= 255 &&
+              data.phone is string && data.phone.size() <= 50;
+    }
+    
+    match /contacts/{contactId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(contactId) && isValidContact(incoming()) && exists(/databases/$(database)/documents/accounts/$(incoming().accountId));
+      allow update: if isSignedIn() && isValidId(contactId) && isValidContact(incoming()) && incoming().accountId == existing().accountId && incoming().id == existing().id &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'designation', 'email', 'phone']);
+      allow delete: if false;
+    }
+
+    function isValidVendor(data) {
+       return data.keys().hasAll(['id', 'companyName', 'tier', 'responseRate', 'performanceScore']) &&
+              data.keys().size() == 5 &&
+              data.id is string && data.id.size() <= 128 &&
+              data.companyName is string && data.companyName.size() <= 200 &&
+              data.tier is string && data.tier.size() <= 50 &&
+              data.responseRate is number && data.responseRate >= 0 && data.responseRate <= 100 &&
+              data.performanceScore is number && data.performanceScore >= 0 && data.performanceScore <= 100;
+    }
+
+    match /vendors/{vendorId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(vendorId) && isValidVendor(incoming());
+      allow update: if isSignedIn() && isValidId(vendorId) && isValidVendor(incoming()) && incoming().id == existing().id &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'tier', 'responseRate', 'performanceScore']);
+      allow delete: if false;
+    }
+    
+    function isValidRequirement(data) {
+       return data.keys().hasAll(['id', 'accountId', 'title', 'status', 'priority']) &&
+              data.keys().size() == 5 &&
+              data.id is string && data.id.size() <= 128 &&
+              data.accountId is string && data.accountId.size() <= 128 &&
+              data.title is string && data.title.size() <= 200 &&
+              data.status is string && data.status.size() <= 50 &&
+              data.priority is string && data.priority.size() <= 50;
+    }
+
+    match /requirements/{requirementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(requirementId) && isValidRequirement(incoming()) && exists(/databases/$(database)/documents/accounts/$(incoming().accountId));
+      allow update: if isSignedIn() && isValidId(requirementId) && isValidRequirement(incoming()) && incoming().accountId == existing().accountId && incoming().id == existing().id &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'status', 'priority']);
+      allow delete: if false;
+    }
+    
+    function isValidSystemEvent(data) {
+       return data.keys().hasAll(['id', 'eventType', 'entityType', 'entityId', 'actorId', 'timestamp']) &&
+              data.keys().size() == 6 &&
+              data.id is string && data.id.size() <= 128 &&
+              data.eventType is string && data.eventType.size() <= 128 &&
+              data.entityType is string && data.entityType.size() <= 128 &&
+              data.entityId is string && data.entityId.size() <= 128 &&
+              data.actorId is string && data.actorId.size() <= 128 &&
+              data.timestamp is string && data.timestamp.size() <= 128;
+    }
+
+    match /system_events/{eventId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(eventId) && isValidSystemEvent(incoming());
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

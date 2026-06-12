@@ -1,0 +1,11 @@
+{
+  "name": "HireNest Enterprise CRM",
+  "description": "Autonomous Recruitment Operating System with AI-driven matching, vendor/client management, and automated hiring workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "recruitment",
+    "ai-agents",
+    "workflow-automation",
+    "marketplace"
+  ]
+}
