@@ -158,8 +158,8 @@ service cloud.firestore {
     }
 
     function isValidMigrationMetrics(data) {
-        return data.keys().hasAll(['id', 'timestamp', 'collectionName', 'supabaseCount', 'firebaseCount', 'parity', 'fieldParity', 'status']) &&
-               data.keys().size() == 8 &&
+        return data.keys().hasAll(['id', 'timestamp', 'collectionName', 'supabaseCount', 'firebaseCount', 'parity', 'fieldParity', 'relationshipParity', 'status']) &&
+               data.keys().size() == 9 &&
                data.id is string && data.id.size() <= 128 &&
                data.timestamp is string && data.timestamp.size() <= 128 &&
                data.collectionName is string && data.collectionName.size() <= 128 &&
@@ -167,6 +167,7 @@ service cloud.firestore {
                data.firebaseCount is number &&
                data.parity is number &&
                data.fieldParity is number &&
+               data.relationshipParity is number &&
                data.status is string && data.status.size() <= 50;
     }
 

@@ -13,6 +13,7 @@ interface Metric {
   firebaseCount: number;
   parity: number;
   fieldParity: number;
+  relationshipParity: number;
   status: string;
 }
 
@@ -45,7 +46,7 @@ export default function MigrationDashboard() {
 
   const cutoverStatus = useMemo(() => {
     if (metrics.length === 0) return 'NOT READY';
-    const recentFailures = metrics.slice(0, 6).some(m => m.status === 'FAIL' || m.fieldParity < 100);
+    const recentFailures = metrics.slice(0, 6).some(m => m.status === 'FAIL' || m.fieldParity < 100 || m.relationshipParity < 100);
     if (recentFailures) return 'NOT READY';
     return 'READY FOR PHASE 5';
   }, [metrics]);
@@ -117,13 +118,14 @@ export default function MigrationDashboard() {
                 <th className="px-6 py-4 text-center">Firebase Count</th>
                 <th className="px-6 py-4 text-center">Record Parity</th>
                 <th className="px-6 py-4 text-center">Field Parity</th>
+                <th className="px-6 py-4 text-center">Rel. Parity</th>
                 <th className="px-6 py-4 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {metrics.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
                     No parity checks recorded yet. They run automatically on data load.
                   </td>
                 </tr>
@@ -144,8 +146,13 @@ export default function MigrationDashboard() {
                         {metric.fieldParity ?? 0}%
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-2 py-1 rounded font-bold text-xs ${metric.relationshipParity === 100 ? 'bg-emerald-100 text-emerald-700' : (metric.relationshipParity >= 90 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700')}`}>
+                        {metric.relationshipParity ?? 0}%
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      {metric.status === 'PASS' && metric.fieldParity === 100 ? (
+                      {metric.status === 'PASS' && metric.fieldParity === 100 && metric.relationshipParity === 100 ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs uppercase tracking-widest">
                           <CheckCircle2 className="w-4 h-4" /> PASS
                         </span>
