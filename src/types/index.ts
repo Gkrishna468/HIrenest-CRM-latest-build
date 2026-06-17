@@ -235,3 +235,54 @@ export interface MatchResult {
   recommendation: 'shortlist' | 'reserve' | 'reject';
   missing_info: string[];
 }
+
+export interface GmailConnection {
+  id: string; // The user's UID ideally or a generated ID
+  userId: string;
+  email: string;
+  status: 'active' | 'disconnected' | 'error';
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GmailMessage {
+  id: string;
+  threadId: string;
+  connectionId: string;
+  historyId: string;
+  internalDate: string;
+  snippet: string;
+  subject: string;
+  from: string;
+  to: string;
+  bodyPlain?: string;
+  bodyHtml?: string;
+  hasAttachment: boolean;
+  status: 'unread' | 'read' | 'processed';
+  createdAt: string;
+}
+
+export interface EmailThread {
+  id: string;
+  connectionId: string;
+  historyId: string;
+  snippet: string;
+  messageCount: number;
+  status: 'active' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailAttachment {
+  id: string;
+  messageId: string;
+  connectionId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  attachmentId: string; // Google's attachmentId
+  status: 'pending' | 'parsed' | 'failed';
+  storageUrl?: string; // If we download it to Firebase Storage
+  createdAt: string;
+}

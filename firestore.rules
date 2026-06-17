@@ -179,5 +179,31 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    match /gmail_connections/{connId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn(); // Basic rules for now, to be locked down later
+      allow delete: if false;
+    }
+
+    match /gmail_messages/{msgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false; // immutable emails
+      allow delete: if false;
+    }
+
+    match /email_threads/{threadId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    match /email_attachments/{attachId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false; 
+      allow delete: if false;
+    }
   }
 }

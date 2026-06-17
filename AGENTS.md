@@ -49,23 +49,42 @@ Status: FROZEN
 - **Forbidden**: New AI features, Schema changes, Collection renames, New integrations, UI redesigns, Vendor automation.
 - Feature freeze protects migration integrity.
 
-## Phase 7 & 8 Vision: Revenue Intelligence Engine
-- **Core Principle**: Vendor -> Submission -> Client Feedback -> SLA Tracking -> Follow-up Automation -> Redeployment -> Revenue.
-- **North Star**: Every profile submitted must either become Feedback, Interview, Offer, Join, or Redeployment. No candidate should disappear into email threads.
-- **Gmail Integration Architecture**: Must use Server-side OAuth, Refresh Tokens, and Firebase Cloud Functions (via Pub/Sub push notifications - no browser OAuth for background syncs). Data flows to `gmail_connections`, `gmail_messages`.
-- **Sprint 2 — Excel Parser**: Intercept Vendor emails -> Parse attachment (Name, Skill, Exp, Location, CTC, Notice Period) -> Auto-create `candidate_profiles`, `submission_batches`, `candidate_submissions` mapped to Vendor and Client Requirements.
-- **Sprint 3 — Follow-Up Engine**: Deterministic rules (e.g. Feedback > 3 days -> Draft Email -> Notify Founder. Feedback > 7 days -> Escalate High Priority).
-- **Vendor & Client Analytics**: Track conversion gaps inside OS Vendor Workspaces.
-- **Candidate Redeployment Engine**: Detect candidates waiting > 5 Days with > 85% match score for other requirements -> Auto-generate alternate deployment suggestions -> Founder approves -> Resubmit. Converts idle inventory into revenue.
+## HireNest v1.0 Architecture (Frozen)
+- **HireNest CRM**: Commercial Command Center (Relationship Layer). Owns: `crm_leads`, `crm_accounts`, `crm_contacts`, `crm_vendor_accounts`, `crm_opportunities`, `crm_followups`, `crm_communications`, `crm_campaigns`.
+- **HireNestOS**: Execution Engine (Fulfillment Layer). Owns: `requirements`, `candidates`, `submissions`, `interviews`, `offers`, `placements`, `deal_rooms`.
+- **system_events**: Company Ledger (Event Fabric).
+- **Firebase**: Enterprise SSOT.
+- **Shared Domain**: `system_events`, `integration_mappings`, `audit_logs`, `workflow_instances`.
 - **Workspace Provisioning**: No dual writes. Create Vendor/Client -> Create Firebase Auth User -> Emit `VENDOR_CREATED`/`CLIENT_CREATED` -> OS Listener Creates Workspace.
-- **Memanto Integration Strategy**: Implement only after workflows are stable. Use cases: Vendor Relationship Memory, Client History, Conversation Memory, Follow-up Context, Account Intelligence.
-- **New Collections**: `gmail_connections`, `submission_batches`, `candidate_submissions`, `client_feedback`, `vendor_scorecards`, `candidate_redeployment`, `feedback_sla`, `revenue_forecast`.
 
-## Architecture Verdict
-- **HireNest CRM**: Commercial Command Center (Relationship Layer)
-- **HireNestOS**: Execution Engine (Fulfillment Layer)
-- **system_events**: Company Ledger (Event Fabric)
-- **Firebase**: Enterprise SSOT
+## Founder Principle
+- **North Star**: "No Profile Left Behind". Every profile submitted must either become Feedback, Interview, Offer, Join, or Redeployment. No candidate should disappear into email threads.
+
+## Executive Sprints & Execution Phase
+- **Sprint 1: Gmail Ingestion Engine**: Highest ROI. Google Workspace Gmail API -> Pub/Sub Webhooks -> Cloud Functions -> Firestore -> `system_events`. Strict avoidance of browser-managed OAuth in favor of Server-Side Refresh Tokens and Service Account Processing. Collections: `gmail_connections`, `gmail_messages`, `email_threads`, `attachments`.
+- **Sprint 2: Vendor Excel Parser**: Intercept Vendor emails -> Parse attachment -> Extract Candidates -> Auto-create `submission_batches`, `candidate_submissions`, `candidate_feedback` mapped to Vendor and Client Requirements -> Create Follow-up -> Generate Event.
+- **Sprint 3: Feedback SLA Engine**: Deterministic rules. 3 Days -> Reminder. 7 Days -> Escalation. 10 Days -> Founder Alert. Generates events: `CLIENT_DELAYED`, `FOLLOWUP_REQUIRED`, `REVENUE_BLOCKED`. Dashboard tracks pending feedback, average delay, and revenue blocked.
+- **Sprint 4: Candidate Redeployment Engine**: High ROI focus. Detect candidates waiting > 5 Days with > 85% match score for other requirements -> Auto-suggest alternate deployment -> Founder approves -> Resubmit. Converts idle inventory into revenue.
+
+## Vendor Intelligence Agent
+- Represents a BDM. Reads Gmail, identifies Vendor/Client/Requirement, counts profiles shared, tracks feedback status, schedules follow-ups, escalates delays, suggests redeployment.
+- **Crucial Flow**: Agent proposes -> Founder approves -> System executes.
+
+## Memanto Integration Strategy
+- Delay implementation until base workflows are rock solid. Use cases: Vendor Relationship Memory, Client History, Conversation Memory, Follow-up Context, Account Intelligence (Not as the transaction engine).
+
+## Production Readiness Checklist (Pre-Gmail Automation)
+- [ ] Firebase migration complete
+- [ ] Phase 5 read cutover complete
+- [ ] Phase 6 write cutover complete
+- [ ] Gmail OAuth server-side only
+- [ ] Refresh tokens encrypted
+- [ ] Event idempotency enabled
+- [ ] `system_events` immutable
+- [ ] Role-based access enforced
+- [ ] Disaster recovery tested
+- [ ] Replay tests successful
+
 
 ## UI/UX Philosophy
 - Clean, minimal, high-contrast layouts.
