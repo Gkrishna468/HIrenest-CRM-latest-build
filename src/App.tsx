@@ -24,6 +24,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import PublicApply from './pages/PublicApply';
 import MigrationDashboard from './pages/MigrationDashboard';
+import ClientFeedbackTracker from './pages/ClientFeedbackTracker';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/communication" element={<PrivateRoute><CommunicationCenter /></PrivateRoute>} />
             <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
             <Route path="/migration" element={<PrivateRoute><MigrationDashboard /></PrivateRoute>} />
+            <Route path="/intelligence" element={<PrivateRoute><ClientFeedbackTracker /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

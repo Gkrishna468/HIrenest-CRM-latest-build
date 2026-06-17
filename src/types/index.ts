@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type Role = 'admin' | 'client_manager' | 'vendor_manager' | 'recruiter' | 'manager' | 'vendor' | 'client' | 'viewer';
+export type Role = 'admin' | 'founder' | 'client_manager' | 'vendor_manager' | 'recruiter' | 'manager' | 'vendor' | 'client' | 'viewer';
 
 export interface Company {
   id: string;

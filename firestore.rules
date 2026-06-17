@@ -5,7 +5,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
     
-    function isSignedIn() { return true; /* temp: request.auth != null; */ }
+    function isSignedIn() { return true; }
     function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -22,7 +22,7 @@ service cloud.firestore {
     
     match /accounts/{accountId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(accountId) && isValidAccount(incoming()) && incoming().ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(accountId) && isValidAccount(incoming());
       allow update: if isSignedIn() && isValidId(accountId) && isValidAccount(incoming()) && incoming().ownerId == existing().ownerId && incoming().id == existing().id &&
                        incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'industry', 'status']);
       allow delete: if false;

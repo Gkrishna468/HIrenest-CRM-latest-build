@@ -80,7 +80,7 @@ export function Sidebar() {
           </div>
           {user?.role === 'admin' && (
             <div className="pt-4 mt-4 border-t border-slate-800">
-               <h3 className="px-4 text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Executive View</h3>
+                <h3 className="px-4 text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Executive View</h3>
                <div className="space-y-1">
                  <NavLink
                     to={'/migration'}
@@ -95,6 +95,21 @@ export function Sidebar() {
                   >
                     <ShieldCheck className="w-5 h-5" />
                     <span className="font-medium text-sm">Migration Health</span>
+                  </NavLink>
+
+                  <NavLink
+                    to={'/intelligence'}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group",
+                        isActive 
+                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+                          : "hover:bg-slate-800 hover:text-white"
+                      )
+                    }
+                  >
+                    <BrainCircuit className="w-5 h-5" />
+                    <span className="font-medium text-sm">Intelligence Tracker</span>
                   </NavLink>
                </div>
             </div>
