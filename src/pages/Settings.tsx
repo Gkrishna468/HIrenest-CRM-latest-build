@@ -51,11 +51,23 @@ export default function Settings() {
   };
 
   useEffect(() => {
+    // Handle redirect params from server-side OAuth callback
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('gmail_connected') === 'true') {
+      setGmailConnected(true);
+      toast.success('Gmail integration connected successfully');
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (searchParams.get('gmail_error')) {
+      toast.error('Gmail connection failed');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     // Mock check for Gmail connection in Firebase (assuming check gmail_connections collection)
     const checkGmailFirebase = async () => {
       if (user?.id) {
         // Placeholder for check
-        setGmailConnected(false);
+        // setGmailConnected(true); 
       }
     };
     checkGmailFirebase();
@@ -64,13 +76,15 @@ export default function Settings() {
   const connectGmail = async () => {
     setLoading(true);
     try {
-      // Simulate server-side OAuth flow trigger
-      await new Promise(r => setTimeout(r, 1500));
-      setGmailConnected(true);
-      toast.success('Gmail Server-Side integration connected via Firebase');
+      const response = await fetch(`/api/auth/gmail/url?userId=${user?.id}`);
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('Failed to retrieve authentication URL');
+      }
     } catch (err: any) {
       toast.error(err.message || 'Gmail connection failed');
-    } finally {
       setLoading(false);
     }
   };

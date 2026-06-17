@@ -205,5 +205,12 @@ service cloud.firestore {
       allow update: if false; 
       allow delete: if false;
     }
+
+    match /email_entity_links/{linkId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false; // Immutable audit trail
+      allow delete: if false;
+    }
   }
 }

@@ -286,3 +286,13 @@ export interface EmailAttachment {
   storageUrl?: string; // If we download it to Firebase Storage
   createdAt: string;
 }
+
+export interface EmailEntityLink {
+  id: string;
+  messageId: string;
+  entityType: 'requirement' | 'vendor' | 'candidate' | 'client' | 'submission_batch';
+  entityId: string;
+  confidence: number;
+  createdAt: string;
+}
+
