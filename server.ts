@@ -3,14 +3,15 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
+import { db } from './src/server/firebaseAdmin';
+import { encrypt, decrypt } from './src/server/crypto';
+import { processGmailMessage } from './src/server/gmailService';
+
 // Load environment variables
 dotenv.config();
 
 /**
  * Server-side OAuth logic and Webhook handling for Gmail integration
- * 
- * NOTE: Security operations for the Firestore Database (Admin SDK)
- * normally happen here depending on deployment.
  */
 
 async function startServer() {
@@ -27,8 +28,7 @@ async function startServer() {
     res.json({ status: 'ok', service: 'hirenest-backend' });
   });
 
-  // 2. Mock Pub/Sub webhook for Gmail Notifications
-  // Represents Google Cloud Pub/Sub push subscription endpoint
+  // 2. Pub/Sub webhook for Gmail Notifications
   app.post('/api/webhooks/gmail', async (req, res) => {
     try {
       const pubsubMessage = req.body.message;
@@ -46,10 +46,9 @@ async function startServer() {
 
       console.log(`[Gmail Webhook] Received notification for ${emailAddress}, historyId: ${historyId}`);
 
-      // Here the backend would look up 'gmail_connections' in Firestore
-      // Get the encrypted refresh token, instantiate the OAuth client,
-      // and call the Gmail history API to get changed messages.
-      // Then process them into 'gmail_messages', 'email_threads' and emit 'EMAIL_RECEIVED' to 'system_events'
+      // Process the message (this handles fetching from Gmail and saving to Firestore)
+      // Run it asynchronously to avoid webhook timeout
+      processGmailMessage(emailAddress, historyId).catch(console.error);
 
       res.status(200).send('OK');
     } catch (error) {
@@ -64,7 +63,7 @@ async function startServer() {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
       process.env.GMAIL_CLIENT_SECRET,
-      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth/gmail/callback'
+      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth/gmail/callback' // MUST be an exact match with Google Cloud Console
     );
 
     const scopes = [
@@ -104,20 +103,53 @@ async function startServer() {
 
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
       const profile = await gmail.users.getProfile({ userId: 'me' });
+      const emailAddress = profile.data.emailAddress;
 
-      // Here we would configure 'gmail_connections' in Firestore
-      // using Admin SDK and save tokens.refresh_token (ideally encrypted)
-      
-      console.log(`[Gmail Auth] Successfully authenticated user: ${profile.data.emailAddress}`);
+      if (!emailAddress) throw new Error("Could not get email address");
+
+      let encryptedRefreshToken = '';
+      if (tokens.refresh_token) {
+        encryptedRefreshToken = encrypt(tokens.refresh_token);
+      }
 
       // Auto-subscribe to push notifications
-      // await gmail.users.watch({
-      //   userId: 'me',
-      //   requestBody: {
-      //     labelIds: ['INBOX'],
-      //     topicName: process.env.PUBSUB_TOPIC_NAME
-      //   }
-      // });
+      let historyId = profile.data.historyId || '';
+      if (process.env.PUBSUB_TOPIC_NAME) {
+        const watchRes = await gmail.users.watch({
+          userId: 'me',
+          requestBody: {
+            labelIds: ['INBOX'],
+            topicName: process.env.PUBSUB_TOPIC_NAME
+          }
+        });
+        historyId = watchRes.data.historyId || historyId;
+        console.log(`[Gmail Auth] Watch registration successful for ${emailAddress}`);
+      }
+
+      // Save to Firestore
+      if (db) {
+        const connRef = db.collection('gmail_connections').doc(); // Generate random ID or use userId
+        await connRef.set({
+          userId: userId || 'unknown',
+          email: emailAddress,
+          status: 'active',
+          historyId: historyId,
+          encryptedRefreshToken: encryptedRefreshToken,
+          watchExpiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Roughly 7 days
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+        // Emit GMAIL_CONNECTED event
+        await db.collection('system_events').add({
+          eventType: 'GMAIL_CONNECTED',
+          entityCollection: 'gmail_connections',
+          entityId: connRef.id,
+          metadata: { email: emailAddress },
+          createdAt: new Date().toISOString()
+        });
+        console.log(`[Gmail Auth] Saved connection and emitted GMAIL_CONNECTED for ${emailAddress}`);
+      }
 
       res.redirect('/settings?gmail_connected=true');
     } catch (error) {
