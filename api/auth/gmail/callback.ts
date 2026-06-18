@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../_lib/firebaseAdmin';
-import { encrypt } from '../../_lib/crypto';
+import { db } from '../../lib/firebaseAdmin';
+import { encrypt } from '../../lib/crypto';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
