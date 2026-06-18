@@ -54,6 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     If the text resembles an email with a job requirement, focus tightly on extracting the requirement.
     If the text resembles a submission from a vendor, focus on extracting the candidate details.
+    If the text resembles an interview schedule or request, focus on extracting the interview details.
 
     INTERACTION TEXT:
     "${text}"
@@ -62,15 +63,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ${JSON.stringify(context || {})}
 
     TASKS:
-    1. PROFILE: Determine if they want to hire (requirement), apply for a job (submission), or partner as a vendor, or other. Extract roles/skills.
+    1. PROFILE: Determine if they want to hire (requirement), apply for a job (submission), schedule/discuss an interview (interview), partner as a vendor, or other. Extract roles/skills.
     2. PITCH: Generate a short, conversion-focused pitch (email/WhatsApp style) in response.
     3. FOLLOW-UP: Decide if we should follow up and when.
-    4. EXTRACTION: If "requirement", extract properties: { title, location, experience, employmentType, status }. If "submission", extract: { candidateName, experience, skills }.
+    4. EXTRACTION: 
+       - If "requirement", extract properties: { title, location, experience, employmentType, status }. 
+       - If "submission", extract: { candidateName, experience, skills }.
+       - If "interview", extract: { client, candidates, interviewType, date, status }.
 
-    RETURN ONLY VALID JSON matching this schema:
+    RETURN ONLY VALID JSON MATCHING THIS EXACT SCHEMA:
     {
       "profile": {
-        "intent": "requirement" | "submission" | "vendor" | "other",
+        "intent": "requirement" | "submission" | "vendor" | "interview" | "other",
         "roles": ["Role 1", "Role 2"],
         "urgency": "high" | "medium" | "low",
         "budget": "high" | "mid" | "low",
@@ -93,13 +97,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "candidateName": "string",
         "experience": "string",
         "skills": ["skill 1"]
+      },
+      "extractedInterview": {
+        "client": "string",
+        "candidates": ["string"],
+        "interviewType": ["string"],
+        "date": "string",
+        "status": "scheduled"
       }
     }
   `;
 
     const result = await aiClient.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json'
+      }
     });
 
     const cleanText = (result.text || '').replace(/```json|```/g, "").trim();
@@ -111,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          type: 'brain_process',
          message: `AI Brain processed interaction: ${insight.profile.intent}`,
          timestamp: new Date().toISOString(),
-         data: { emailId, intent: insight.profile.intent }
+         data: { emailId: emailId || null, intent: insight.profile.intent }
        });
        
        // Update email with AI Analysis
@@ -125,6 +139,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (insight.profile.intent === 'requirement' && insight.extractedRequirement?.title) {
               await db.collection('requirements').add({
                  ...insight.extractedRequirement,
+                 sourceEmailId: emailId,
+                 sourceContext: context,
+                 createdAt: new Date().toISOString()
+              });
+          }
+          
+          if (insight.profile.intent === 'submission' && insight.extractedSubmission?.candidateName) {
+              await db.collection('submissions').add({
+                 ...insight.extractedSubmission,
+                 sourceEmailId: emailId,
+                 sourceContext: context,
+                 createdAt: new Date().toISOString()
+              });
+          }
+
+          if (insight.profile.intent === 'interview' && insight.extractedInterview?.client) {
+              await db.collection('interviews').add({
+                 ...insight.extractedInterview,
                  sourceEmailId: emailId,
                  sourceContext: context,
                  createdAt: new Date().toISOString()

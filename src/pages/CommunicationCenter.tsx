@@ -375,6 +375,37 @@ export default function CommunicationCenter() {
                         </button>
                       </div>
                     )}
+                    {insight.extractedInterview && (
+                      <div className="p-4 bg-purple-50 border border-purple-100 rounded-2xl mt-4">
+                        <div className="flex items-center justify-between mb-3">
+                           <span className="text-[10px] font-black text-purple-800 uppercase tracking-widest flex items-center gap-1">
+                             <Zap className="w-3 h-3" /> Extracted Interview
+                           </span>
+                        </div>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between border-b border-purple-100 pb-1">
+                            <span className="text-purple-500 font-bold uppercase text-[9px]">Client</span>
+                            <span className="font-black text-purple-900 truncate pl-2">{insight.extractedInterview.client}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-purple-100 pb-1">
+                            <span className="text-purple-500 font-bold uppercase text-[9px]">Type</span>
+                            <span className="font-bold text-purple-900 truncate pl-2">{insight.extractedInterview.interviewType?.join(', ')}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-purple-100 pb-1">
+                            <span className="text-purple-500 font-bold uppercase text-[9px]">Date</span>
+                            <span className="font-bold text-purple-900 truncate pl-2">{insight.extractedInterview.date}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {insight.extractedInterview.candidates?.map((c: string, i: number) => (
+                             <span key={i} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-md text-[9px] font-bold">{c}</span>
+                          ))}
+                        </div>
+                        <button className="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
+                          Schedule Interview
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-slate-400 text-xs text-center py-8">Select a message for AI insights.</div>
