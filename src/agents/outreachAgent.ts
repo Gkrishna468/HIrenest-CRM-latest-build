@@ -22,7 +22,7 @@ export async function runOutreachAgent() {
 
   for (const candidate of candidates) {
     // Skip if already contacted for this stage
-    if (candidate.outreach_logs && candidate.outreach_logs.length > 0) continue;
+    if (candidate.outreach_logs && candidate.outreach_logs?.length > 0) continue;
 
     // Generate Personalized Outreach
     const subject = `Opportunity: ${candidate.current_title || 'New Role'} at HireNest Ecosystem`;

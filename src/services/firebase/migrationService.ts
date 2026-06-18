@@ -41,21 +41,21 @@ export const migrationService = {
       // Ensure that actual parity compares Record Count and Field Parity
       const evaluateFieldParity = (supaCollection: any[], fbCollection: any[]) => {
           if (!supaCollection || !fbCollection) return 100;
-          if (supaCollection.length === 0 && fbCollection.length === 0) return 100;
+          if (supaCollection?.length === 0 && fbCollection?.length === 0) return 100;
           // Deep field analysis mock (Since schemas slightly vary in legacy, we simulate a 100% or 98% based on match)
           return 100; // Simulated 100% for successful sync
       };
       
       const evaluateRelationshipParity = (supaCollection: any[], fbCollection: any[]) => {
           if (!supaCollection || !fbCollection) return 100;
-          if (supaCollection.length === 0 && fbCollection.length === 0) return 100;
+          if (supaCollection?.length === 0 && fbCollection?.length === 0) return 100;
           // Mock relationship validation (e.g. Account -> Contacts consistency)
           return 100;
       };
 
       const evaluateEventParity = (supaCollection: any[], fbCollection: any[]) => {
           if (!supaCollection || !fbCollection) return 100;
-          if (supaCollection.length === 0 && fbCollection.length === 0) return 100;
+          if (supaCollection?.length === 0 && fbCollection?.length === 0) return 100;
           // Mock event validation (e.g. ensuring system_events matches history)
           return 100;
       };
@@ -76,9 +76,9 @@ export const migrationService = {
         timestamp: new Date().toISOString(),
         overall: 'PENDING',
         collections: {
-          accounts: { supabase: supabaseData.clients?.length || 0, firebase: fbAccounts.length, fieldParity: accountsFieldParity, relationshipParity: accountsRelParity, eventParity: accountsEventParity, pass: false },
-          vendors: { supabase: supabaseData.vendors?.length || 0, firebase: fbVendors.length, fieldParity: vendorsFieldParity, relationshipParity: vendorsRelParity, eventParity: vendorsEventParity, pass: false },
-          requirements: { supabase: supabaseData.jobs?.length || 0, firebase: fbRequirements.length, fieldParity: requirementsFieldParity, relationshipParity: requirementsRelParity, eventParity: requirementsEventParity, pass: false }
+          accounts: { supabase: supabaseData.clients?.length || 0, firebase: fbAccounts?.length, fieldParity: accountsFieldParity, relationshipParity: accountsRelParity, eventParity: accountsEventParity, pass: false },
+          vendors: { supabase: supabaseData.vendors?.length || 0, firebase: fbVendors?.length, fieldParity: vendorsFieldParity, relationshipParity: vendorsRelParity, eventParity: vendorsEventParity, pass: false },
+          requirements: { supabase: supabaseData.jobs?.length || 0, firebase: fbRequirements?.length, fieldParity: requirementsFieldParity, relationshipParity: requirementsRelParity, eventParity: requirementsEventParity, pass: false }
         }
       };
       

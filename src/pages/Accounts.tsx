@@ -97,7 +97,7 @@ export default function Clients() {
           <div className="space-y-4">
             {loading ? (
               [1, 2].map(i => <div key={i} className="bg-white h-24 rounded-2xl border border-slate-100 animate-pulse" />)
-            ) : filteredClients.length > 0 ? (
+            ) : filteredClients?.length > 0 ? (
               filteredClients.map(client => (
                 <div key={client.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
                   <div className="flex items-start justify-between">
@@ -329,13 +329,13 @@ export default function Clients() {
                       <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
                         <p className="text-[10px] font-bold text-indigo-400 uppercase">Open Jobs</p>
                         <p className="text-lg font-black text-indigo-700">
-                          {jobs.filter((j: any) => j.client_id === selectedClient.id || j.client_name === selectedClient.company).length}
+                          {jobs.filter((j: any) => j.client_id === selectedClient.id || j.client_name === selectedClient.company)?.length}
                         </p>
                       </div>
                       <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                         <p className="text-[10px] font-bold text-emerald-400 uppercase">Hires</p>
                         <p className="text-lg font-black text-emerald-700">
-                          {candidates.filter((c: any) => (c.client_id === selectedClient.id || c.client_name === selectedClient.company) && c.stage === 'hired').length}
+                          {candidates.filter((c: any) => (c.client_id === selectedClient.id || c.client_name === selectedClient.company) && c.stage === 'hired')?.length}
                         </p>
                       </div>
                     </div>

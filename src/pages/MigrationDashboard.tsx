@@ -46,15 +46,15 @@ export default function MigrationDashboard() {
   };
 
   const cutoverStatus = useMemo(() => {
-    if (metrics.length === 0) return 'NOT READY';
+    if (metrics?.length === 0) return 'NOT READY';
     const recentFailures = metrics.slice(0, 6).some(m => m.status === 'FAIL' || m.fieldParity < 100 || m.relationshipParity < 100 || (m.eventParity ?? 100) < 100);
     if (recentFailures) return 'NOT READY';
     return 'READY FOR PHASE 5';
   }, [metrics]);
 
   const migrationConfidence = useMemo(() => {
-    if (metrics.length === 0) return 0;
-    const avgScore = metrics.reduce((acc, m) => acc + (m.parity + m.fieldParity + m.relationshipParity + (m.eventParity ?? 100)) / 4, 0) / metrics.length;
+    if (metrics?.length === 0) return 0;
+    const avgScore = metrics.reduce((acc, m) => acc + (m.parity + m.fieldParity + m.relationshipParity + (m.eventParity ?? 100)) / 4, 0) / metrics?.length;
     return avgScore.toFixed(2);
   }, [metrics]);
 
@@ -147,7 +147,7 @@ export default function MigrationDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {metrics.length === 0 ? (
+              {metrics?.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-8 text-center text-slate-500">
                     No parity checks recorded yet. They run automatically on data load.

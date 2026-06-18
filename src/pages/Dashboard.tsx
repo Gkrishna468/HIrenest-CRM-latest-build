@@ -26,7 +26,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   
   const totalRevenue = deals.reduce((sum, d) => sum + (Number(d.revenue_amount) || 0), 0);
-  const closedDeals = deals.filter(d => d.status === 'placed').length;
+  const closedDeals = deals.filter(d => d.status === 'placed')?.length;
   // Stubbing additional stat values. For a real dashboard, these would derive from the data sets.
   const activeFollowUps = 5;
   const submissionsDue = 12;
@@ -35,9 +35,9 @@ export default function Dashboard() {
 
   // Founder/CEO Business Health Score calculation
   const healthScore = useMemo(() => {
-    const revenueHealth = deals.filter(d => d.stage === 'closed_won').length > 0 ? 100 : 85;
-    const vendorActivity = vendors.length > 0 ? 95 : 70;
-    const reqVelocity = jobs.filter(j => j.status === 'open').length > 0 ? 90 : 80;
+    const revenueHealth = deals.filter(d => d.stage === 'closed_won')?.length > 0 ? 100 : 85;
+    const vendorActivity = vendors?.length > 0 ? 95 : 70;
+    const reqVelocity = jobs.filter(j => j.status === 'open')?.length > 0 ? 90 : 80;
     return Math.round((revenueHealth + vendorActivity + reqVelocity) / 3);
   }, [deals, vendors, jobs]);
 
@@ -53,9 +53,9 @@ export default function Dashboard() {
   const welcome = getWelcomeMessage();
 
   const stats = [
-    { label: 'Active Accounts', value: clients.length, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'Open Requirements', value: jobs.length, icon: Briefcase, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-    { label: 'Active Vendors', value: vendors.length, icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { label: 'Active Accounts', value: clients?.length, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { label: 'Open Requirements', value: jobs?.length, icon: Briefcase, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { label: 'Active Vendors', value: vendors?.length, icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
     { label: 'Revenue Forecast', value: `$${totalRevenue.toLocaleString()}`, icon: CircleDollarSign, color: 'text-emerald-600', bg: 'bg-emerald-100' },
     { label: 'Follow-ups Due Today', value: activeFollowUps, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
   ];
@@ -174,7 +174,7 @@ export default function Dashboard() {
             <div className="relative z-10">
               <h3 className="text-xl font-bold mb-2">Revenue Potential</h3>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                Current active pipeline stands at <strong>${totalRevenue.toLocaleString()}</strong> across {jobs.length} requirements. Priority fulfillment focus required on 3 stale accounts. 
+                Current active pipeline stands at <strong>${totalRevenue.toLocaleString()}</strong> across {jobs?.length} requirements. Priority fulfillment focus required on 3 stale accounts. 
               </p>
               <button 
                 onClick={() => window.location.href = '/revenue'}

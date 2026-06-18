@@ -193,7 +193,7 @@ export async function runDecisionAgent() {
     .select('*')
     .eq('stage', 'screening');
 
-  if (!candidates || candidates.length === 0) return "No pending candidates in screening.";
+  if (!candidates || candidates?.length === 0) return "No pending candidates in screening.";
 
   // 3. Find Open Jobs
   const { data: jobs } = await supabase
@@ -201,7 +201,7 @@ export async function runDecisionAgent() {
     .select('*')
     .eq('status', 'open');
 
-  if (!jobs || jobs.length === 0) return "No open jobs found.";
+  if (!jobs || jobs?.length === 0) return "No open jobs found.";
 
   let decisions = 0;
   let reviews = 0;
@@ -247,7 +247,7 @@ export async function runDecisionAgent() {
   // 4. Log Completion
   await supabase.from('agent_logs').insert({
     type: 'decision',
-    message: `Cycle complete. Processed ${candidates.length} profiles. Auto-Shortlisted: ${decisions} | Flagged for Review: ${reviews}.`,
+    message: `Cycle complete. Processed ${candidates?.length} profiles. Auto-Shortlisted: ${decisions} | Flagged for Review: ${reviews}.`,
     level: 'success',
     status: 'finished'
   });

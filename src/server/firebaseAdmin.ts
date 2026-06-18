@@ -1,22 +1,24 @@
-import admin from 'firebase-admin';
+import { initializeApp, getApps, applicationDefault } from 'firebase-admin/app';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import dotenv from 'dotenv';
 dotenv.config();
 
-let db: admin.firestore.Firestore;
+let db: Firestore | null = null;
+let adminApp: any = null;
 
-if (!admin.apps.length) {
+if (!(getApps()?.length)) {
   try {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault()
+    adminApp = initializeApp({
+      credential: applicationDefault()
     });
-    db = admin.firestore();
+    db = getFirestore(adminApp);
   } catch (error) {
     console.error('Firebase admin initialization error:', error);
-    // Fallback for development if without credentials
-    // Note: In real production, service accounts are mandatory.
   }
 } else {
-  db = admin.firestore();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const app = getApps()[0];
+  db = getFirestore();
 }
 
-export { db, admin };
+export { db };

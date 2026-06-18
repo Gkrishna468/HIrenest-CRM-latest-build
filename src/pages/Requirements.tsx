@@ -149,7 +149,7 @@ export default function Jobs() {
             <div key={i} className="bg-white h-48 rounded-2xl border border-slate-100 shadow-sm" />
           ))}
         </div>
-      ) : filteredJobs.length > 0 ? (
+      ) : filteredJobs?.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredJobs.map((job) => (
             <div key={job.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden flex flex-col">
@@ -183,9 +183,9 @@ export default function Jobs() {
                       {skill}
                     </span>
                   ))}
-                  {safeArray(job.skills).length > 3 && (
+                  {safeArray(job.skills)?.length > 3 && (
                     <span className="px-2 py-1 bg-slate-50 text-slate-400 text-[10px] font-bold rounded">
-                      +{safeArray(job.skills).length - 3} MORE
+                      +{safeArray(job.skills)?.length - 3} MORE
                     </span>
                   )}
                 </div>

@@ -93,7 +93,7 @@ export default function DealRoom() {
             </div>
             
             <div className="divide-y divide-slate-100">
-              {deals.length > 0 ? (
+              {deals?.length > 0 ? (
                 deals.map((deal, i) => (
                   <div key={deal.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-6 group">
                     <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors shrink-0">
