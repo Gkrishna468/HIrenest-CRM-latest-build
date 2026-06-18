@@ -60,26 +60,31 @@ async function startServer() {
   // 3. Initiate Gmail OAuth Flow
   // This avoids browser OAuth completely by handling it purely Server-Side.
   app.get('/api/auth/gmail/url', (req, res) => {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GMAIL_CLIENT_ID,
-      process.env.GMAIL_CLIENT_SECRET,
-      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth/gmail/callback' // MUST be an exact match with Google Cloud Console
-    );
+    try {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GMAIL_CLIENT_ID,
+        process.env.GMAIL_CLIENT_SECRET,
+        process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth/gmail/callback' // MUST be an exact match with Google Cloud Console
+      );
 
-    const scopes = [
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.modify'
-    ];
+      const scopes = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.modify'
+      ];
 
-    const url = oauth2Client.generateAuthUrl({
-      access_type: 'offline', // Demands a refresh token
-      prompt: 'consent', // Forces the consent screen to guarantee refresh token
-      scope: scopes,
-      // Pass user ID into state to link connection back to user
-      state: req.query.userId as string
-    });
+      const url = oauth2Client.generateAuthUrl({
+        access_type: 'offline', // Demands a refresh token
+        prompt: 'consent', // Forces the consent screen to guarantee refresh token
+        scope: scopes,
+        // Pass user ID into state to link connection back to user
+        state: req.query.userId as string
+      });
 
-    res.json({ url });
+      res.json({ url });
+    } catch (error: any) {
+      console.error('[Gmail Auth URL Error]', error);
+      res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
   });
 
   // 4. Gmail OAuth Callback

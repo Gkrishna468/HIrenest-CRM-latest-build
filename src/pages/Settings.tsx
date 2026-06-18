@@ -18,17 +18,23 @@ import {
   Lock,
   Globe,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Activity,
+  History,
+  Link2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { isSupabaseConfigured, reinitializeSupabase, supabase } from '@/lib/supabase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/services/firebase/config';
 
 export default function Settings() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('supabase');
+  const [activeTab, setActiveTab] = useState('gmail');
   const [loading, setLoading] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailData, setGmailData] = useState<any>(null);
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
 
   const [supabaseConfig, setSupabaseConfig] = useState({
@@ -63,11 +69,26 @@ export default function Settings() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // Mock check for Gmail connection in Firebase (assuming check gmail_connections collection)
     const checkGmailFirebase = async () => {
+      // In mixed-mode we still check using user.id from Supabase
       if (user?.id) {
-        // Placeholder for check
-        // setGmailConnected(true); 
+        try {
+          const q = query(
+            collection(db, 'gmail_connections'), 
+            where('userId', '==', user.id),
+            where('status', '==', 'active')
+          );
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            setGmailConnected(true);
+            setGmailData(snapshot.docs[0].data());
+          } else {
+            setGmailConnected(false);
+            setGmailData(null);
+          }
+        } catch (error) {
+          console.error("Failed to fetch gmail_connection", error);
+        }
       }
     };
     checkGmailFirebase();
@@ -77,11 +98,17 @@ export default function Settings() {
     setLoading(true);
     try {
       const response = await fetch(`/api/auth/gmail/url?userId=${user?.id}`);
+      
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to fetch URL: ${response.statusText}`);
+      }
+
       const data = await response.json();
       if (data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error('Failed to retrieve authentication URL');
+        throw new Error('Failed to retrieve authentication URL. Check if endpoint returns proper JSON.');
       }
     } catch (err: any) {
       toast.error(err.message || 'Gmail connection failed');
@@ -240,18 +267,45 @@ export default function Settings() {
 
               <div className="space-y-6">
                 <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center text-center gap-4">
-                  {gmailConnected ? (
+                  {gmailConnected && gmailData ? (
                     <>
                       <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-2">
                         <Mail className="w-8 h-8" />
                       </div>
                       <h3 className="font-bold text-slate-900">Gmail Agent Active</h3>
-                      <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
-                        Currently monitoring <strong>{user?.email}</strong> for new resumes and client emails. Use the Agents dashboard to configure run frequency.
-                      </p>
+                      
+                      <div className="w-full bg-white border border-slate-200 rounded-xl p-4 text-left shadow-sm mt-2 mb-2 grid grid-cols-2 gap-4">
+                        <div className="col-span-2 flex items-center justify-between border-b border-slate-100 pb-3 mb-1">
+                          <span className="text-xs font-bold text-slate-500 uppercase">Account</span>
+                          <span className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                            {gmailData.email} <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-500 uppercase block mb-1">Watch API</span>
+                          <span className="text-xs font-medium text-slate-900 flex items-center gap-1">
+                            <Activity className="w-3 h-3 text-green-500" /> Active
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-500 uppercase block mb-1">Pub/Sub</span>
+                          <span className="text-xs font-medium text-slate-900 flex items-center gap-1">
+                            <Link2 className="w-3 h-3 text-green-500" /> Connected
+                          </span>
+                        </div>
+                        <div className="col-span-2 pt-2 border-t border-slate-100 mt-1">
+                          <span className="text-xs font-bold text-slate-500 uppercase block mb-1 flex items-center gap-1">
+                             <History className="w-3 h-3" /> Last Sync
+                          </span>
+                          <span className="text-xs font-mono text-slate-600">
+                             {gmailData.lastSyncAt ? new Date(gmailData.lastSyncAt).toLocaleString() : new Date(gmailData.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
                       <button 
                         onClick={disconnectGmail}
-                        className="mt-4 px-6 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-sm hover:bg-red-50 transition-all"
+                        className="mt-2 px-6 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-sm hover:bg-red-50 transition-all"
                       >
                         Disconnect Integration
                       </button>
@@ -288,12 +342,13 @@ export default function Settings() {
                       </p>
                       <div className="mt-4 flex items-center gap-3">
                         <code className="px-4 py-2 bg-slate-900 text-indigo-400 rounded-xl text-[10px] font-mono break-all border border-slate-800 select-all">
-                          {window.location.origin}/settings
+                          {window.location.origin}/api/auth/gmail/callback
                         </code>
                         <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest border-b border-amber-300">Copy this exact URL</span>
                       </div>
                     </div>
                   </div>
+
                   
                   <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-[2rem] flex items-start gap-4 mt-4">
                     <Shield className="w-6 h-6 text-indigo-600 shrink-0" />
