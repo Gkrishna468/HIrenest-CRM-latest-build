@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { processGmailMessage } from '../../lib/gmailService.js';
+import { processGmailMessage } from '../../lib/gmailService';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

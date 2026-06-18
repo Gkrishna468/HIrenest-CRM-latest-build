@@ -20,12 +20,13 @@ if (!(getApps()?.length)) {
           privateKey
         })
       });
-      console.log('Firebase admin initialized with cert credentials');
+      console.log(`Firebase admin initialized with cert credentials for project ${projectId}`);
     } else {
       adminApp = initializeApp({
-        credential: applicationDefault()
+        credential: applicationDefault(),
+        projectId: projectId
       });
-      console.log('Firebase admin initialized with applicationDefault');
+      console.log(`Firebase admin initialized with applicationDefault for project ${projectId || 'default'}`);
     }
     db = getFirestore(adminApp);
   } catch (error) {

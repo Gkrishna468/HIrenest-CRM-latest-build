@@ -3,9 +3,9 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
-import { db } from './lib/firebaseAdmin.js';
-import { encrypt, decrypt } from './lib/crypto.js';
-import { processGmailMessage } from './lib/gmailService.js';
+import { db } from './lib/firebaseAdmin';
+import { encrypt, decrypt } from './lib/crypto';
+import { processGmailMessage } from './lib/gmailService';
 
 // Load environment variables
 dotenv.config();

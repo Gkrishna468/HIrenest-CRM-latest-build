@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../../lib/firebaseAdmin.js';
-import { encrypt } from '../../../lib/crypto.js';
+import { db } from '../../../lib/firebaseAdmin';
+import { encrypt } from '../../../lib/crypto';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -57,32 +57,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await logToFirestore("STEP_2_FIRESTORE_WRITE_START");
     let connRefId = '';
-    if (db) {
-      const connRef = db.collection('gmail_connections').doc(); 
-      connRefId = connRef.id;
-      await connRef.set({
-        userId: userId || 'unknown',
-        email: emailAddress,
-        status: 'active',
-        historyId: historyId,
-        encryptedRefreshToken: encryptedRefreshToken,
-        watchExpiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), 
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-
-      // Emit GMAIL_CONNECTED event
-      await db.collection('system_events').add({
-        eventType: 'GMAIL_CONNECTED',
-        entityCollection: 'gmail_connections',
-        entityId: connRef.id,
-        metadata: { email: emailAddress },
-        createdAt: new Date().toISOString()
-      });
-      await logToFirestore("STEP_2_FIRESTORE_WRITE_SUCCESS", { connectionId: connRef.id });
-    } else {
-      await logToFirestore("STEP_2_FIRESTORE_WRITE_SKIPPED_NO_DB");
+    if (!db) {
+      throw new Error("Firestore db is not initialized. Cannot save Gmail connection.");
     }
+
+    const connRef = db.collection('gmail_connections').doc(); 
+    connRefId = connRef.id;
+    await connRef.set({
+      userId: userId || 'unknown',
+      email: emailAddress,
+      status: 'active',
+      historyId: historyId,
+      encryptedRefreshToken: encryptedRefreshToken,
+      watchExpiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), 
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    // Emit GMAIL_CONNECTED event
+    await db.collection('system_events').add({
+      eventType: 'GMAIL_CONNECTED',
+      entityCollection: 'gmail_connections',
+      entityId: connRef.id,
+      metadata: { email: emailAddress },
+      createdAt: new Date().toISOString()
+    });
+    await logToFirestore("STEP_2_FIRESTORE_WRITE_SUCCESS", { connectionId: connRef.id });
 
     // Try Watch API but don't fail the whole connection if it fails
     if (process.env.PUBSUB_TOPIC_NAME) {
