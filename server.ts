@@ -249,6 +249,39 @@ async function startServer() {
     }
   });
 
+  // 5. Gmail List (Mail Dashboard)
+  app.get('/api/gmail/list', async (req, res) => {
+    try {
+      const { default: handler } = await import('./api/gmail/list');
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error('[Gmail List Error]', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 6. Gmail Sync (Mail Dashboard)
+  app.post('/api/gmail/sync', async (req, res) => {
+    try {
+      const { default: handler } = await import('./api/gmail/sync');
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error('[Gmail Sync Error]', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 7. AI Classify
+  app.post('/api/ai/classify', async (req, res) => {
+    try {
+      const { default: handler } = await import('./api/ai/classify');
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error('[AI Classify Error]', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

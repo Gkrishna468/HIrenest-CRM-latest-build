@@ -35,7 +35,7 @@ const crmItems = [
   { icon: Users, label: 'Contacts', path: '/contacts' },
   { icon: Briefcase, label: 'Requirements', path: '/requirements' },
   { icon: Handshake, label: 'Vendors', path: '/vendors' },
-  { icon: MessageSquare, label: 'Communications', path: '/communication' },
+  { icon: Mail, label: 'MailOS', path: '/communication' },
   { icon: History, label: 'Follow-ups', path: '/follow-ups' },
   { icon: TrendingUp, label: 'Revenue Pipeline', path: '/revenue' },
   { icon: FileText, label: 'Reports', path: '/reports' },

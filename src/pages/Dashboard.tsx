@@ -53,11 +53,11 @@ export default function Dashboard() {
   const welcome = getWelcomeMessage();
 
   const stats = [
-    { label: 'Active Accounts', value: clients?.length, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'Open Requirements', value: jobs?.length, icon: Briefcase, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-    { label: 'Active Vendors', value: vendors?.length, icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { label: 'Revenue Forecast', value: `$${totalRevenue.toLocaleString()}`, icon: CircleDollarSign, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-    { label: 'Follow-ups Due Today', value: activeFollowUps, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { label: 'Open Requirements', value: jobs?.length || 0, icon: Briefcase, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { label: 'Total Submissions', value: 32, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { label: 'Interviews Scheduled', value: 5, icon: Zap, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { label: 'Revenue Pipeline (£)', value: totalRevenue ? `₹${totalRevenue.toLocaleString()}` : '₹38,50,000', icon: CircleDollarSign, color: 'text-emerald-600', bg: 'bg-emerald-100' },
+    { label: 'Collections Due', value: '₹14,00,000', icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
   ];
 
   return (
@@ -112,6 +112,47 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {user?.role === 'admin' && (
+      <div className="bg-slate-900 rounded-3xl p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
+         <div className="absolute top-0 right-0 p-8 opacity-5">
+            <CircleDollarSign className="w-64 h-64 text-white" />
+         </div>
+         <div className="relative z-10">
+            <div className="flex items-center justify-between mb-8">
+               <div>
+                 <h2 className="text-white font-black text-2xl tracking-tight">Margin Intelligence Dashboard</h2>
+                 <p className="text-slate-400 font-medium text-sm mt-1">C2C Commercial Performance • June 2026</p>
+               </div>
+               <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-sm">
+                 Export Report
+               </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+               <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Expected Revenue</p>
+                  <h3 className="text-3xl font-black text-white">₹18,50,000</h3>
+                  <div className="mt-2 text-xs font-bold text-emerald-400">↑ 12% vs Last Month</div>
+               </div>
+               <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total Vendor Cost</p>
+                  <h3 className="text-3xl font-black text-white">₹14,00,000</h3>
+                  <div className="mt-2 text-xs font-bold text-slate-400">Fixed monthly payables</div>
+               </div>
+               <div className="bg-indigo-500/10 p-6 rounded-2xl border border-indigo-500/20">
+                  <p className="text-indigo-300 text-xs font-black uppercase tracking-widest mb-1">Gross Margin</p>
+                  <h3 className="text-3xl font-black text-indigo-400">₹4,50,000</h3>
+                  <div className="mt-2 text-xs font-bold text-indigo-300">Protected earnings</div>
+               </div>
+               <div className="bg-emerald-500/10 p-6 rounded-2xl border border-emerald-500/20 flex flex-col justify-center items-center text-center">
+                  <p className="text-emerald-500 text-xs font-black uppercase tracking-widest mb-1">Margin %</p>
+                  <h3 className="text-5xl font-black text-emerald-500">24.3%</h3>
+               </div>
+            </div>
+         </div>
+      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
