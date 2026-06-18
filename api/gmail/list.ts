@@ -37,15 +37,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const emailAddress = req.query.email as string;
+  const userId = req.query.userId as string;
+
   if (!db) {
     return res.status(500).json({ error: 'Firestore not initialized' });
   }
 
   try {
+    let resolvedEmail = emailAddress;
+
+    if (userId) {
+      const connectionSnapshot = await db.collection('gmail_connections').where('userId', '==', userId).limit(1).get();
+      if (!connectionSnapshot.empty) {
+        resolvedEmail = connectionSnapshot.docs[0].data().email;
+      }
+    }
+
     let queryArgs: any = db.collection('emails').orderBy('receivedAt', 'desc').limit(50);
     
-    if (emailAddress) {
-       queryArgs = db.collection('emails').where('userEmail', '==', emailAddress).orderBy('receivedAt', 'desc').limit(50);
+    if (resolvedEmail) {
+       queryArgs = db.collection('emails').where('userEmail', '==', resolvedEmail).orderBy('receivedAt', 'desc').limit(50);
     }
     
     const snapshot = await queryArgs.get();
@@ -62,8 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fallback if index does not exist
     try {
       let fallbackQuery: any = db.collection('emails').limit(50);
-      if (emailAddress) {
-         fallbackQuery = db.collection('emails').where('userEmail', '==', emailAddress).limit(50);
+      if (resolvedEmail) {
+         fallbackQuery = db.collection('emails').where('userEmail', '==', resolvedEmail).limit(50);
       }
       const snapshot = await fallbackQuery.get();
       const emails = snapshot.docs.map((doc: any) => ({

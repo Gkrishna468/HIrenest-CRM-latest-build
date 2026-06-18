@@ -34,8 +34,8 @@ export default function CommunicationCenter() {
   const fetchEmails = async () => {
     setIsLoading(true);
     try {
-      const emailQuery = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
-      const response = await fetch(`/api/gmail/list${emailQuery}`);
+      const userQuery = user?.id ? `?userId=${encodeURIComponent(user.id)}` : '';
+      const response = await fetch(`/api/gmail/list${userQuery}`);
       if (!response.ok) throw new Error('Failed to fetch emails');
       const data = await response.json();
       
@@ -63,14 +63,14 @@ export default function CommunicationCenter() {
   };
 
   const handleSync = async () => {
-    if (!user?.email) {
-      toast.error('User email not found');
+    if (!user?.id) {
+      toast.error('User ID not found');
       return;
     }
     
     setIsSyncing(true);
     try {
-      const response = await fetch(`/api/gmail/sync?email=${encodeURIComponent(user.email)}`, {
+      const response = await fetch(`/api/gmail/sync?userId=${encodeURIComponent(user.id)}`, {
         method: 'POST' // POST since sync modifies state
       });
       const data = await response.json();

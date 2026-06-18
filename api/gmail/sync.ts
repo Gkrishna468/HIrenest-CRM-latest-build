@@ -54,8 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const emailAddress = req.query.email as string;
-  if (!emailAddress) {
-    return res.status(400).json({ error: 'Missing email query parameter' });
+  const userId = req.query.userId as string;
+
+  if (!emailAddress && !userId) {
+    return res.status(400).json({ error: 'Missing email or userId parameter' });
   }
 
   if (!db) {
@@ -63,12 +65,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const connectionSnapshot = await db.collection('gmail_connections').where('email', '==', emailAddress).limit(1).get();
+    let connectionSnapshot;
+    
+    if (userId) {
+      connectionSnapshot = await db.collection('gmail_connections').where('userId', '==', userId).limit(1).get();
+    } else {
+      // Fallback for older integration
+      connectionSnapshot = await db.collection('gmail_connections').where('email', '==', emailAddress).limit(1).get();
+    }
+
     if (connectionSnapshot.empty) {
-      return res.status(404).json({ error: 'No connection found for this email' });
+      return res.status(404).json({ error: 'No connection found for this user' });
     }
 
     const connectionData = connectionSnapshot.docs[0].data();
+    const resolvedEmail = connectionData.email; // Use the actual connected email for syncing
+
     
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
@@ -127,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       await db.collection('emails').doc(msg.id).set({
         gmailMessageId: msg.id,
-        userEmail: emailAddress,
+        userEmail: resolvedEmail,
         from,
         subject,
         snippet: messageRes.data.snippet || '',

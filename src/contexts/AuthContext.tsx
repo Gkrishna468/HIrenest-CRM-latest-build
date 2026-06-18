@@ -28,7 +28,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check for Executive Session first
         const execSession = localStorage.getItem('hirenest_exec_session');
         if (execSession) {
-          setUser(JSON.parse(execSession));
+          const parsed = JSON.parse(execSession);
+          if (parsed.email === 'admin@hirenest.com') {
+             parsed.email = 'gopal@hirenestworkforce.com';
+             parsed.name = 'Gopal Krishna';
+             localStorage.setItem('hirenest_exec_session', JSON.stringify(parsed));
+          }
+          setUser(parsed);
           setLoading(false);
           return;
         }
@@ -115,9 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ) {
       const execUser: User = { 
         id: 'executive-root', 
-        email, 
-        name: email === 'admin@hirenest.com' ? 'Admin User' : 'Gopala Krishna', 
-        role: email === 'admin@hirenest.com' ? 'admin' : 'founder', 
+        email: 'gopal@hirenestworkforce.com', // Force email sync for Gmail connection
+        name: 'Gopal Krishna', 
+        role: 'admin', 
         status: 'active' 
       };
       setUser(execUser);
