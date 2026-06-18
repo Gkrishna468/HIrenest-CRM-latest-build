@@ -39,24 +39,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const emailAddress = req.query.email as string;
   const userId = req.query.userId as string;
 
+  console.log('EMAIL:', emailAddress);
+  console.log('USER ID:', userId);
+
   if (!db) {
     return res.status(500).json({ error: 'Firestore not initialized' });
   }
 
-  try {
-    let resolvedEmail = emailAddress;
+  let resolvedEmail = emailAddress;
 
+  try {
     if (userId) {
+      console.log('Searching gmail_connections');
       const connectionSnapshot = await db.collection('gmail_connections').where('userId', '==', userId).limit(1).get();
+      console.log('Found:', connectionSnapshot.size);
       if (!connectionSnapshot.empty) {
         resolvedEmail = connectionSnapshot.docs[0].data().email;
+        console.log('Resolved Email:', resolvedEmail);
       }
     }
 
-    let queryArgs: any = db.collection('emails').orderBy('receivedAt', 'desc').limit(50);
+    let queryArgs: any = db.collection('emails').limit(100);
     
     if (resolvedEmail) {
-       queryArgs = db.collection('emails').where('userEmail', '==', resolvedEmail).orderBy('receivedAt', 'desc').limit(50);
+       queryArgs = db.collection('emails').where('userEmail', '==', resolvedEmail).limit(100);
     }
     
     const snapshot = await queryArgs.get();
@@ -66,27 +72,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ...doc.data()
     }));
 
+    // Sort in memory
+    emails.sort((a: any, b: any) => new Date(b.receivedAt || 0).getTime() - new Date(a.receivedAt || 0).getTime());
+
     return res.status(200).json({ emails });
   } catch (error: any) {
     console.error('[Gmail List Error]', error);
-    
-    // Fallback if index does not exist
-    try {
-      let fallbackQuery: any = db.collection('emails').limit(50);
-      if (resolvedEmail) {
-         fallbackQuery = db.collection('emails').where('userEmail', '==', resolvedEmail).limit(50);
-      }
-      const snapshot = await fallbackQuery.get();
-      const emails = snapshot.docs.map((doc: any) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort in memory
-      emails.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-      
-      return res.status(200).json({ emails, warning: 'Required composite index may be missing' });
-    } catch (fallbackError: any) {
-      return res.status(500).json({ error: fallbackError.message });
-    }
+    return res.status(500).json({ error: error.message });
   }
 }
