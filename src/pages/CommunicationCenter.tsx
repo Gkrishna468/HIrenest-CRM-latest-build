@@ -54,6 +54,9 @@ export default function CommunicationCenter() {
       }));
 
       setEmails(formattedMails);
+      if (formattedMails.length > 0 && !selectedComm) {
+        setSelectedComm(formattedMails[0]);
+      }
     } catch (error) {
       console.error(error);
       toast.error('Failed to load emails');
@@ -124,9 +127,38 @@ export default function CommunicationCenter() {
   const filteredComms = emails.filter(c => activeTab === 'all' || c.entityType === activeTab);
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+    <div className="flex flex-col h-full w-full gap-4">
+      {/* KPI Strip */}
+      <div className="grid grid-cols-6 gap-4 shrink-0">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-center">
+           <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">Emails Today</span>
+           <span className="text-2xl font-black text-slate-900 mt-1">57</span>
+        </div>
+        <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex flex-col justify-center">
+           <span className="text-indigo-600 text-xs font-bold uppercase tracking-widest">Requirements</span>
+           <span className="text-2xl font-black text-indigo-900 mt-1">12</span>
+        </div>
+        <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex flex-col justify-center">
+           <span className="text-emerald-600 text-xs font-bold uppercase tracking-widest">Submissions</span>
+           <span className="text-2xl font-black text-emerald-900 mt-1">18</span>
+        </div>
+        <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100 flex flex-col justify-center">
+           <span className="text-purple-600 text-xs font-bold uppercase tracking-widest">Interviews</span>
+           <span className="text-2xl font-black text-purple-900 mt-1">5</span>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-center">
+           <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">Pipeline Value</span>
+           <span className="text-2xl font-black text-slate-900 mt-1">₹62L</span>
+        </div>
+        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col justify-center">
+           <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">Expected Margin</span>
+           <span className="text-2xl font-black text-white mt-1">₹11L</span>
+        </div>
+      </div>
+
+      <div className="flex-1 bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-0">
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Mail Dashboard</h1>
           <p className="text-sm font-medium text-slate-500 mt-1">Unified Relationship Layer (Email & Intelligence)</p>
@@ -168,7 +200,7 @@ export default function CommunicationCenter() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Thread List */}
-        <div className="w-[450px] border-r border-slate-100 bg-slate-50/50 flex flex-col shrink-0">
+        <div className="w-[25%] min-w-[300px] border-r border-slate-100 bg-slate-50/50 flex flex-col shrink-0">
           <div className="p-4 border-b border-slate-100 bg-white">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -220,7 +252,7 @@ export default function CommunicationCenter() {
         {/* Conversation View */}
         {selectedComm ? (
           <div className="flex-1 flex overflow-hidden">
-            <div className="flex-1 flex flex-col bg-white">
+            <div className="w-[60%] flex flex-col bg-white border-r border-slate-100">
                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                  <div className="flex items-center gap-4">
                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl shrink-0">
@@ -283,7 +315,7 @@ export default function CommunicationCenter() {
             </div>
 
             {/* Context & Neural Insights Sidebar */}
-            <div className="w-80 border-l border-slate-100 bg-white p-6 overflow-y-auto shrink-0 flex flex-col space-y-8">
+            <div className="w-[40%] bg-white p-6 overflow-y-auto shrink-0 flex flex-col space-y-8">
               <div className="space-y-4">
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Neural Insights</h3>
                 {isAnalyzing ? (
@@ -446,6 +478,7 @@ export default function CommunicationCenter() {
             </p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -140,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               await db.collection('requirements').add({
                  ...insight.extractedRequirement,
                  sourceEmailId: emailId,
-                 sourceContext: context,
+                 sourceContext: context || null,
                  createdAt: new Date().toISOString()
               });
           }
@@ -149,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               await db.collection('submissions').add({
                  ...insight.extractedSubmission,
                  sourceEmailId: emailId,
-                 sourceContext: context,
+                 sourceContext: context || null,
                  createdAt: new Date().toISOString()
               });
           }
@@ -158,7 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               await db.collection('interviews').add({
                  ...insight.extractedInterview,
                  sourceEmailId: emailId,
-                 sourceContext: context,
+                 sourceContext: context || null,
                  createdAt: new Date().toISOString()
               });
           }

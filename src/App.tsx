@@ -35,8 +35,8 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 overflow-y-auto">
+        <div className="w-full h-full p-8">
           {children}
         </div>
       </main>
@@ -56,10 +56,20 @@ export default function App() {
             <Route path="/accounts" element={<PrivateRoute><Accounts /></PrivateRoute>} />
             <Route path="/contacts" element={<PrivateRoute><Contacts /></PrivateRoute>} />
             <Route path="/requirements" element={<PrivateRoute><Requirements /></PrivateRoute>} />
+            
+            {/* New Staffing Routes */}
+            <Route path="/candidates" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Candidates</h2><p className="text-slate-500">Coming in Sprint 3</p></div></div></PrivateRoute>} />
+            <Route path="/submissions" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Submissions</h2><p className="text-slate-500">Coming in Sprint 3</p></div></div></PrivateRoute>} />
+            <Route path="/interviews" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Interviews</h2><p className="text-slate-500">Coming in Sprint 3</p></div></div></PrivateRoute>} />
+
             <Route path="/vendors" element={<PrivateRoute><Vendors /></PrivateRoute>} />
+            <Route path="/bench" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Bench Resources</h2><p className="text-slate-500">Coming in Sprint 4</p></div></div></PrivateRoute>} />
+
             <Route path="/follow-ups" element={<PrivateRoute><FollowUps /></PrivateRoute>} />
             <Route path="/revenue" element={<PrivateRoute><Revenue /></PrivateRoute>} />
-            <Route path="/communication" element={<PrivateRoute><CommunicationCenter /></PrivateRoute>} />
+            <Route path="/margins" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Margin Intelligence</h2><p className="text-slate-500">Coming in Sprint 4</p></div></div></PrivateRoute>} />
+            
+            <Route path="/mail" element={<PrivateRoute><CommunicationCenter /></PrivateRoute>} />
             <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
             <Route path="/migration" element={<PrivateRoute><MigrationDashboard /></PrivateRoute>} />
             <Route path="/intelligence" element={<PrivateRoute><ClientFeedbackTracker /></PrivateRoute>} />

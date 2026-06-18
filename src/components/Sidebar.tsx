@@ -10,9 +10,7 @@ import {
   Briefcase, 
   Users, 
   Building2, 
-  Truck, 
   FileText, 
-  Bot, 
   Zap, 
   Settings, 
   LogOut,
@@ -21,7 +19,6 @@ import {
   MessageSquare,
   ShieldCheck,
   Handshake,
-  Globe,
   BrainCircuit,
   Mail
 } from 'lucide-react';
@@ -29,17 +26,59 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
-const crmItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Building2, label: 'Accounts', path: '/accounts' },
-  { icon: Users, label: 'Contacts', path: '/contacts' },
-  { icon: Briefcase, label: 'Requirements', path: '/requirements' },
-  { icon: Handshake, label: 'Vendors', path: '/vendors' },
-  { icon: Mail, label: 'MailOS', path: '/communication' },
-  { icon: History, label: 'Follow-ups', path: '/follow-ups' },
-  { icon: TrendingUp, label: 'Revenue Pipeline', path: '/revenue' },
-  { icon: FileText, label: 'Reports', path: '/reports' },
-  { icon: Settings, label: 'Settings', path: '/settings' }
+const navGroups = [
+  {
+    title: "", // Home
+    items: [
+       { icon: LayoutDashboard, label: 'Home', path: '/' }
+    ]
+  },
+  {
+    title: "Sales",
+    items: [
+       { icon: Building2, label: 'Accounts', path: '/accounts' },
+       { icon: Users, label: 'Contacts', path: '/contacts' },
+       { icon: History, label: 'Follow-ups', path: '/follow-ups' },
+    ]
+  },
+  {
+    title: "Delivery",
+    items: [
+       { icon: Briefcase, label: 'Requirements', path: '/requirements' },
+       { icon: Users, label: 'Candidates', path: '/candidates' }, // Placeholder for now
+       { icon: FileText, label: 'Submissions', path: '/submissions' }, // Placeholder
+       { icon: MessageSquare, label: 'Interviews', path: '/interviews' }, // Placeholder
+    ]
+  },
+  {
+    title: "MailOS",
+    items: [
+       { icon: Mail, label: 'Inbox', path: '/mail' },
+       { icon: BrainCircuit, label: 'AI Insights', path: '/intelligence' },
+    ]
+  },
+  {
+    title: "Vendors",
+    items: [
+       { icon: Handshake, label: 'Vendor Network', path: '/vendors' },
+       { icon: Users, label: 'Bench Resources', path: '/bench' },
+    ]
+  },
+  {
+    title: "Finance",
+    items: [
+       { icon: TrendingUp, label: 'Revenue', path: '/revenue' },
+       { icon: Zap, label: 'Margin Intelligence', path: '/margins' },
+    ]
+  },
+  {
+    title: "Admin",
+    adminOnly: true,
+    items: [
+       { icon: Settings, label: 'Settings', path: '/settings' },
+       { icon: ShieldCheck, label: 'Governance', path: '/migration' },
+    ]
+  }
 ];
 
 export function Sidebar() {
@@ -54,67 +93,39 @@ export function Sidebar() {
         <h1 className="text-xl font-bold text-white tracking-tight">HireNest</h1>
       </div>
 
-      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-        <div className="space-y-6">
-          <div>
-            <h3 className="px-4 text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Enterprise CRM</h3>
-            <div className="space-y-1">
-              {crmItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group",
-                      isActive 
-                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
-                        : "hover:bg-slate-800 hover:text-white"
-                    )
-                  }
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium text-sm">{item.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-          {user?.role === 'admin' && (
-            <div className="pt-4 mt-4 border-t border-slate-800">
-                <h3 className="px-4 text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Executive View</h3>
-               <div className="space-y-1">
-                 <NavLink
-                    to={'/migration'}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group",
-                        isActive 
-                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
-                          : "hover:bg-slate-800 hover:text-white"
-                      )
-                    }
-                  >
-                    <ShieldCheck className="w-5 h-5" />
-                    <span className="font-medium text-sm">Migration Health</span>
-                  </NavLink>
-
+      <nav className="flex-1 px-4 py-2 space-y-4 overflow-y-auto">
+        {navGroups.map((group, index) => {
+          if (group.adminOnly && user?.role !== 'admin') return null;
+          
+          return (
+            <div key={index}>
+              {group.title && (
+                <h3 className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-2">
+                  {group.title}
+                </h3>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
                   <NavLink
-                    to={'/intelligence'}
+                    key={item.path}
+                    to={item.path}
                     className={({ isActive }) =>
                       cn(
                         "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group",
                         isActive 
                           ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
-                          : "hover:bg-slate-800 hover:text-white"
+                          : "hover:bg-slate-800 hover:text-white text-slate-300"
                       )
                     }
                   >
-                    <BrainCircuit className="w-5 h-5" />
-                    <span className="font-medium text-sm">Intelligence Tracker</span>
+                    <item.icon className={cn("w-4 h-4", "group-hover:scale-110 transition-transform")} />
+                    <span className="font-semibold text-sm">{item.label}</span>
                   </NavLink>
-               </div>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+          );
+        })}
       </nav>
 
       <div className="p-4 border-t border-slate-800 space-y-4">
@@ -124,7 +135,7 @@ export function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-            <p className="text-xs text-slate-400 capitalize truncate">{user?.role}</p>
+            <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase truncate">{user?.role}</p>
           </div>
         </div>
 
