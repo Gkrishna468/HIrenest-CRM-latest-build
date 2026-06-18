@@ -154,7 +154,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await logToFirestore("STEP_3_WATCH_API_SKIPPED_NO_TOPIC");
     }
 
-    res.redirect('/settings?gmail_connected=true');
+    res.status(200).send(`
+<h1>Gmail Connected Successfully</h1>
+<p>${emailAddress}</p>
+`);
   } catch (error: any) {
     console.error('[Gmail Auth Callback Error]', error);
     await logToFirestore("STEP_FAILED", { error: error.message });
