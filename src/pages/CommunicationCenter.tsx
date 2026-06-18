@@ -30,6 +30,8 @@ export default function CommunicationCenter() {
   const [emails, setEmails] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [draftBody, setDraftBody] = useState<string>('');
+  const [isSending, setIsSending] = useState(false);
 
   const fetchEmails = async () => {
     setIsLoading(true);
@@ -44,13 +46,15 @@ export default function CommunicationCenter() {
         type: 'email',
         // Attempt to extract sender name from "Name <email@domain>" format
         sender: e.from?.replace(/<.*>/, '').trim() || e.from,
+        senderEmail: e.from, // keep the full from header for replying
         content: e.snippet || '',
         fullBody: e.body || '',
         subject: e.subject || 'No Subject',
         timestamp: new Date(e.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }),
         entityType: 'vendor', // Mock entity type for now until AI extracts it
         entityName: 'Vendor',
-        isAiAnalyzed: false
+        isAiAnalyzed: false,
+        threadId: e.threadId
       }));
 
       setEmails(formattedMails);
@@ -99,6 +103,7 @@ export default function CommunicationCenter() {
   const runIntelligence = async (comm: any) => {
     setIsAnalyzing(true);
     setInsight(null);
+    setDraftBody('');
     try {
       const source = comm.type === 'whatsapp' ? 'whatsapp' : 'email';
       const res = await processInteraction(comm.fullBody || comm.content, { source, from: comm.sender, entityType: comm.entityType }, comm.id);
@@ -109,12 +114,46 @@ export default function CommunicationCenter() {
       }
       
       setInsight(res);
+      setDraftBody(res.pitch || '');
       toast.success(`AI Classified as: ${res.profile?.intent}`, { style: { background: '#10b981', color: 'white' }});
     } catch (err) {
       console.error(err);
       toast.error('AI Analysis failed');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleSendDraft = async () => {
+    if (!draftBody.trim()) {
+      toast.error('Draft is empty');
+      return;
+    }
+    if (!selectedComm) return;
+
+    setIsSending(true);
+    try {
+      const response = await fetch('/api/gmail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+           userId: user?.id,
+           to: selectedComm.senderEmail,
+           subject: `Re: ${selectedComm.subject?.replace(/^(Re:\s*)+/i, '') || 'Your inquiry'}`,
+           body: draftBody,
+           threadId: selectedComm.threadId,
+           messageId: selectedComm.id
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to send');
+      toast.success('Email sent successfully');
+      setDraftBody('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send email');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -297,16 +336,21 @@ export default function CommunicationCenter() {
                       </div>
                       <textarea 
                         className="w-full min-h-[100px] p-4 bg-indigo-50/50 border-none rounded-2xl text-sm font-medium focus:ring-0 resize-none mb-4 text-slate-700"
-                        readOnly={isAnalyzing}
-                        value={insight?.pitch || 'Neural engine drafting response...'}
+                        readOnly={isAnalyzing || isSending}
+                        value={draftBody || ''}
+                        onChange={(e) => setDraftBody(e.target.value)}
+                        placeholder="Neural engine drafting response..."
                       />
                       <div className="flex justify-between items-center relative z-10">
                         <button className="text-[10px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">
                           Refine Draft
                         </button>
-                        <button className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+                        <button 
+                          onClick={handleSendDraft}
+                          disabled={isSending}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50">
                           <Send className="w-4 h-4" />
-                          Send Draft
+                          {isSending ? 'Sending...' : 'Send Draft'}
                         </button>
                       </div>
                     </div>
@@ -357,6 +401,12 @@ export default function CommunicationCenter() {
                            </span>
                         </div>
                         <div className="space-y-2 text-xs">
+                          {insight.extractedRequirement.client && (
+                          <div className="flex justify-between border-b border-indigo-100 pb-1">
+                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Client</span>
+                            <span className="font-black text-indigo-900 truncate pl-2">{insight.extractedRequirement.client}</span>
+                          </div>
+                          )}
                           <div className="flex justify-between border-b border-indigo-100 pb-1">
                             <span className="text-indigo-400 font-bold uppercase text-[9px]">Title</span>
                             <span className="font-black text-indigo-900 truncate pl-2">{insight.extractedRequirement.title}</span>
@@ -366,17 +416,30 @@ export default function CommunicationCenter() {
                             <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.location}</span>
                           </div>
                           <div className="flex justify-between border-b border-indigo-100 pb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Experience</span>
-                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.experience}</span>
-                          </div>
-                          <div className="flex justify-between mb-1">
                             <span className="text-indigo-400 font-bold uppercase text-[9px]">Emp Type</span>
                             <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.employmentType}</span>
                           </div>
+                          {insight.extractedRequirement.workMode && (
+                          <div className="flex justify-between border-b border-indigo-100 pb-1">
+                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Work Mode</span>
+                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.workMode}</span>
+                          </div>
+                          )}
+                          {insight.extractedRequirement.budget && (
+                          <div className="flex justify-between mb-1">
+                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Budget</span>
+                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.budget}</span>
+                          </div>
+                          )}
                         </div>
-                        <button className="mt-4 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
-                          Create CRM Requirement
-                        </button>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                           <button className="py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm">
+                             Create Req
+                           </button>
+                           <button className="py-2 bg-white text-indigo-600 hover:bg-indigo-50 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm border border-indigo-100">
+                             Broadcast
+                           </button>
+                        </div>
                       </div>
                     )}
                     
@@ -392,10 +455,22 @@ export default function CommunicationCenter() {
                             <span className="text-emerald-500 font-bold uppercase text-[9px]">Name</span>
                             <span className="font-black text-emerald-900 truncate pl-2">{insight.extractedSubmission.candidateName}</span>
                           </div>
+                          {insight.extractedSubmission.vendorName && (
+                          <div className="flex justify-between border-b border-emerald-100 pb-1">
+                            <span className="text-emerald-500 font-bold uppercase text-[9px]">Vendor</span>
+                            <span className="font-bold text-emerald-900 truncate pl-2">{insight.extractedSubmission.vendorName}</span>
+                          </div>
+                          )}
                           <div className="flex justify-between border-b border-emerald-100 pb-1">
                             <span className="text-emerald-500 font-bold uppercase text-[9px]">Experience</span>
                             <span className="font-bold text-emerald-900 truncate pl-2">{insight.extractedSubmission.experience}</span>
                           </div>
+                          {insight.extractedSubmission.noticePeriod && (
+                          <div className="flex justify-between border-b border-emerald-100 pb-1">
+                            <span className="text-emerald-500 font-bold uppercase text-[9px]">Notice</span>
+                            <span className="font-bold text-emerald-900 truncate pl-2">{insight.extractedSubmission.noticePeriod}</span>
+                          </div>
+                          )}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {insight.extractedSubmission.skills?.map((s: string, i: number) => (

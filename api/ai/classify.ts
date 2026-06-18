@@ -63,18 +63,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ${JSON.stringify(context || {})}
 
     TASKS:
-    1. PROFILE: Determine if they want to hire (requirement), apply for a job (submission), schedule/discuss an interview (interview), partner as a vendor, or other. Extract roles/skills.
-    2. PITCH: Generate a short, conversion-focused pitch (email/WhatsApp style) in response.
+    1. PROFILE: Determine the business intent. You MUST classify the intent as exactly one of the following staffing categories: "Requirement", "Vendor Submission", "Interview", "Offer", "Joining", "Invoice", "Rate Confirmation", "Vendor Onboarding", "Client Follow-up", "Contract Extension", "Bench Available", "Spam". NEVER use generic classes like "other", "general", or "unknown".
+    2. PITCH: Generate a short, conversion-focused pitch (email/WhatsApp style) in response to advance the workflow.
     3. FOLLOW-UP: Decide if we should follow up and when.
     4. EXTRACTION: 
-       - If "requirement", extract properties: { title, location, experience, employmentType, status }. 
-       - If "submission", extract: { candidateName, experience, skills }.
-       - If "interview", extract: { client, candidates, interviewType, date, status }.
+       - If "Requirement", extract properties: { client, title, location, experience, employmentType, budget, workMode, status }. 
+       - If "Vendor Submission", extract: { candidateName, vendorName, experience, skills, noticePeriod }.
+       - If "Interview", extract: { client, candidates, interviewType, date, status }.
 
     RETURN ONLY VALID JSON MATCHING THIS EXACT SCHEMA:
     {
       "profile": {
-        "intent": "requirement" | "submission" | "vendor" | "interview" | "other",
+        "intent": "Requirement" | "Vendor Submission" | "Interview" | "Offer" | "Joining" | "Invoice" | "Rate Confirmation" | "Vendor Onboarding" | "Client Follow-up" | "Contract Extension" | "Bench Available" | "Spam",
         "roles": ["Role 1", "Role 2"],
         "urgency": "high" | "medium" | "low",
         "budget": "high" | "mid" | "low",
@@ -87,16 +87,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "timeline": "e.g. 24 hours"
       },
       "extractedRequirement": {
+        "client": "string",
         "title": "string",
         "location": "string",
         "experience": "string",
-        "employmentType": "C2C | C2H | FTE",
+        "employmentType": "FTE | C2C | C2H",
+        "budget": "string",
+        "workMode": "Onsite | Hybrid | Remote",
         "status": "Open"
       },
       "extractedSubmission": {
         "candidateName": "string",
+        "vendorName": "string",
         "experience": "string",
-        "skills": ["skill 1"]
+        "skills": ["skill 1"],
+        "noticePeriod": "string"
       },
       "extractedInterview": {
         "client": "string",
@@ -136,7 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              entityType: insight.profile.intent
           });
           
-          if (insight.profile.intent === 'requirement' && insight.extractedRequirement?.title) {
+          if (insight.profile.intent === 'Requirement' && insight.extractedRequirement?.title) {
               await db.collection('requirements').add({
                  ...insight.extractedRequirement,
                  sourceEmailId: emailId,
@@ -145,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               });
           }
           
-          if (insight.profile.intent === 'submission' && insight.extractedSubmission?.candidateName) {
+          if (insight.profile.intent === 'Vendor Submission' && insight.extractedSubmission?.candidateName) {
               await db.collection('submissions').add({
                  ...insight.extractedSubmission,
                  sourceEmailId: emailId,
@@ -154,7 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               });
           }
 
-          if (insight.profile.intent === 'interview' && insight.extractedInterview?.client) {
+          if (insight.profile.intent === 'Interview' && insight.extractedInterview?.client) {
               await db.collection('interviews').add({
                  ...insight.extractedInterview,
                  sourceEmailId: emailId,
