@@ -34,20 +34,13 @@ const navGroups = [
     ]
   },
   {
-    title: "Sales",
+    title: "CRM",
     items: [
        { icon: Building2, label: 'Accounts', path: '/accounts' },
        { icon: Users, label: 'Contacts', path: '/contacts' },
-       { icon: History, label: 'Follow-ups', path: '/follow-ups' },
-    ]
-  },
-  {
-    title: "Delivery",
-    items: [
        { icon: Briefcase, label: 'Requirements', path: '/requirements' },
-       { icon: Users, label: 'Candidates', path: '/candidates' }, // Placeholder for now
-       { icon: FileText, label: 'Submissions', path: '/submissions' }, // Placeholder
-       { icon: MessageSquare, label: 'Interviews', path: '/interviews' }, // Placeholder
+       { icon: TrendingUp, label: 'Revenue', path: '/revenue' },
+       { icon: Zap, label: 'Margin Intelligence', path: '/margins' },
     ]
   },
   {
@@ -55,28 +48,36 @@ const navGroups = [
     items: [
        { icon: Mail, label: 'Inbox', path: '/mail' },
        { icon: BrainCircuit, label: 'AI Insights', path: '/intelligence' },
+       { icon: FileText, label: 'Req Extraction', path: '/req-extraction' },
+       { icon: FileText, label: 'Sub Extraction', path: '/sub-extraction' },
     ]
   },
   {
-    title: "Vendors",
+    title: "OS",
     items: [
-       { icon: Handshake, label: 'Vendor Network', path: '/vendors' },
-       { icon: Users, label: 'Bench Resources', path: '/bench' },
+       { icon: Briefcase, label: 'Job Ecosystem', path: '/jobs' },
+       { icon: Users, label: 'Candidate Ecosystem', path: '/candidates' },
+       { icon: Handshake, label: 'Vendor Ecosystem', path: '/vendors' },
+       { icon: Building2, label: 'Deal Rooms', path: '/deal-rooms' },
+       { icon: BrainCircuit, label: 'AI Matching', path: '/ai-matching' },
     ]
   },
   {
-    title: "Finance",
+    title: "Operations",
     items: [
-       { icon: TrendingUp, label: 'Revenue', path: '/revenue' },
-       { icon: Zap, label: 'Margin Intelligence', path: '/margins' },
+       { icon: FileText, label: 'Submissions', path: '/submissions' },
+       { icon: MessageSquare, label: 'Interviews', path: '/interviews' },
+       { icon: Users, label: 'Placements', path: '/placements' },
+       { icon: History, label: 'Follow-Ups', path: '/follow-ups' },
     ]
   },
   {
     title: "Admin",
     adminOnly: true,
     items: [
-       { icon: Settings, label: 'Settings', path: '/settings' },
        { icon: ShieldCheck, label: 'Governance', path: '/migration' },
+       { icon: Settings, label: 'Settings', path: '/settings' },
+       { icon: Zap, label: 'Integrations', path: '/integrations' },
     ]
   }
 ];

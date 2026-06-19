@@ -142,7 +142,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       data.clientCode = `CL-${year}${rand}`;
     }
-    await createClient(data);
+    await createClient({ ...data, source: data.source || 'crm' } as any);
     await refreshAll();
   };
 
@@ -162,7 +162,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!data.companyId && userProfile?.company_id) {
       data.companyId = userProfile.company_id;
     }
-    await createVendor(data);
+    await createVendor({ ...data, source: data.source || 'vendor' } as any);
     await refreshAll();
   };
 
@@ -173,12 +173,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const addJob = async (data: Partial<Job>) => {
     // If job has clientId, we should ideally check client mapping
-    await createJob(data);
+    await createJob({ ...data, source: data.source || 'os' } as any);
     await refreshAll();
   };
 
   const addCandidate = async (data: Partial<Candidate>) => {
-    await createCandidate(data);
+    await createCandidate({ ...data, source: data.source || 'os' } as any);
     await refreshAll();
   };
 

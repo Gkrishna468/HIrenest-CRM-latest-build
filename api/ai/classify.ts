@@ -146,6 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                  ...insight.extractedRequirement,
                  sourceEmailId: emailId,
                  sourceContext: context || null,
+                 source: 'mailos',
                  createdAt: new Date().toISOString()
               });
           }
@@ -155,6 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                  ...insight.extractedSubmission,
                  sourceEmailId: emailId,
                  sourceContext: context || null,
+                 source: 'mailos',
                  createdAt: new Date().toISOString()
               });
           }
@@ -164,6 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                  ...insight.extractedInterview,
                  sourceEmailId: emailId,
                  sourceContext: context || null,
+                 source: 'mailos',
                  createdAt: new Date().toISOString()
               });
           }

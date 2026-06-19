@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { safeArray, safeString } from '@/utils/safe';
+import { SourceBadge } from '@/components/SourceBadge';
 
 export default function Clients() {
   const { clients, loading, addClient, jobs, candidates } = useData();
@@ -106,12 +107,15 @@ export default function Clients() {
                         <Building2 className="w-6 h-6" />
                       </div>
                       <div>
-                        <h4 
-                          onClick={() => setSelectedClient(client)}
-                          className="font-bold text-slate-900 text-lg cursor-pointer hover:text-indigo-600 transition-colors"
-                        >
-                          {client.company}
-                        </h4>
+                        <div className="flex items-center gap-2">
+                          <h4 
+                            onClick={() => setSelectedClient(client)}
+                            className="font-bold text-slate-900 text-lg cursor-pointer hover:text-indigo-600 transition-colors"
+                          >
+                            {client.company}
+                          </h4>
+                          <SourceBadge source={client.source || 'crm'} />
+                        </div>
                         <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
                           {client.website && (
                             <a href={client.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-indigo-600 transition-colors">

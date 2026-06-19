@@ -70,6 +70,14 @@ export default function App() {
             <Route path="/margins" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Margin Intelligence</h2><p className="text-slate-500">Coming in Sprint 4</p></div></div></PrivateRoute>} />
             
             <Route path="/mail" element={<PrivateRoute><CommunicationCenter /></PrivateRoute>} />
+            <Route path="/req-extraction" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Requirement Extraction</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/sub-extraction" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Submission Extraction</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/jobs" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Job Ecosystem</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/deal-rooms" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Deal Rooms</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/ai-matching" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">AI Matching</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/placements" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Placements</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/integrations" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Integrations</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+
             <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
             <Route path="/migration" element={<PrivateRoute><MigrationDashboard /></PrivateRoute>} />
             <Route path="/intelligence" element={<PrivateRoute><ClientFeedbackTracker /></PrivateRoute>} />

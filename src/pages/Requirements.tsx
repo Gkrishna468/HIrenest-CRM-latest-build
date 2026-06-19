@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { safeArray, safeString, safeDate } from '@/utils/safe';
 import { broadcastJob } from '@/services/marketplaceService';
+import { SourceBadge } from '@/components/SourceBadge';
 
 export default function Jobs() {
   const { jobs, loading, approveJobWithBudget, addJob } = useData();
@@ -164,10 +165,13 @@ export default function Jobs() {
                 </div>
 
                 <div className="mb-4">
-                  <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors cursor-pointer flex items-center gap-2">
-                    {job.title}
-                    {job.approvalStatus === 'approved' && <BadgeCheck className="w-4 h-4 text-blue-500" />}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors cursor-pointer flex items-center gap-2">
+                      {job.title}
+                      {job.approvalStatus === 'approved' && <BadgeCheck className="w-4 h-4 text-blue-500" />}
+                    </h3>
+                    <SourceBadge source={job.source || 'os'} />
+                  </div>
                   <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
                     <Building2 className="w-4 h-4" />
                     <span className="font-medium text-slate-700">{job.clientName || 'Direct Hire'}</span>
