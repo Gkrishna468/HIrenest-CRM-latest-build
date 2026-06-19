@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Plus, 
   Search, 
@@ -26,7 +27,10 @@ import {
   Copy,
   Share2,
   MessageCircle,
-  Linkedin
+  Linkedin,
+  Users,
+  Activity,
+  TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -35,7 +39,8 @@ import { broadcastJob } from '@/services/marketplaceService';
 import { SourceBadge } from '@/components/SourceBadge';
 
 export default function Jobs() {
-  const { jobs, loading, approveJobWithBudget, addJob } = useData();
+  const { jobs, loading, approveJobWithBudget, addJob, candidates, deals } = useData();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
@@ -216,15 +221,18 @@ export default function Jobs() {
                       <div key={i} className="w-6 h-6 rounded-full bg-slate-200 border-2 border-slate-50" />
                     ))}
                   </div>
-                  <span className="text-xs text-slate-500 font-medium">{job.submissionsCount} Candidates</span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {safeArray(candidates).filter(c => c.jobId === job.id).length} Pipeline
+                  </span>
                 </div>
                 
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => { setSelectedJob(job); setIsViewDetailOpen(true); }}
-                    className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-indigo-600 transition-all border border-transparent hover:border-slate-100 shadow-none hover:shadow-sm"
+                    className="flex text-xs items-center gap-1.5 px-3 py-1.5 hover:bg-white rounded-lg text-slate-600 font-bold hover:text-indigo-600 transition-all border border-transparent hover:border-slate-100 shadow-none hover:shadow-sm"
                   >
                     <Eye className="w-4 h-4" />
+                    360 View
                   </button>
                   {job.approvalStatus === 'pending' ? (
                     <button 
@@ -451,105 +459,166 @@ export default function Jobs() {
         </div>
       )}
 
-      {/* View Job Detail Modal */}
+      {/* View Job 360 Ecosystem Detail Modal */}
       {isViewDetailOpen && selectedJob && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
-            <div className="p-6 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <div>
-                <h2 className="text-xl font-bold">{selectedJob.title}</h2>
-                <p className="text-slate-400 text-xs mt-1">{selectedJob.clientName} • {selectedJob.location}</p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-8">
+          <div className="bg-slate-50 w-full max-w-5xl rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[95vh]">
+            <div className="p-6 md:p-8 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                  <BriefcaseIcon className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">{selectedJob.title}</h2>
+                    <SourceBadge source={selectedJob.source || 'os'} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 mt-1 text-sm font-medium text-slate-500">
+                    <span className="flex items-center gap-1"><Building2 className="w-4 h-4" /> {selectedJob.clientName}</span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {selectedJob.location}</span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs">
+                      {selectedJob.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={() => setIsViewDetailOpen(false)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors"
               >
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
             
-            <div className="p-8 overflow-y-auto custom-scrollbar">
-              <div className="space-y-6">
-                <section>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest mb-3">Job Description</h3>
-                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">
-                    {selectedJob.description || 'No description provided.'}
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest mb-3">Sourcing Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Shareable Application URL</p>
-                      <p className="text-sm font-mono text-indigo-600 mt-1 font-medium truncate">
-                        {`${window.location.origin}/#/apply/${selectedJob.id}`}
-                      </p>
+            <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1">
+              {/* ECOSYSTEM METRICS */}
+              <div className="mb-8">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Pipeline Velocity</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Vendor Float', val: selectedJob.broadcast_to_vendors ? 'Active' : 'Pending', color: 'text-purple-600' },
+                    { label: 'Submissions', val: safeArray(candidates).filter(c => c.jobId === selectedJob.id).length, color: 'text-blue-600' },
+                    { label: 'Interviews', val: safeArray(candidates).filter(c => c.jobId === selectedJob.id && c.stage === 'interview').length, color: 'text-indigo-600' },
+                    { label: 'Offers', val: safeArray(candidates).filter(c => c.jobId === selectedJob.id && c.stage === 'offer').length, color: 'text-teal-600' },
+                    { label: 'Placements', val: safeArray(candidates).filter(c => c.jobId === selectedJob.id && (c.stage === 'placed' || c.stage === 'joined')).length, color: 'text-emerald-600' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>
+                      <p className={cn("text-2xl font-black", stat.color)}>{stat.val}</p>
                     </div>
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Source Tracking</p>
-                      <p className="text-sm font-bold text-emerald-600 mt-1">EXTERNAL / SHARED</p>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-4 shrink-0">
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(selectedJob.description);
-                    toast.success('Job Description copied to clipboard');
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all font-bold text-sm text-slate-700 shadow-sm"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy JD
-                </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2 cursor-default">Share via:</span>
-                <button 
-                  onClick={() => {
-                    const text = encodeURIComponent(`Apply for this role: ${selectedJob.title} at ${selectedJob.clientName}. Details: ${window.location.origin}/#/apply/${selectedJob.id}?src=wa`);
-                    window.open(`https://wa.me/?text=${text}`, '_blank');
-                  }}
-                  className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-600 hover:text-white transition-all group"
-                  title="Share on WhatsApp"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => {
-                    const url = encodeURIComponent(`${window.location.origin}/#/apply/${selectedJob.id}?src=li`);
-                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
-                  }}
-                  className="p-2.5 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-600 hover:text-white transition-all"
-                  title="Share on LinkedIn"
-                >
-                  <Linkedin className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => {
-                    const url = `${window.location.origin}/#/apply/${selectedJob.id}`;
-                    if (navigator.share) {
-                      navigator.share({
-                        title: selectedJob.title,
-                        text: `Apply for ${selectedJob.title}`,
-                        url: url
-                      }).catch(() => toast.error('Sharing failed'));
-                    } else {
-                      navigator.clipboard.writeText(url);
-                      toast.success('Apply link copied to clipboard');
-                    }
-                  }}
-                  className="p-2.5 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-all"
-                  title="More options"
-                >
-                  <Share2 className="w-5 h-5" />
-                </button>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Active Pipeline Board / Candidates */}
+                  <section>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                        <Users className="w-4 h-4 text-indigo-600" /> Active Candidates
+                      </h3>
+                      <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700">View All</button>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="divide-y divide-slate-100">
+                        {safeArray(candidates).filter(c => c.jobId === selectedJob.id).slice(0, 5).length === 0 ? (
+                           <div className="p-8 text-center text-slate-500 font-medium text-sm">
+                             No candidates sourced yet. 
+                           </div>
+                        ) : safeArray(candidates).filter(c => c.jobId === selectedJob.id).slice(0, 5).map((cand: any, idx) => (
+                           <div key={idx} className="p-4 hover:bg-slate-50 flex items-center justify-between">
+                             <div>
+                               <p className="font-bold text-slate-900">{cand.name}</p>
+                               <div className="flex items-center gap-2 mt-1">
+                                 <SourceBadge source={cand.source || 'os'} className="scale-90 origin-left" />
+                                 <span className="text-xs text-slate-500">{cand.vendorName || 'Direct'}</span>
+                               </div>
+                             </div>
+                             <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full">
+                               {cand.stage.toUpperCase()}
+                             </span>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Requirements / JD */}
+                  <section>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">Requirement Details</h3>
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">
+                      {selectedJob.description || 'No description provided.'}
+                    </div>
+                  </section>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Commercials - ONLY FOR ADMIN */}
+                  {user?.role === 'admin' ? (
+                    <div className="bg-slate-900 p-6 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-5">
+                        <DollarSign className="w-32 h-32" />
+                      </div>
+                      <div className="relative z-10 space-y-4">
+                        <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4" /> Commercials (Admin)
+                        </h3>
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Client Budget</p>
+                          <p className="text-lg font-black">{selectedJob.budget || 'Not specified'}</p>
+                        </div>
+                        <div className="pt-4 border-t border-white/10">
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Expected Margin</p>
+                          <p className="text-3xl font-black text-emerald-500">₹0</p>
+                          <p className="text-xs font-medium text-emerald-500/70 mt-1">Requires active placements to calculate</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-100 p-6 rounded-2xl border border-slate-200 text-center">
+                      <LockIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Commercials Restricted</p>
+                    </div>
+                  )}
+
+                  {/* Sharing Tools */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions & Sourcing</h3>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          const text = encodeURIComponent(`Apply for this role: ${selectedJob.title} at ${selectedJob.clientName}. Details: ${window.location.origin}/#/apply/${selectedJob.id}?src=wa`);
+                          window.open(`https://wa.me/?text=${text}`, '_blank');
+                        }}
+                        className="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition-all font-bold text-sm flex justify-center items-center gap-2"
+                      >
+                        <MessageCircle className="w-4 h-4" /> WhatsApp
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const url = encodeURIComponent(`${window.location.origin}/#/apply/${selectedJob.id}?src=li`);
+                          window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+                        }}
+                        className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-all font-bold text-sm flex justify-center items-center gap-2"
+                      >
+                        <Linkedin className="w-4 h-4" /> LinkedIn
+                      </button>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const url = `${window.location.origin}/#/apply/${selectedJob.id}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success('Apply link copied to clipboard');
+                      }}
+                      className="w-full py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-100 transition-all font-bold text-sm flex justify-center items-center gap-2"
+                    >
+                      <Share2 className="w-4 h-4" /> Copy Apply Link
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -558,3 +627,7 @@ export default function Jobs() {
     </div>
   );
 }
+
+const LockIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+);

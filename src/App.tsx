@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
 import Contacts from './pages/Contacts';
 import Requirements from './pages/Requirements';
+import Candidates from './pages/Candidates';
 import Vendors from './pages/Vendors';
 import FollowUps from './pages/FollowUps';
 import Revenue from './pages/Revenue';
@@ -58,9 +59,9 @@ export default function App() {
             <Route path="/requirements" element={<PrivateRoute><Requirements /></PrivateRoute>} />
             
             {/* New Staffing Routes */}
-            <Route path="/candidates" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Candidates</h2><p className="text-slate-500">Coming in Sprint 3</p></div></div></PrivateRoute>} />
-            <Route path="/submissions" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Submissions</h2><p className="text-slate-500">Coming in Sprint 3</p></div></div></PrivateRoute>} />
-            <Route path="/interviews" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Interviews</h2><p className="text-slate-500">Coming in Sprint 3</p></div></div></PrivateRoute>} />
+            <Route path="/candidates" element={<PrivateRoute><Candidates /></PrivateRoute>} />
+            <Route path="/submissions" element={<PrivateRoute><Candidates /></PrivateRoute>} />
+            <Route path="/interviews" element={<PrivateRoute><Candidates /></PrivateRoute>} />
 
             <Route path="/vendors" element={<PrivateRoute><Vendors /></PrivateRoute>} />
             <Route path="/bench" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Bench Resources</h2><p className="text-slate-500">Coming in Sprint 4</p></div></div></PrivateRoute>} />
@@ -72,10 +73,10 @@ export default function App() {
             <Route path="/mail" element={<PrivateRoute><CommunicationCenter /></PrivateRoute>} />
             <Route path="/req-extraction" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Requirement Extraction</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
             <Route path="/sub-extraction" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Submission Extraction</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
-            <Route path="/jobs" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Job Ecosystem</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
-            <Route path="/deal-rooms" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Deal Rooms</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/jobs" element={<PrivateRoute><Requirements /></PrivateRoute>} />
+            <Route path="/deal-rooms" element={<PrivateRoute><Requirements /></PrivateRoute>} />
             <Route path="/ai-matching" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">AI Matching</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
-            <Route path="/placements" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Placements</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
+            <Route path="/placements" element={<PrivateRoute><Candidates /></PrivateRoute>} />
             <Route path="/integrations" element={<PrivateRoute><div className="flex items-center justify-center h-full"><div className="text-center"><h2 className="text-xl font-bold text-slate-800">Integrations</h2><p className="text-slate-500">Coming soon</p></div></div></PrivateRoute>} />
 
             <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />

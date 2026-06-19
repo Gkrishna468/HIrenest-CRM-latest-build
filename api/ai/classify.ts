@@ -64,12 +64,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     TASKS:
     1. PROFILE: Determine the business intent. You MUST classify the intent as exactly one of the following staffing categories: "Requirement", "Vendor Submission", "Interview", "Offer", "Joining", "Invoice", "Rate Confirmation", "Vendor Onboarding", "Client Follow-up", "Contract Extension", "Bench Available", "Spam". NEVER use generic classes like "other", "general", or "unknown".
+    
+    EXAMPLES FOR CLASSIFICATION:
+    - "Client: Witty Brains, Location: Noida, Budget: 7 LPA, Need testing engineer...": Intent -> "Requirement"
+    - "Please find attached profiles from ProcessQ for Java dev...": Intent -> "Vendor Submission"
+    - "Candidate scheduled for L1 Technical on 20 Jun with Deloitte...": Intent -> "Interview"
+
     2. PITCH: Generate a short, conversion-focused pitch (email/WhatsApp style) in response to advance the workflow.
     3. FOLLOW-UP: Decide if we should follow up and when.
     4. EXTRACTION: 
        - If "Requirement", extract properties: { client, title, location, experience, employmentType, budget, workMode, status }. 
        - If "Vendor Submission", extract: { candidateName, vendorName, experience, skills, noticePeriod }.
        - If "Interview", extract: { client, candidates, interviewType, date, status }.
+
 
     RETURN ONLY VALID JSON MATCHING THIS EXACT SCHEMA:
     {
