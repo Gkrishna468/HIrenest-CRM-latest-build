@@ -75,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
       process.env.GMAIL_CLIENT_SECRET,
-      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth/gmail/callback'
+      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth?action=callback'
     );
 
     const scopes = [
@@ -128,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
       process.env.GMAIL_CLIENT_SECRET,
-      process.env.GMAIL_REDIRECT_URI || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}/api/auth/gmail/callback`
+      process.env.GMAIL_REDIRECT_URI || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}/api/auth?action=callback`
     );
 
     await logToFirestore("STEP_1_TOKEN_EXCHANGE_START");

@@ -179,6 +179,17 @@ async function startServer() {
     }
   });
 
+  // 6. Health Gateway
+  app.all("/api/health/checks", async (req, res) => {
+    try {
+      const { default: handler } = await import("./api/health");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("[Health Error]", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
