@@ -6,12 +6,17 @@ import { getFirestore, Firestore } from "firebase-admin/firestore";
 import dotenv from "dotenv";
 dotenv.config();
 
+import fs from "fs";
+import path from "path";
+
 let db: Firestore | null = null;
 let adminApp: any = null;
 
 if (!getApps()?.length) {
   try {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -25,12 +30,19 @@ if (!getApps()?.length) {
         projectId: projectId,
       });
     }
-    db = getFirestore(adminApp);
+    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
   } catch (error) {
     console.error("Firebase initialization error", error);
   }
 } else {
-  db = getFirestore();
+  adminApp = getApps()[0];
+  try {
+    const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
+  } catch(err) {
+    db = getFirestore(adminApp);
+  }
 }
 const ALGORITHM = "aes-256-cbc";
 const ENCRYPTION_KEY =

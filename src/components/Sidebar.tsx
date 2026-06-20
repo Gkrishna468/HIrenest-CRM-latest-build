@@ -21,6 +21,7 @@ import {
   Handshake,
   BrainCircuit,
   Mail,
+  Database,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -28,27 +29,11 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 
 const navGroups = [
   {
-    title: "Command Center",
+    title: "Intelligence",
     items: [
-       { icon: LayoutDashboard, label: 'Command Center', path: '/' }
-    ]
-  },
-  {
-    title: "Client Operations",
-    items: [
-       { icon: Building2, label: 'Clients', path: '/accounts' },
-       { icon: Users, label: 'Contacts', path: '/contacts' },
-       { icon: Briefcase, label: 'Requirements', path: '/requirements' },
-    ]
-  },
-  {
-    title: "Talent Delivery",
-    items: [
-       { icon: Users, label: 'Candidates', path: '/candidates' },
-       { icon: FileText, label: 'Submissions', path: '/submissions' },
-       { icon: MessageSquare, label: 'Interviews', path: '/interviews' },
-       { icon: ShieldCheck, label: 'Offers', path: '/offers' },
-       { icon: LayoutDashboard, label: 'Placements', path: '/placements' },
+       { icon: LayoutDashboard, label: 'Command Center', path: '/' },
+       { icon: BrainCircuit, label: 'AI Agents', path: '/agents' },
+       { icon: Database, label: 'Knowledge Vault', path: '/knowledge-vault' },
     ]
   },
   {
@@ -58,22 +43,34 @@ const navGroups = [
     ]
   },
   {
+    title: "Execution",
+    items: [
+       { icon: Briefcase, label: 'Requirements', path: '/requirements' },
+       { icon: Users, label: 'Candidates', path: '/candidates' },
+       { icon: FileText, label: 'Submissions', path: '/submissions' },
+       { icon: MessageSquare, label: 'Interviews', path: '/interviews' },
+       { icon: ShieldCheck, label: 'Offers', path: '/offers' },
+       { icon: LayoutDashboard, label: 'Placements', path: '/placements' },
+    ]
+  },
+  {
     title: "Vendor Network",
     items: [
        { icon: Handshake, label: 'Vendors', path: '/vendors' },
     ]
   },
   {
-    title: "Revenue Operations",
-    adminOnly: true,
+    title: "CRM",
     items: [
-       { icon: Zap, label: 'Revenue', path: '/revenue' },
+       { icon: Building2, label: 'Clients', path: '/accounts' },
+       { icon: Users, label: 'Contacts', path: '/contacts' },
     ]
   },
   {
-    title: "Intelligence",
+    title: "Intelligence & Ops",
     adminOnly: true,
     items: [
+       { icon: Zap, label: 'Financials', path: '/revenue' },
        { icon: TrendingUp, label: 'Analytics', path: '/ai-accuracy' },
        { icon: ShieldCheck, label: 'Governance', path: '/migration' },
        { icon: Settings, label: 'Settings', path: '/settings' },

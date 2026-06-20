@@ -57,7 +57,18 @@ async function startServer() {
     }
   });
 
-  // 5. AI Gateway
+  // 5. Candidates Gateway
+  app.all("/api/candidates", async (req, res) => {
+    try {
+      const { default: handler } = await import("./api/candidates");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("[Candidates Error]", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // 6. AI Gateway
   app.all("/api/ai", async (req, res) => {
     try {
       const { default: handler } = await import("./api/ai");

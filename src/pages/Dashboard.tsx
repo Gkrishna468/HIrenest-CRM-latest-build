@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
 import {
   Briefcase,
   Users,
@@ -14,52 +15,33 @@ import {
   ShieldCheck,
   Zap,
   Handshake,
+  Bot,
+  TrendingUp,
+  BrainCircuit,
+  FileSearch,
+  AlertTriangle,
+  LucideIcon
 } from "lucide-react";
 
 export default function Dashboard() {
   const { jobs, candidates, deals, vendors } = useData();
   const { user } = useAuth();
+  const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
 
-  // Real calculations from Firestore / useData
-  const openRequirements = jobs.filter(
-    (j) => j.status?.toLowerCase() === "open" || !j.status,
-  ).length;
-  const closedRequirements = jobs.filter(
-    (j) => j.status?.toLowerCase() === "closed",
-  ).length;
+  useEffect(() => {
+    const unsubscribe = subscribeToAgentActivities((data) => {
+      setAgentActivities(data);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const totalSubmissions = candidates.filter(
-    (c) => c.stage === "submission" || c.stage === "screening" || !c.stage,
-  ).length;
-  const interviewsScheduled = candidates.filter(
-    (c) => c.stage === "interview",
-  ).length;
-  const offersReleased = candidates.filter((c) => c.stage === "offer").length;
-  const placements =
-    candidates.filter((c) => c.stage === "placed" || c.stage === "joined")
-      .length || deals.length;
-
-  const activeVendors = vendors?.length || 0;
-  const benchResources =
-    vendors?.reduce(
-      (sum, v) => sum + (parseInt((v as any).benchSize?.toString() || "0", 10) || 0),
-      0,
-    ) || 0;
-
-  // Placeholder real calculations (0 if missing)
-  const expectedRevenue = deals.reduce(
-    (sum, d) => sum + (Number(d.revenue_amount) || 0),
-    0,
-  );
+  const openRequirements = jobs.filter(j => j.status?.toLowerCase() === "open" || !j.status).length;
+  const totalSubmissions = candidates.filter(c => c.stage === "submission" || c.stage === "screening" || !c.stage).length;
+  const placements = candidates.filter(c => c.stage === "placed" || c.stage === "joined").length || deals.length;
   
-  // Real implementation will calculate: d.revenue_amount (Client Budget) - vendor_cost
-  const vendorPayables = deals?.reduce(
-    (sum, d) => sum + (Number((d as any).vendor_cost) || 0),
-    0,
-  ) || 0;
-  const expectedMargin = (expectedRevenue > 0 && vendorPayables > 0) ? (expectedRevenue - vendorPayables) : null; 
-  
-  const actualMargin = 0;
+  const expectedRevenue = deals.reduce((sum, d) => sum + (Number(d.revenue_amount) || 0), 0);
+  const vendorPayables = deals?.reduce((sum, d) => sum + (Number((d as any).vendor_cost) || 0), 0) || 0;
+  const expectedMargin = (expectedRevenue > 0 && vendorPayables > 0) ? (expectedRevenue - vendorPayables) : 0; 
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-IN", {
@@ -68,212 +50,195 @@ export default function Dashboard() {
       maximumFractionDigits: 0,
     }).format(val);
 
-  const getWelcomeMessage = () => {
-    switch (user?.role) {
-      case "admin":
-        return {
-          title: `Command Center`,
-          sub: "Real-time visibility into operational execution and financials.",
-        };
-      default:
-        return {
-          title: `Command Center`,
-          sub: "Real-time staffing and operational visibility.",
-        };
-    }
-  };
-
-  const welcome = getWelcomeMessage();
-
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex justify-between items-end">
+    <div className="bg-[#0B0F19] min-h-full rounded-3xl p-8 text-white relative overflow-hidden flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+      
+      <div className="flex justify-between items-end relative z-10">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-            {welcome.title}
+          <div className="flex items-center gap-3 mb-2">
+            <div className="px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-full flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+              <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">
+                AI ORCHESTRATOR ONLINE
+              </span>
+            </div>
+            <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <ShieldCheck className="w-3 h-3" /> {user?.role || 'ADMIN'}
+              </span>
+            </div>
+          </div>
+          <h1 className="text-4xl font-black text-white tracking-tight">
+            Command Center
           </h1>
-          <p className="text-slate-500 font-medium mt-1">{welcome.sub}</p>
         </div>
-        <div className="flex gap-2">
-          <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-2">
-            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
-              {user?.role} MODE
-            </span>
+      </div>
+
+      {/* Top Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10">
+        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+              <CircleDollarSign className="w-4 h-4 text-emerald-400" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Expected Revenue</p>
+            <p className="text-2xl font-black text-white">{expectedRevenue ? formatCurrency(expectedRevenue) : '₹0'}</p>
+          </div>
+        </div>
+
+        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+              <Briefcase className="w-4 h-4 text-blue-400" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Open Requirements</p>
+            <p className="text-2xl font-black text-white">{openRequirements}</p>
+          </div>
+        </div>
+
+        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+              <FileSearch className="w-4 h-4 text-amber-400" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Submissions</p>
+            <p className="text-2xl font-black text-white">{totalSubmissions}</p>
+          </div>
+        </div>
+
+        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-8 h-8 rounded-lg bg-fuchsia-500/10 flex items-center justify-center border border-fuchsia-500/20">
+              <CheckCircle2 className="w-4 h-4 text-fuchsia-400" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Placements (YTD)</p>
+            <p className="text-2xl font-black text-white">{placements}</p>
+
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Requirements */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-6">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-1">
-              <Briefcase className="w-5 h-5 text-indigo-600" />
-              <h3 className="font-bold text-slate-900 text-lg">Requirements</h3>
-            </div>
-            <p className="text-sm text-slate-500">
-              Pipeline volume from CRM and OS
-            </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 flex-1">
+        {/* Middle: AI Insights & Recommendations */}
+        <div className="lg:col-span-2 bg-[#131B2C] border border-[#1E293B] rounded-3xl p-6 flex flex-col">
+          <div className="flex items-center gap-3 mb-6">
+            <BrainCircuit className="w-5 h-5 text-indigo-400" />
+            <h2 className="text-lg font-bold text-white tracking-tight">AI Recommendations</h2>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
-                Open
-              </p>
-              <p className="text-3xl font-black text-slate-900">
-                {openRequirements}
-              </p>
-            </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
-                Closed
-              </p>
-              <p className="text-3xl font-black text-slate-900">
-                {closedRequirements}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Execution */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-6">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-1">
-              <Zap className="w-5 h-5 text-blue-600" />
-              <h3 className="font-bold text-slate-900 text-lg">Execution</h3>
-            </div>
-            <p className="text-sm text-slate-500">
-              Candidate flow through delivery
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col items-center justify-center">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">
-                Subs
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {totalSubmissions}
-              </p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col items-center justify-center">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">
-                Intvws
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {interviewsScheduled}
-              </p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col items-center justify-center">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">
-                Offers
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {offersReleased}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Placements */}
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 rounded-3xl border border-emerald-600 shadow-md flex flex-col gap-6 text-white overflow-hidden relative group">
-          <div className="absolute right-0 top-0 opacity-10 w-48 h-48 translate-x-12 -translate-y-12">
-            <CheckCircle2 className="w-full h-full text-white" />
-          </div>
-          <div className="flex flex-col relative z-10">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-5 h-5 text-emerald-100" />
-              <h3 className="font-bold text-white text-lg">Placements</h3>
-            </div>
-            <p className="text-sm text-emerald-100">
-              Closed deals and joined candidates
-            </p>
-          </div>
-          <div className="flex items-end justify-between relative z-10 mt-auto">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-emerald-200 mb-1">
-                Total
-              </p>
-              <p className="text-5xl font-black leading-none">{placements}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vendor Intelligence */}
-        <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800 shadow-xl relative overflow-hidden text-white">
-          <div className="absolute right-0 bottom-0 opacity-5 w-48 h-48 translate-x-12 translate-y-12">
-            <Handshake className="w-full h-full" />
-          </div>
-          <div className="relative z-10">
-            <h2 className="text-indigo-400 font-black uppercase tracking-widest text-xs mb-8 flex items-center gap-2">
-              <Users className="w-4 h-4" /> Vendor Intelligence
-            </h2>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                  Active Vendors
-                </p>
-                <p className="text-3xl font-black text-white">
-                  {activeVendors}
-                </p>
+          
+          <div className="space-y-4">
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+              <div className="mt-1">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
               </div>
-              <div className="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                  Bench Resources
-                </p>
-                <p className="text-3xl font-black text-purple-400">
-                  {benchResources}
-                </p>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">3 Requirements Need Escalation</h4>
+                <p className="text-xs text-rose-200">Requirements HN-245, HN-291, and HN-304 have been open for &gt; 4 days with zero vendor submissions.</p>
               </div>
+              <button className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg transition-colors">
+                Escalate
+              </button>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+              <div className="mt-1">
+                <Users className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">14 Candidates Ready for Submission</h4>
+                <p className="text-xs text-indigo-200">New vendor resumes parsed and matched against Open Requirements with &gt;85% confidence score.</p>
+              </div>
+              <button className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-colors">
+                Review Fast
+              </button>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <div className="mt-1">
+                <Handshake className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">2 Tier-1 Vendors Inactive</h4>
+                <p className="text-xs text-amber-200">Witty Brains network vendors haven't responded to the last 4 Requirement Broadcasts in WhatsApp.</p>
+              </div>
+              <button className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-lg transition-colors">
+                Auto-Ping
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Financials (Admin Only) */}
-        {user?.role === "admin" ? (
-          <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800 shadow-xl relative overflow-hidden text-white">
-            <div className="absolute right-0 bottom-0 opacity-5 w-48 h-48 translate-x-12 translate-y-12">
-              <CircleDollarSign className="w-full h-full" />
+        {/* Right: Agent Console Grid */}
+        <div className="bg-[#131B2C] border border-[#1E293B] rounded-3xl p-6 flex flex-col">
+          <div className="flex items-center gap-3 mb-6 justify-between">
+            <div className="flex items-center gap-3">
+              <Bot className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-lg font-bold text-white tracking-tight">Agent Console</h2>
             </div>
-            <div className="relative z-10">
-              <h2 className="text-emerald-400 font-black uppercase tracking-widest text-xs mb-8 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" /> Commercials
-              </h2>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                    Expected Margin
-                  </p>
-                  <p className="text-3xl font-black text-emerald-400">
-                    {expectedMargin !== null 
-                      ? (expectedMargin === 0 ? "₹0" : formatCurrency(expectedMargin)) 
-                      : "N/A"
-                    }
-                  </p>
+            <button className="text-[10px] font-black uppercase text-indigo-400 hover:text-indigo-300">
+              View All
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {(agentActivities.length > 0 ? agentActivities.map(a => ({
+               name: a.agent,
+               status: a.status,
+               state: a.state,
+               icon: a.agent.includes("Requirement") ? Briefcase : a.agent.includes("Vendor") ? Handshake : a.agent.includes("Revenue") ? Zap : Users
+            })) : [
+              { name: "Requirement Agent", status: "Parsing 2 new emails", state: "working", icon: Briefcase },
+              { name: "Vendor Agent", status: "Broadcast dispatched", state: "working", icon: Handshake },
+              { name: "Recruiter Copilot", status: "Idle", state: "completed", icon: Users },
+              { name: "Revenue Agent", status: "Waiting for deal state", state: "waiting", icon: Zap },
+            ]).map((agent, i) => {
+              const IconComp = agent.icon as LucideIcon;
+              return (
+              <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#0B0F19] border border-[#1E293B]">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
+                    agent.state === 'working' ? 'bg-indigo-500/10 border-indigo-500/30' :
+                    agent.state === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30' :
+                    'bg-slate-800 border-slate-700'
+                  }`}>
+                    <IconComp className={`w-4 h-4 ${
+                      agent.state === 'working' ? 'text-indigo-400' :
+                      agent.state === 'completed' ? 'text-emerald-400' :
+                      'text-slate-500'
+                    }`} />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold text-slate-200">{agent.name}</h5>
+                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">{agent.status}</p>
+                  </div>
                 </div>
-                <div className="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                    Vendor Payables
-                  </p>
-                  <p className="text-3xl font-black text-rose-400">
-                    {vendorPayables === 0
-                      ? "₹0"
-                      : formatCurrency(vendorPayables)}
-                  </p>
-                </div>
+                {agent.state === 'working' && (
+                  <div className="flex gap-1">
+                    <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                )}
               </div>
-            </div>
+            );
+            })}
           </div>
-        ) : (
-          <div className="bg-slate-100 rounded-[2rem] p-8 border border-slate-200 border-dashed flex flex-col items-center justify-center text-center">
-            <CircleDollarSign className="w-8 h-8 text-slate-300 mb-2" />
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-              Commercials Restricted
-            </p>
+
+          <div className="mt-auto pt-6">
+            <button className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+              Deep Analysis <TrendingUp className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

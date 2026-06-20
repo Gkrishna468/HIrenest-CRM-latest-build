@@ -39,8 +39,67 @@ export default function Vendors() {
     isRecruiter: false,
     recruiterCompany: ''
   });
-
+  
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
+
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [candidateForm, setCandidateForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    linkedin: '',
+    resumeUrl: '',
+    jobTitle: ''
+  });
+
+  const handleCandidateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!candidateForm.name || !candidateForm.email || !candidateForm.phone || !candidateForm.linkedin) {
+      toast.error('Complete Candidate Information Required');
+      return;
+    }
+    
+    // Generate Ownership Identity Hash
+    const identityString = `${candidateForm.email}-${candidateForm.phone}-${candidateForm.linkedin}`.toLowerCase();
+    const encoder = new TextEncoder();
+    const data = encoder.encode(identityString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const identityHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    try {
+      const response = await fetch('/api/candidates?action=submitVendorCandidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateHash: identityHash,
+          vendorId: selectedVendor.id,
+          candidateName: candidateForm.name,
+          identityData: {
+            email: candidateForm.email,
+            phone: candidateForm.phone,
+            linkedin: candidateForm.linkedin,
+            resume_url: candidateForm.resumeUrl,
+            current_title: candidateForm.jobTitle
+          }
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to submit candidate');
+      }
+
+      toast.success('Candidate Identity Vault Check Passed. Profile Submitted & Protected.');
+      setIsSubmitModalOpen(false);
+      setCandidateForm({ name: '', email: '', phone: '', linkedin: '', resumeUrl: '', jobTitle: ''});
+      
+      // Optionally run refreshAll() from context if available
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit candidate');
+    }
+  };
 
   const filteredVendors = safeArray(vendors).filter(v => 
     safeString(v.name).toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -208,7 +267,12 @@ export default function Vendors() {
                       <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                          <Activity className="w-4 h-4 text-indigo-600" /> Active Submissions
                       </h3>
-                      <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700">View All</button>
+                      <button 
+                        onClick={() => setIsSubmitModalOpen(true)}
+                        className="flex items-center gap-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Submit Candidate
+                      </button>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                       <div className="divide-y divide-slate-100">
@@ -258,6 +322,141 @@ export default function Vendors() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Candidate Submit Modal */}
+      {isSubmitModalOpen && selectedVendor && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[85vh]">
+            {/* Left Side: Trust & Protection Policy */}
+            <div className="bg-slate-900 p-8 w-full md:w-5/12 text-white shrink-0 overflow-y-auto custom-scrollbar flex flex-col">
+              <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/30">
+                <ShieldCheck className="w-6 h-6 text-indigo-400" />
+              </div>
+              <h2 className="text-xl font-black mb-4 tracking-tight">Candidate Ownership Protection</h2>
+              <p className="text-sm text-slate-300 mb-6 leading-relaxed">
+                Your trust is important to us. Every candidate submitted through HireNestOS is protected by our Vendor Ownership Framework and Mutual NDA policies.
+              </p>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-2">Why we need complete details:</h4>
+                  <ul className="text-sm text-slate-300 space-y-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" /> 
+                      Create a unique candidate identity
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      Prevent duplicate submissions
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      Improve AI profile matching
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      Maximize placement success
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="mt-auto pt-6 border-t border-slate-800">
+                <p className="text-xs text-slate-400">
+                  We do not use vendor-submitted candidates for unauthorized submissions, redistribution, or ownership transfers. Our success is directly tied to your success.
+                </p>
+              </div>
+            </div>
+
+            {/* Right Side: Form */}
+            <div className="p-8 w-full md:w-7/12 flex flex-col overflow-y-auto custom-scrollbar">
+              <div className="flex items-center justify-between mb-8 shrink-0">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Submit Profile</h2>
+                  <p className="text-slate-500 font-medium text-sm mt-1">To: {selectedVendor.name}</p>
+                </div>
+                <button 
+                  onClick={() => setIsSubmitModalOpen(false)}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors shrink-0"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCandidateSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Candidate Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={candidateForm.name}
+                    onChange={e => setCandidateForm({...candidateForm, name: e.target.value})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Email Address *</label>
+                    <input
+                      type="email"
+                      required
+                      value={candidateForm.email}
+                      onChange={e => setCandidateForm({...candidateForm, email: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Phone Number *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={candidateForm.phone}
+                      onChange={e => setCandidateForm({...candidateForm, phone: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">LinkedIn URL *</label>
+                  <input
+                    type="url"
+                    required
+                    value={candidateForm.linkedin}
+                    onChange={e => setCandidateForm({...candidateForm, linkedin: e.target.value})}
+                    placeholder="https://linkedin.com/in/..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Resume link</label>
+                  <input
+                    type="url"
+                    value={candidateForm.resumeUrl}
+                    onChange={e => setCandidateForm({...candidateForm, resumeUrl: e.target.value})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+
+                <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsSubmitModalOpen(false)}
+                    className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 focus:ring-4 focus:ring-slate-100 transition-all font-sans"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500/20 transition-all shadow-lg shadow-indigo-600/20 font-sans"
+                  >
+                    Submit Profile
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

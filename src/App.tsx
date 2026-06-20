@@ -29,6 +29,8 @@ import Login from "./pages/Login";
 import PublicApply from "./pages/PublicApply";
 import MigrationDashboard from "./pages/MigrationDashboard";
 import AIAccuracy from "./pages/AIAccuracy";
+import Agents from "./pages/Agents";
+import KnowledgeVault from "./pages/KnowledgeVault";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -64,6 +66,22 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <Dashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/agents"
+              element={
+                <PrivateRoute>
+                  <Agents />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/knowledge-vault"
+              element={
+                <PrivateRoute>
+                  <KnowledgeVault />
                 </PrivateRoute>
               }
             />

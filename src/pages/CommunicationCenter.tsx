@@ -60,12 +60,32 @@ export default function CommunicationCenter() {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(data.error || "Network error");
+      if (!data.draft) throw new Error("Empty draft returned");
       setDraftBody(data.draft);
       toast.success("Draft generated");
     } catch (e: any) {
-      toast.error(e.message || "Failed to generate draft");
-      setDraftBody("");
+      toast.error("AI unavailable. Generated professional fallback response.");
+      
+      // Rule Engine Fallback -> Template Engine
+      let fallbackText = `Hi ${selectedComm.sender || 'Team'},\n\nThank you for reaching out regarding ${selectedComm.subject || 'this matter'}.\n\n`;
+      
+      const a = action.toLowerCase();
+      if (a.includes('acknowledgement')) {
+         fallbackText += "We have successfully received your requirement and our sourcing network has been activated. We will provide suitable profiles shortly.";
+      } else if (a.includes('broadcast')) {
+         fallbackText += "We have an urgent requirement matching your bench profiles. Please reply with updated resumes of available consultants soon.";
+      } else if (a.includes('submission')) {
+         fallbackText += "Please find the attached candidate profiles for your review. We have verified their availability and core competencies.";
+      } else if (a.includes('follow-up')) {
+         fallbackText += "Just following up on my previous communication. Could you please provide an update when available?";
+      } else {
+         fallbackText += "We are reviewing your request and will get back to you with the next steps soon. Please let us know if you need anything else.";
+      }
+      
+      fallbackText += "\n\nBest regards,\nHireNest Sourcing Team";
+      
+      setDraftBody(fallbackText);
     } finally {
       setIsGeneratingCopilot(false);
     }
@@ -195,7 +215,12 @@ export default function CommunicationCenter() {
       });
     } catch (err) {
       console.error(err);
-      toast.error("AI Analysis failed");
+      toast.error("AI unavailable. Generated professional fallback response.");
+      let fallbackText = `Hi ${comm.sender || 'Team'},\n\nThank you for reaching out regarding ${comm.subject || 'this matter'}.\n\n`;
+      fallbackText += "We are reviewing your request and will get back to you with the next steps soon. Please let us know if you need anything else.\n\n";
+      fallbackText += "Best regards,\nHireNest Sourcing Team";
+      
+      setDraftBody(fallbackText);
     } finally {
       setIsAnalyzing(false);
     }
@@ -210,12 +235,16 @@ export default function CommunicationCenter() {
 
     setIsSending(true);
     try {
+      // Implement Reply-All Intelligence check
+      const isReplyAll = !!selectedComm.cc;
+      
       const response = await fetch("/api/gmail?action=send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user?.id,
           to: selectedComm.senderEmail,
+          cc: isReplyAll ? selectedComm.cc : undefined,
           subject: `Re: ${selectedComm.subject?.replace(/^(Re:\s*)+/i, "") || "Your inquiry"}`,
           body: draftBody,
           threadId: selectedComm.threadId,
@@ -225,7 +254,7 @@ export default function CommunicationCenter() {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to send");
-      toast.success("Email sent successfully");
+      toast.success(isReplyAll ? "Reply-All email sent successfully" : "Email sent successfully");
       setDraftBody("");
     } catch (error: any) {
       toast.error(error.message || "Failed to send email");
