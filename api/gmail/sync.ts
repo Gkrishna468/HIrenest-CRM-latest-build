@@ -126,6 +126,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const from = getHeader('from');
       const date = getHeader('date');
 
+      // Basic regex classifier to filter out noise
+      const lowerFrom = from.toLowerCase();
+      const lowerSub = subject.toLowerCase();
+      let classification = "Requirement"; // Default assumption for unanalyzed
+
+      if (
+        lowerFrom.includes("amazon") || 
+        lowerFrom.includes("reddit") || 
+        lowerFrom.includes("newsletter") || 
+        lowerFrom.includes("alerts@") || 
+        lowerFrom.includes("marketing") ||
+        lowerFrom.includes("hdfc") ||
+        lowerFrom.includes("bank") ||
+        lowerFrom.includes("pay")
+      ) {
+        classification = "Noise";
+      } else if (lowerSub.includes("submission") || lowerSub.includes("profile") || lowerSub.includes("resume")) {
+        classification = "Vendor Submission";
+      } else if (lowerSub.includes("interview") || lowerSub.includes("schedule")) {
+        classification = "Interview";
+      } else if (lowerSub.includes("invoice") || lowerSub.includes("payment")) {
+        classification = "Invoice";
+      }
+
       // Simple body extraction
       let body = '';
       if (payload?.parts) {
@@ -146,7 +170,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: body.substring(0, 5000), // store up to 5k chars initially
         receivedAt: date,
         threadId: msg.threadId,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        entityType: classification,
+        mail_classification: classification
       });
       syncedCount++;
     }

@@ -335,6 +335,17 @@ async function startServer() {
     }
   });
 
+  // AI Health Check
+  app.get('/api/health/ai', async (req, res) => {
+    try {
+      const { default: handler } = await import('./api/health/ai');
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error('[AI Health Error]', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

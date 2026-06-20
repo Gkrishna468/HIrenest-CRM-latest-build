@@ -21,12 +21,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useData } from "@/contexts/DataContext";
 import { toast } from "sonner";
 
-type EntityType = "client" | "vendor" | "candidate";
+type EntityType = "actionable" | "Requirement" | "Vendor Submission" | "Interview" | "Spam" | "Noise" | "all";
 
 export default function CommunicationCenter() {
   const { user } = useAuth();
   const { jobs, candidates, deals, addJob, addCandidate } = useData();
-  const [activeTab, setActiveTab] = useState<EntityType | "all">("all");
+  const [activeTab, setActiveTab] = useState<EntityType>("actionable");
   const [selectedComm, setSelectedComm] = useState<any | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [insight, setInsight] = useState<BrainInsight | null>(null);
@@ -38,7 +38,6 @@ export default function CommunicationCenter() {
   const [isSending, setIsSending] = useState(false);
 
   // Copilot State
-  const [copilotMode, setCopilotMode] = useState<string>("Founder Mode");
   const [isGeneratingCopilot, setIsGeneratingCopilot] = useState(false);
 
   const generateCopilotDraft = async (action: string) => {
@@ -57,7 +56,6 @@ export default function CommunicationCenter() {
             insight: insight,
           },
           emailId: selectedComm.id,
-          mode: copilotMode,
           action: action,
         }),
       });
@@ -88,7 +86,9 @@ export default function CommunicationCenter() {
     (sum, d) => sum + (Number(d.revenue_amount) || 0),
     0,
   );
-  const marginValue = pipelineValue; // Placeholder
+  
+  const vendorCostForPipeline = deals.reduce((sum, d) => sum + (Number((d as any).vendor_cost) || 0), 0);
+  const marginValue = vendorCostForPipeline > 0 ? (pipelineValue - vendorCostForPipeline) : null;
 
   const fetchEmails = async () => {
     setIsLoading(true);
@@ -283,9 +283,13 @@ export default function CommunicationCenter() {
     }
   };
 
-  const filteredComms = emails.filter(
-    (c) => activeTab === "all" || c.entityType === activeTab,
-  );
+  const filteredComms = emails.filter((c) => {
+    if (activeTab === "all") return true;
+    if (activeTab === "actionable") {
+      return c.entityType !== "Noise" && c.entityType !== "Spam";
+    }
+    return c.entityType === activeTab;
+  });
 
   return (
     <div className="flex flex-col h-full w-full gap-4">
@@ -339,10 +343,14 @@ export default function CommunicationCenter() {
             Expected Margin
           </span>
           <span className="text-2xl font-black text-white mt-1">
-            ₹
-            {marginValue > 100000
-              ? (marginValue / 100000).toFixed(1) + "L"
-              : marginValue.toLocaleString()}
+            {marginValue !== null ? (
+              <>
+                ₹
+                {marginValue > 100000
+                  ? (marginValue / 100000).toFixed(1) + "L"
+                  : marginValue.toLocaleString()}
+              </>
+            ) : "N/A"}
           </span>
         </div>
       </div>
@@ -372,10 +380,12 @@ export default function CommunicationCenter() {
             <div className="w-px h-8 bg-slate-200"></div>
             <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
               {[
-                { id: "all", label: "All Mail" },
+                { id: "actionable", label: "Inbox" },
                 { id: "Requirement", label: "Reqs", icon: Building2 },
                 { id: "Vendor Submission", label: "Vendors", icon: Handshake },
                 { id: "Interview", label: "Interviews", icon: Users },
+                { id: "Noise", label: "Noise Folder" },
+                { id: "all", label: "All Mail" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -538,78 +548,153 @@ export default function CommunicationCenter() {
                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-                      <Bot className="w-4 h-4" /> Copilot
+                      <Bot className="w-4 h-4" /> Business Actions
                     </h3>
-                    <select
-                      value={copilotMode}
-                      onChange={(e) => setCopilotMode(e.target.value)}
-                      className="text-[10px] font-bold text-slate-600 bg-white border border-slate-200 rounded-lg py-1 px-2 focus:ring-0 cursor-pointer"
-                    >
-                      <option>Founder Mode</option>
-                      <option>Recruiter Mode</option>
-                      <option>Vendor Manager Mode</option>
-                      <option>Finance Mode</option>
-                    </select>
                   </div>
 
                   <div className="space-y-1.5">
-                    <button
-                      onClick={() =>
-                        generateCopilotDraft("Generate Client Reply")
-                      }
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      ✉️ Generate Client Reply
-                    </button>
-                    <button
-                      onClick={() =>
-                        generateCopilotDraft("Generate Vendor Broadcast")
-                      }
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      📢 Generate Vendor Broadcast
-                    </button>
-                    <button
-                      onClick={() => generateCopilotDraft("Submission Mail")}
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      📝 Submission Mail
-                    </button>
-                    <button
-                      onClick={() =>
-                        generateCopilotDraft("Interview Coordination")
-                      }
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      📅 Interview Coordination
-                    </button>
-                    <button
-                      onClick={() => generateCopilotDraft("Offer Follow-up")}
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      🤝 Offer Follow-up
-                    </button>
-                    <button
-                      onClick={() =>
-                        generateCopilotDraft("Collection Reminder")
-                      }
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      💰 Collection Reminder
-                    </button>
-                    <button
-                      onClick={() => generateCopilotDraft("Client Engagement")}
-                      disabled={isGeneratingCopilot}
-                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      ☕ Client Engagement
-                    </button>
+                    {insight?.profile?.intent === "Requirement" && (
+                      <>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft(
+                              "Generate Client Acknowledgement",
+                            )
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          ✉️ Generate Client Acknowledgement
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Generate Vendor Broadcast")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          📢 Generate Vendor Broadcast
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Find Matching Candidates")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          🔍 Find Matching Candidates
+                        </button>
+                      </>
+                    )}
+
+                    {insight?.profile?.intent === "Vendor Submission" && (
+                      <>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Review Candidate")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          👀 Review Candidate
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Generate Submission Email")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          📤 Generate Submission Email
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Schedule Screening")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          📅 Schedule Screening
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Reject Candidate")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          ❌ Reject Candidate
+                        </button>
+                      </>
+                    )}
+
+                    {insight?.profile?.intent === "Interview" && (
+                      <>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Send Confirmation")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          ✅ Send Confirmation
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft(
+                              "Generate Candidate Instructions",
+                            )
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          📝 Generate Candidate Instructions
+                        </button>
+                      </>
+                    )}
+
+                    {insight?.profile?.intent === "Offer" && (
+                      <>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Generate Candidate Follow-up")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          🤝 Generate Candidate Follow-up
+                        </button>
+                      </>
+                    )}
+
+                    {(!insight?.profile?.intent ||
+                      ![
+                        "Requirement",
+                        "Vendor Submission",
+                        "Interview",
+                        "Offer",
+                      ].includes(insight.profile.intent)) && (
+                      <>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Client Engagement")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          ☕ Client Engagement
+                        </button>
+                        <button
+                          onClick={() =>
+                            generateCopilotDraft("Collection Reminder")
+                          }
+                          disabled={isGeneratingCopilot}
+                          className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          💰 Collection Reminder
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -789,20 +874,13 @@ export default function CommunicationCenter() {
                               </div>
                               <div>
                                 <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">
-                                  Candidates
+                                  Candidate
                                 </p>
                                 <div className="flex flex-col gap-1 mt-1">
-                                  {insight.extractedInterview.candidates?.map(
-                                    (c: string, i: number) => (
-                                      <span
-                                        key={i}
-                                        className="text-xs font-semibold text-purple-800 flex items-center gap-1.5"
-                                      >
-                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>{" "}
-                                        {c}
-                                      </span>
-                                    ),
-                                  )}
+                                  <span className="text-xs font-semibold text-purple-800 flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>{" "}
+                                    {insight.extractedInterview.candidateName}
+                                  </span>
                                 </div>
                               </div>
                             </div>

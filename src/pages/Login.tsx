@@ -48,10 +48,10 @@ export default function Login() {
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              HireNest CRM
+              HireNestOS
             </h1>
             <p className="text-slate-400 text-sm mt-1">
-              AI-Native CRM
+              AI-Native Staffing Operating System
             </p>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function Login() {
 
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
             <p className="text-xs text-slate-400">
-              HireNest CRM - Built for IT Staffing & Global Talent Delivery
+              HireNestOS - Built for IT Staffing & Global Talent Delivery
             </p>
           </div>
         </div>

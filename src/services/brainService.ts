@@ -7,7 +7,7 @@ import { safeString, safeArray } from "@/utils/safe";
 
 export interface BrainInsight {
   profile: {
-    intent: 'requirement' | 'submission' | 'vendor' | 'candidate' | 'other';
+    intent: 'Requirement' | 'Vendor Submission' | 'Interview' | 'Offer' | 'Joining' | 'Invoice' | 'Spam' | 'Other';
     roles: string[];
     urgency: 'high' | 'medium' | 'low';
     budget: 'high' | 'mid' | 'low';
@@ -21,15 +21,27 @@ export interface BrainInsight {
   };
   extractedRequirement?: {
     title: string;
+    client?: string;
     location: string;
     experience: string;
+    skills?: string[];
     employmentType: string;
+    budget?: string;
     status: string;
   };
   extractedSubmission?: {
     candidateName: string;
+    vendorName?: string;
+    noticePeriod?: string;
     experience: string;
     skills: string[];
+  };
+  extractedInterview?: {
+    candidateName: string;
+    client: string;
+    date: string;
+    time: string;
+    type: string;
   };
 }
 
@@ -55,7 +67,7 @@ export async function processInteraction(text: string, context?: any, emailId?: 
   } catch (error) {
     console.error("Brain execution failed:", error);
     return {
-      profile: { intent: 'other', roles: [], urgency: 'low', budget: 'mid', sentiment: 'Neutral' },
+      profile: { intent: 'Other', roles: [], urgency: 'low', budget: 'mid', sentiment: 'Neutral' },
       pitch: "I've received your message and will get back to you shortly.",
       followUp: { suggested: false, reason: "System processing issue", timeline: "N/A" }
     };

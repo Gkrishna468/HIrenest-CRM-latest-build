@@ -113,7 +113,7 @@ export function Sidebar() {
               <div className="space-y-0.5">
                 {group.items.map((item) => (
                   <NavLink
-                    key={item.path}
+                    key={item.label}
                     to={item.path}
                     className={({ isActive }) =>
                       cn(

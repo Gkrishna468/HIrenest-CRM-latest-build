@@ -42,12 +42,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const { context, emailId, mode, action } = req.body;
+  const { context, emailId, action } = req.body;
 
-  if (!context || !mode || !action) {
+  if (!context || !action) {
     return res
       .status(400)
-      .json({ error: "Missing required parameters (context, mode, action)" });
+      .json({ error: "Missing required parameters (context, action)" });
   }
 
   try {
@@ -59,24 +59,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     Act as the HireNestOS MailOS Copilot, an AI-native staffing communication engine.
     You are generating a highly contextual response based on the staffing lifecycle.
     
-    Current Copilot Mode: ${mode}
     Requested Action: ${action}
     
     Provided Context:
     ${JSON.stringify(context, null, 2)}
     
-    INSTRUCTIONS BASED ON MODE:
-    - Founder Mode: Professional, strategic, relationship building, revenue focused.
-    - Vendor Manager Mode: Clear, instructional, sharing requirements or feedback with partners. Example: "We have an urgent requirement..."
-    - Recruiter Mode: Action-oriented, submission generation, follow-up, interview coordination.
-    - Finance Mode: Polite but firm, collection reminders, invoice follow-ups.
-    
     INSTRUCTIONS BASED ON ACTION:
-    - Generate Client Reply (Requirement Reply): Acknowledge requirement, state sourcing has begun through internal network and vendor ecosystem. Ask for missing details safely.
+    - Generate Client Acknowledgement: Acknowledge requirement, state sourcing has begun through internal network and vendor ecosystem. Ask for missing details safely.
     - Generate Vendor Broadcast: Share the requirement details suitable for vendors (do not include client name unless explicitly instructed otherwise or if standard practice, typically C2C, budget structure, etc.).
-    - Submission Mail: Short, crisp cover letter detailing candidate fitment.
+    - Submission Mail / Generate Submission Email: Short, crisp cover letter detailing candidate fitment.
     - Interview Coordination: Propose slots, confirm details, include attachments context if needed.
-    - Offer Follow-up: Congratulate the candidate, set expectations for joining, confirm documentation.
+    - Send Confirmation: Confirm interview or offer details.
+    - Generate Candidate Instructions: Clear preparation steps and instructions for an interview.
+    - Find Matching Candidates: Summarize availability of candidates for the role based on context.
+    - Reject Candidate: Polite rejection, mention we will retain profile for future roles.
+    - Schedule Screening: Request candidate availability for a quick initial screening.
+    - Review Candidate: Provide a quick analysis on candidate's match with the role based on email.
+    - Offer Follow-up / Generate Candidate Follow-up: Congratulate the candidate, set expectations for joining, confirm documentation.
     - Collection Reminder: Polite but firm follow-up on overdue invoices. Include standard professional sign-offs.
     - Client Engagement: Routine check-in or relationship building. Keep it warm and consultative.
     
@@ -95,7 +94,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await db.collection("email_copilot_logs").add({
         emailId: emailId || null,
         promptType: action,
-        mode: mode,
         generatedBy: "user",
         createdAt: new Date().toISOString(),
       });
@@ -103,7 +101,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({ draft });
   } catch (error: any) {
-    console.error("Copilot execution failed:", error);
-    return res.status(500).json({ error: error.message });
+    console.error(
+      '[COPILOT ERROR]',
+      JSON.stringify(error, Object.getOwnPropertyNames(error), 2)
+    );
+    return res.status(500).json({ 
+      message: error.message,
+      stack: error.stack,
+      raw: error
+    });
   }
 }

@@ -42,7 +42,7 @@ export default function Dashboard() {
   const activeVendors = vendors?.length || 0;
   const benchResources =
     vendors?.reduce(
-      (sum, v) => sum + (parseInt(v.benchSize?.toString() || "0", 10) || 0),
+      (sum, v) => sum + (parseInt((v as any).benchSize?.toString() || "0", 10) || 0),
       0,
     ) || 0;
 
@@ -51,9 +51,14 @@ export default function Dashboard() {
     (sum, d) => sum + (Number(d.revenue_amount) || 0),
     0,
   );
-  const collectionsDue = 0;
-  const vendorPayables = 0;
-  const expectedMargin = expectedRevenue; // Placeholders until real DB logic
+  
+  // Real implementation will calculate: d.revenue_amount (Client Budget) - vendor_cost
+  const vendorPayables = deals?.reduce(
+    (sum, d) => sum + (Number((d as any).vendor_cost) || 0),
+    0,
+  ) || 0;
+  const expectedMargin = (expectedRevenue > 0 && vendorPayables > 0) ? (expectedRevenue - vendorPayables) : null; 
+  
   const actualMargin = 0;
 
   const formatCurrency = (val: number) =>
@@ -242,9 +247,10 @@ export default function Dashboard() {
                     Expected Margin
                   </p>
                   <p className="text-3xl font-black text-emerald-400">
-                    {expectedMargin === 0
-                      ? "₹0"
-                      : formatCurrency(expectedMargin)}
+                    {expectedMargin !== null 
+                      ? (expectedMargin === 0 ? "₹0" : formatCurrency(expectedMargin)) 
+                      : "N/A"
+                    }
                   </p>
                 </div>
                 <div className="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">

@@ -99,8 +99,8 @@ export default function Vendors() {
         </div>
       ) : filteredVendors?.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredVendors.map(vendor => (
-            <div key={vendor.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+          {filteredVendors.map((vendor, index) => (
+            <div key={vendor.id || ("vendor-" + index)} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                   <Handshake className="w-6 h-6" />
@@ -140,8 +140,8 @@ export default function Vendors() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-4">
-                  {safeArray(vendor.specialization).slice(0, 3).map(s => (
-                    <span key={s} className="px-1.5 py-0.5 bg-slate-50 text-slate-400 text-[9px] font-bold rounded uppercase border border-slate-100">{s}</span>
+                  {safeArray(vendor.specialization).slice(0, 3).map((s, i) => (
+                    <span key={s + "-" + i} className="px-1.5 py-0.5 bg-slate-50 text-slate-400 text-[9px] font-bold rounded uppercase border border-slate-100">{s}</span>
                   ))}
                 </div>
               </div>
