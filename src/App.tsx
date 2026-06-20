@@ -22,15 +22,12 @@ import Contacts from "./pages/Contacts";
 import Requirements from "./pages/Requirements";
 import Candidates from "./pages/Candidates";
 import Vendors from "./pages/Vendors";
-import FollowUps from "./pages/FollowUps";
 import Revenue from "./pages/Revenue";
 import CommunicationCenter from "./pages/CommunicationCenter";
-import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import PublicApply from "./pages/PublicApply";
 import MigrationDashboard from "./pages/MigrationDashboard";
-import ClientFeedbackTracker from "./pages/ClientFeedbackTracker";
 import AIAccuracy from "./pages/AIAccuracy";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -145,50 +142,12 @@ export default function App() {
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/bench"
-              element={
-                <PrivateRoute>
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold text-slate-800">
-                        Bench Resources
-                      </h2>
-                      <p className="text-slate-500">Coming in Sprint 4</p>
-                    </div>
-                  </div>
-                </PrivateRoute>
-              }
-            />
 
-            <Route
-              path="/follow-ups"
-              element={
-                <PrivateRoute>
-                  <FollowUps />
-                </PrivateRoute>
-              }
-            />
             <Route
               path="/revenue"
               element={
                 <PrivateRoute>
                   <Revenue />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/margins"
-              element={
-                <PrivateRoute>
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold text-slate-800">
-                        Margin Intelligence
-                      </h2>
-                      <p className="text-slate-500">Coming in Sprint 4</p>
-                    </div>
-                  </div>
                 </PrivateRoute>
               }
             />
@@ -226,14 +185,6 @@ export default function App() {
             />
 
             <Route
-              path="/reports"
-              element={
-                <PrivateRoute>
-                  <Reports />
-                </PrivateRoute>
-              }
-            />
-            <Route
               path="/ai-accuracy"
               element={
                 <PrivateRoute>
@@ -246,14 +197,6 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <MigrationDashboard />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/intelligence"
-              element={
-                <PrivateRoute>
-                  <ClientFeedbackTracker />
                 </PrivateRoute>
               }
             />

@@ -61,8 +61,6 @@ const navGroups = [
     title: "Vendor Network",
     items: [
        { icon: Handshake, label: 'Vendors', path: '/vendors' },
-       { icon: Users, label: 'Bench Resources', path: '/bench' },
-       { icon: TrendingUp, label: 'Vendor Performance', path: '/vendors' },
     ]
   },
   {
@@ -70,14 +68,12 @@ const navGroups = [
     adminOnly: true,
     items: [
        { icon: Zap, label: 'Revenue', path: '/revenue' },
-       { icon: TrendingUp, label: 'Margin Intelligence', path: '/margins' },
     ]
   },
   {
     title: "Intelligence",
     adminOnly: true,
     items: [
-       { icon: BrainCircuit, label: 'Matching Engine', path: '/ai-matching' },
        { icon: TrendingUp, label: 'Analytics', path: '/ai-accuracy' },
        { icon: ShieldCheck, label: 'Governance', path: '/migration' },
        { icon: Settings, label: 'Settings', path: '/settings' },
