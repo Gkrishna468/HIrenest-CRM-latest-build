@@ -50,7 +50,7 @@ export interface BrainInsight {
  */
 export async function processInteraction(text: string, context?: any, emailId?: string): Promise<BrainInsight> {
   try {
-    const response = await fetch('/api/ai/classify', {
+    const response = await fetch('/api/ai?action=classify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

@@ -1,11 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
-import {
-  initializeApp,
-  getApps,
-  applicationDefault,
-  cert,
-} from "firebase-admin/app";
+
+import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import dotenv from "dotenv";
 dotenv.config();
@@ -38,6 +34,10 @@ if (!getApps()?.length) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = req.query.action || (req.body && req.body.action);
+  switch (action) {
+    case 'classify':
+      return await (async () => {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
@@ -236,5 +236,102 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error("Brain execution failed:", error);
     return res.status(500).json({ error: error.message });
+  }
+})();
+    case 'copilot':
+      return await (async () => {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  const { context, emailId, action } = req.body;
+
+  if (!context || !action) {
+    return res
+      .status(400)
+      .json({ error: "Missing required parameters (context, action)" });
+  }
+
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
+    const aiClient = new GoogleGenAI({ apiKey });
+
+    const systemPrompt = `
+    Act as the HireNestOS MailOS Copilot, an AI-native staffing communication engine.
+    You are generating a highly contextual response based on the staffing lifecycle.
+    
+    Requested Action: ${action}
+    
+    Provided Context:
+    ${JSON.stringify(context, null, 2)}
+    
+    INSTRUCTIONS BASED ON ACTION:
+    - Generate Client Acknowledgement: Acknowledge requirement, state sourcing has begun through internal network and vendor ecosystem. Ask for missing details safely.
+    - Generate Vendor Broadcast: Share the requirement details suitable for vendors (do not include client name unless explicitly instructed otherwise or if standard practice, typically C2C, budget structure, etc.).
+    - Submission Mail / Generate Submission Email: Short, crisp cover letter detailing candidate fitment.
+    - Interview Coordination: Propose slots, confirm details, include attachments context if needed.
+    - Send Confirmation: Confirm interview or offer details.
+    - Generate Candidate Instructions: Clear preparation steps and instructions for an interview.
+    - Find Matching Candidates: Summarize availability of candidates for the role based on context.
+    - Reject Candidate: Polite rejection, mention we will retain profile for future roles.
+    - Schedule Screening: Request candidate availability for a quick initial screening.
+    - Review Candidate: Provide a quick analysis on candidate's match with the role based on email.
+    - Offer Follow-up / Generate Candidate Follow-up: Congratulate the candidate, set expectations for joining, confirm documentation.
+    - Collection Reminder: Polite but firm follow-up on overdue invoices. Include standard professional sign-offs.
+    - Client Engagement: Routine check-in or relationship building. Keep it warm and consultative.
+    
+    Output exactly the drafted email body text. Do not include headers like "Subject:" unless necessary. Do not encapsulate in markdown code blocks unless it's just raw text. Keep formatting professional with appropriate line breaks.
+    `;
+
+    const result = await aiClient.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: systemPrompt,
+    });
+
+    const draft = result.text || "";
+
+    // Log the generation
+    if (db) {
+      await db.collection("email_copilot_logs").add({
+        emailId: emailId || null,
+        promptType: action,
+        generatedBy: "user",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return res.status(200).json({ draft });
+  } catch (error: any) {
+    console.error(
+      '[COPILOT ERROR]',
+      JSON.stringify(error, Object.getOwnPropertyNames(error), 2)
+    );
+    return res.status(500).json({ 
+      message: error.message,
+      stack: error.stack,
+      raw: error
+    });
+  }
+})();
+    case 'audit':
+      return await (async () => {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  try {
+    if (!db) {
+       return res.status(500).json({ error: 'Database not initialized' });
+    }
+    const snapshot = await db.collection('classification_audit').orderBy('createdAt', 'desc').limit(100).get();
+    const audits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return res.status(200).json(audits);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+})();
+    default:
+      return res.status(400).json({ error: "Invalid action: " + action });
   }
 }

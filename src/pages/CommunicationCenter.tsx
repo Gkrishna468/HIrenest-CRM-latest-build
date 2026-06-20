@@ -45,7 +45,7 @@ export default function CommunicationCenter() {
     setIsGeneratingCopilot(true);
     setDraftBody("Generating...");
     try {
-      const response = await fetch("/api/ai/copilot", {
+      const response = await fetch("/api/ai?action=copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -94,9 +94,9 @@ export default function CommunicationCenter() {
     setIsLoading(true);
     try {
       const userQuery = user?.id
-        ? `?userId=${encodeURIComponent(user.id)}`
+        ? `&userId=${encodeURIComponent(user.id)}`
         : "";
-      const response = await fetch(`/api/gmail/list${userQuery}`);
+      const response = await fetch(`/api/gmail?action=list${userQuery}`);
       if (!response.ok) throw new Error("Failed to fetch emails");
       const data = await response.json();
 
@@ -141,7 +141,7 @@ export default function CommunicationCenter() {
     setIsSyncing(true);
     try {
       const response = await fetch(
-        `/api/gmail/sync?userId=${encodeURIComponent(user.id)}`,
+        `/api/gmail?action=sync&userId=${encodeURIComponent(user.id)}`,
         {
           method: "POST",
         },
@@ -210,7 +210,7 @@ export default function CommunicationCenter() {
 
     setIsSending(true);
     try {
-      const response = await fetch("/api/gmail/send", {
+      const response = await fetch("/api/gmail?action=send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

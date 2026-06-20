@@ -97,7 +97,7 @@ export default function Settings() {
   const connectGmail = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/auth/gmail/url?userId=${user?.id}`);
+      const response = await fetch(`/api/auth?action=url&userId=${user?.id}`);
       
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));

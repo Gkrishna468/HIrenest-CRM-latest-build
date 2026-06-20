@@ -1,50 +1,103 @@
-import { google } from 'googleapis';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp, getApps, applicationDefault, cert } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import * as crypto from 'crypto';
-import dotenv from 'dotenv';
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { google } from "googleapis";
+import * as crypto from "crypto";
+
+import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
+import dotenv from "dotenv";
 dotenv.config();
+
+const ALGORITHM = "aes-256-cbc";
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default-insecure-key-32-chars!!!";
+const IV_LENGTH = 16;
+
+export const encrypt = (text: string): string => {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(
+    ALGORITHM,
+    Buffer.from(ENCRYPTION_KEY),
+    iv,
+  );
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString("hex") + ":" + encrypted.toString("hex");
+};
+
+export const decrypt = (text: string): string => {
+  const textParts = text.split(":");
+  const ivStr = textParts.shift();
+  if (!ivStr) return text;
+  const iv = Buffer.from(ivStr, "hex");
+  const encryptedText = Buffer.from(textParts.join(":"), "hex");
+  const decipher = crypto.createDecipheriv(
+    ALGORITHM,
+    Buffer.from(ENCRYPTION_KEY),
+    iv,
+  );
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+};
 
 let db: Firestore | null = null;
 let adminApp: any = null;
 
-if (!(getApps()?.length)) {
+if (!getApps()?.length) {
   try {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
     if (projectId && clientEmail && privateKey) {
       adminApp = initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey })
+        credential: cert({ projectId, clientEmail, privateKey }),
       });
     } else {
       adminApp = initializeApp({
         credential: applicationDefault(),
-        projectId: projectId
+        projectId: projectId,
       });
     }
     db = getFirestore(adminApp);
   } catch (error) {
-    console.error('Firebase initialization error', error);
+    console.error("Firebase initialization error", error);
   }
 } else {
   db = getFirestore();
 }
 
-const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-insecure-key-32-chars!!!';
-const IV_LENGTH = 16;
-export const encrypt = (text: string): string => {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
-};
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = req.query.action || (req.body && req.body.action);
+  switch (action) {
+    case 'url':
+      return await (async () => {
+  try {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GMAIL_CLIENT_ID,
+      process.env.GMAIL_CLIENT_SECRET,
+      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth/gmail/callback'
+    );
+
+    const scopes = [
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.modify'
+    ];
+
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: scopes,
+      state: (req.query.userId as string) || 'unknown'
+    });
+
+    return res.status(200).json({ url });
+  } catch (error: any) {
+    console.error('[Gmail Auth URL Error]', error);
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+})();
+    case 'callback':
+      return await (async () => {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -159,5 +212,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[Gmail Auth Callback Error]', error);
     await logToFirestore("STEP_FAILED", { error: error.message });
     res.redirect('/settings?gmail_error=failed_to_connect');
+  }
+})();
+    default:
+      return res.status(400).json({ error: "Invalid action: " + action });
   }
 }

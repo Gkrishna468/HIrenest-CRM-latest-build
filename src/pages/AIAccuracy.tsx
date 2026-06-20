@@ -10,7 +10,7 @@ export default function AIAccuracy() {
   useEffect(() => {
     const fetchAudits = async () => {
       try {
-        const response = await fetch('/api/ai/audit');
+        const response = await fetch('/api/ai?action=audit');
         if (response.ok) {
            const data = await response.json();
            setAudits(data);
