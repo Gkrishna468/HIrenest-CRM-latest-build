@@ -3,23 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Zap, Eye, EyeOff, Mail, Lock } from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { Zap, Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Login() {
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate("/");
     }
   }, [user, navigate]);
 
@@ -27,13 +27,13 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (typeof signIn === 'function') {
+      if (typeof signIn === "function") {
         await signIn(email, password);
       } else {
-        throw new Error('Auth system not initialized');
+        throw new Error("Auth system not initialized");
       }
     } catch (err: any) {
-      toast.error(err.message || 'Login failed');
+      toast.error(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -47,15 +47,21 @@ export default function Login() {
             <Zap className="text-white w-7 h-7 fill-current" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white tracking-tight">HireNest OS</h1>
-            <p className="text-slate-400 text-sm mt-1">Smart Recruitment Operating System</p>
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              HireNest CRM
+            </h1>
+            <p className="text-slate-400 text-sm mt-1">
+              AI-Native CRM
+            </p>
           </div>
         </div>
-        
+
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 ml-1">Email</label>
+              <label className="text-sm font-medium text-slate-700 ml-1">
+                Email
+              </label>
               <div className="relative group">
                 <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                 <input
@@ -71,10 +77,16 @@ export default function Login() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between ml-1">
-                <label className="text-sm font-medium text-slate-700">Password</label>
-                <button 
-                  type="button" 
-                  onClick={() => toast.info('Please contact your administrator to reset password')}
+                <label className="text-sm font-medium text-slate-700">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    toast.info(
+                      "Please contact your administrator to reset password",
+                    )
+                  }
                   className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
                 >
                   Forgot password?
@@ -83,7 +95,7 @@ export default function Login() {
               <div className="relative group">
                 <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -95,7 +107,11 @@ export default function Login() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3 text-slate-400 hover:text-indigo-500 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -108,13 +124,15 @@ export default function Login() {
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                'Sign In'
+                "Sign In"
               )}
             </button>
           </form>
 
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
-            <p className="text-xs text-slate-400">HireNest Workforce CRM Enterprise OS</p>
+            <p className="text-xs text-slate-400">
+              HireNest CRM - Built for IT Staffing & Global Talent Delivery
+            </p>
           </div>
         </div>
       </div>

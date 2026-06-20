@@ -42,7 +42,7 @@ export async function getFinancialInsights(): Promise<DashboardFinancials> {
     projectedRevenue: total + projected,
     costPerHire: total > 0 ? (total * 0.12) / (deals.filter(d => d.status === 'placed')?.length || 1) : 0, // Mock overhead
     bestPerformingClient: topClient,
-    roi: 420 // AI Ecosystem ROI multiplier
+    roi: 420 // Expected ROI multiplier
   };
 }
 

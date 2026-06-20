@@ -102,7 +102,7 @@ export async function parseResumeWithAI(text: string): Promise<ParsedResume> {
 }
 
 /**
- * Neural Matcher: Semantic comparison between Job and Candidate
+ * Matching Engine: Semantic comparison between Requirement and Candidate
  */
 export async function scoreCandidateForJob(job: any, candidate: any): Promise<MatchResult> {
   const jobTitle = safeString(job?.title);
@@ -168,7 +168,7 @@ export async function scoreCandidateForJob(job: any, candidate: any): Promise<Ma
     console.error("AI Matching Error:", error);
     return { 
       score: 0, 
-      reasoning: "The Neural Engine encountered an abstraction error while processing this profile.", 
+      reasoning: "The Intelligence Engine encountered an abstraction error while processing this profile.", 
       gaps: ["Evaluation system instability"], 
       recommendation: 'reject',
       missing_info: ["Candidate profile might be corrupted or too brief for analysis."]

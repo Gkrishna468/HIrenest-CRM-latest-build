@@ -282,84 +282,121 @@ export default function Clients() {
         </div>
       )}
 
-      {/* Client Detail/Edit Modal */}
+      {/* Client 360 Detail Modal */}
       {selectedClient && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-8">
+          <div className="bg-slate-50 w-full max-w-5xl rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[95vh]">
+            <div className="p-6 md:p-8 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <Building2 className="w-6 h-6" />
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <Building2 className="w-7 h-7" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">{selectedClient.company}</h2>
-                  <p className="text-slate-400 text-xs mt-0.5">Account Code: {selectedClient.clientCode || 'N/A'}</p>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">{selectedClient.company}</h2>
+                  <p className="text-slate-500 font-medium text-sm mt-0.5">Account Code: {selectedClient.clientCode || 'N/A'}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedClient(null)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors"
               >
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
             
-            <div className="p-8 space-y-8 bg-slate-50">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Contact Intelligence</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 text-sm text-slate-600">
-                        <Mail className="w-4 h-4 text-slate-400" />
-                        <span>{selectedClient.email || 'No email registered'}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-slate-600">
-                        <Phone className="w-4 h-4 text-slate-400" />
-                        <span>{selectedClient.phone || 'No phone registered'}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-slate-600">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                        <span>{selectedClient.location || 'Global Location'}</span>
-                      </div>
+            <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1">
+              <div className="mb-8">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Account Velocity</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Requirements', val: safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).length, color: 'text-slate-600' },
+                    { label: 'Submissions', val: safeArray(candidates).filter(c => safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).map(j => j.id).includes(c.jobId)).length, color: 'text-blue-600' },
+                    { label: 'Interviews', val: safeArray(candidates).filter(c => safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).map(j => j.id).includes(c.jobId) && c.stage === 'interview').length, color: 'text-indigo-600' },
+                    { label: 'Offers', val: safeArray(candidates).filter(c => safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).map(j => j.id).includes(c.jobId) && c.stage === 'offer').length, color: 'text-teal-600' },
+                    { label: 'Placements', val: safeArray(candidates).filter(c => safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).map(j => j.id).includes(c.jobId) && (c.stage === 'placed' || c.stage === 'joined')).length, color: 'text-emerald-600' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>
+                      <p className={cn("text-2xl font-black", stat.color)}>{stat.val}</p>
                     </div>
-                  </section>
-                </div>
-
-                <div className="space-y-4">
-                  <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Account Analytics</h3>
-                    <div className="grid grid-cols-2 gap-4 text-center">
-                      <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                        <p className="text-[10px] font-bold text-indigo-400 uppercase">Open Jobs</p>
-                        <p className="text-lg font-black text-indigo-700">
-                          {jobs.filter((j: any) => j.client_id === selectedClient.id || j.client_name === selectedClient.company)?.length}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <p className="text-[10px] font-bold text-emerald-400 uppercase">Hires</p>
-                        <p className="text-lg font-black text-emerald-700">
-                          {candidates.filter((c: any) => (c.client_id === selectedClient.id || c.client_name === selectedClient.company) && c.stage === 'hired')?.length}
-                        </p>
-                      </div>
-                    </div>
-                  </section>
+                  ))}
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
-                <button 
-                  onClick={() => setSelectedClient(null)}
-                  className="px-6 py-2.5 bg-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-300 transition-all text-sm"
-                >
-                  Close
-                </button>
-                <button 
-                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm shadow-lg shadow-indigo-600/20"
-                  onClick={() => toast.success('Client profile updated')}
-                >
-                  Save Changes
-                </button>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Requirements List */}
+                  <section>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                         <Building2 className="w-4 h-4 text-indigo-600" /> Active Requirements
+                      </h3>
+                      <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700">View All</button>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="divide-y divide-slate-100">
+                        {safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).length === 0 ? (
+                           <div className="p-8 text-center text-slate-500 font-medium text-sm">
+                             No active requirements for this account.
+                           </div>
+                        ) : safeArray(jobs).filter(j => j.clientId === selectedClient.id || j.clientName === selectedClient.company).slice(0, 5).map((job: any, idx) => (
+                           <div key={idx} className="p-4 hover:bg-slate-50 flex items-center justify-between">
+                             <div>
+                               <p className="font-bold text-slate-900">{job.title}</p>
+                               <div className="flex items-center gap-2 mt-1">
+                                 <SourceBadge source={job.source || 'os'} className="scale-90 origin-left" />
+                                 <span className="text-xs text-slate-500">{job.location || 'Remote'}</span>
+                               </div>
+                             </div>
+                             <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full">
+                               {job.status.toUpperCase()}
+                             </span>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Financials block */}
+                  <div className="bg-slate-900 p-6 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                      <CheckCircle className="w-32 h-32" />
+                    </div>
+                    <div className="relative z-10 space-y-4">
+                      <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        Commercials & Revenue
+                      </h3>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Revenue Generated</p>
+                        <p className="text-xl font-black text-white">₹0</p>
+                      </div>
+                      <div className="pt-4 border-t border-white/10">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Collections Due</p>
+                        <p className="text-2xl font-black text-amber-400">₹0</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Contact Intelligence</h3>
+                    <div className="space-y-3 shrink-0">
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="truncate">{selectedClient.email || 'No email registered'}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="truncate">{selectedClient.phone || 'No phone registered'}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="truncate">{selectedClient.location || 'Global Location'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

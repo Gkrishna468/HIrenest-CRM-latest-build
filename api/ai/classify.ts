@@ -1,46 +1,51 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenAI } from '@google/genai';
-import { initializeApp, getApps, applicationDefault, cert } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import dotenv from 'dotenv';
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { GoogleGenAI } from "@google/genai";
+import {
+  initializeApp,
+  getApps,
+  applicationDefault,
+  cert,
+} from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
+import dotenv from "dotenv";
 dotenv.config();
 
 let db: Firestore | null = null;
 let adminApp: any = null;
 
-if (!(getApps()?.length)) {
+if (!getApps()?.length) {
   try {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
     if (projectId && clientEmail && privateKey) {
       adminApp = initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey })
+        credential: cert({ projectId, clientEmail, privateKey }),
       });
     } else {
       adminApp = initializeApp({
         credential: applicationDefault(),
-        projectId: projectId
+        projectId: projectId,
       });
     }
     db = getFirestore(adminApp);
   } catch (error) {
-    console.error('Firebase initialization error', error);
+    console.error("Firebase initialization error", error);
   }
 } else {
   db = getFirestore();
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   const { text, context, emailId } = req.body;
-  
+
   if (!text) {
-    return res.status(400).json({ error: 'Missing text parameter' });
+    return res.status(400).json({ error: "Missing text parameter" });
   }
 
   try {
@@ -49,10 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const aiClient = new GoogleGenAI({ apiKey });
 
     const prompt = `
-    Act as the "Unified Intelligence Brain" for HireNest Enterprise CRM.
-    Analyze the following interaction (Email, text, JD, or WhatsApp) and generate a strategy.
+    Act as the "Unified Intelligence Brain" for HireNest Enterprise IT Staffing OS.
+    Analyze the following interaction (Email, text, JD, or WhatsApp) and extract staffing workflows.
     
-    If the text resembles an email with a job requirement, focus tightly on extracting the requirement.
+    If the text resembles an email with a job requirement, focus tightly on extracting the requirement details.
     If the text resembles a submission from a vendor, focus on extracting the candidate details.
     If the text resembles an interview schedule or request, focus on extracting the interview details.
 
@@ -63,25 +68,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ${JSON.stringify(context || {})}
 
     TASKS:
-    1. PROFILE: Determine the business intent. You MUST classify the intent as exactly one of the following staffing categories: "Requirement", "Vendor Submission", "Interview", "Offer", "Joining", "Invoice", "Rate Confirmation", "Vendor Onboarding", "Client Follow-up", "Contract Extension", "Bench Available", "Spam". NEVER use generic classes like "other", "general", or "unknown".
+    1. PROFILE: Determine the business intent. You MUST classify the intent as exactly one of the following staffing categories: "Requirement", "Vendor Submission", "Interview", "Offer", "Joining", "Invoice", "Spam", "Other". NEVER use generic classes unless absolutely necessary.
     
     EXAMPLES FOR CLASSIFICATION:
     - "Client: Witty Brains, Location: Noida, Budget: 7 LPA, Need testing engineer...": Intent -> "Requirement"
+    - "JD For Software Engineer...": Intent -> "Requirement"
     - "Please find attached profiles from ProcessQ for Java dev...": Intent -> "Vendor Submission"
+    - "Attached 4 Java Profiles": Intent -> "Vendor Submission"
     - "Candidate scheduled for L1 Technical on 20 Jun with Deloitte...": Intent -> "Interview"
+    - "Interview scheduled tomorrow 11:30 AM": Intent -> "Interview"
 
     2. PITCH: Generate a short, conversion-focused pitch (email/WhatsApp style) in response to advance the workflow.
     3. FOLLOW-UP: Decide if we should follow up and when.
     4. EXTRACTION: 
        - If "Requirement", extract properties: { client, title, location, experience, employmentType, budget, workMode, status }. 
-       - If "Vendor Submission", extract: { candidateName, vendorName, experience, skills, noticePeriod }.
-       - If "Interview", extract: { client, candidates, interviewType, date, status }.
+       - If "Vendor Submission", extract properties: { candidateName, vendorName, experience, skills, noticePeriod }.
+       - If "Interview", extract properties: { client, candidates, interviewType, date, status }.
 
+    8. CONFIDENCE: Provide a confidence score (0.0 to 1.0) for your classification based on how clear the text is.
 
     RETURN ONLY VALID JSON MATCHING THIS EXACT SCHEMA:
     {
       "profile": {
-        "intent": "Requirement" | "Vendor Submission" | "Interview" | "Offer" | "Joining" | "Invoice" | "Rate Confirmation" | "Vendor Onboarding" | "Client Follow-up" | "Contract Extension" | "Bench Available" | "Spam",
+        "intent": "Requirement" | "Vendor Submission" | "Interview" | "Offer" | "Joining" | "Invoice" | "Spam" | "Other",
+        "confidence": 0.95,
         "roles": ["Role 1", "Role 2"],
         "urgency": "high" | "medium" | "low",
         "budget": "high" | "mid" | "low",
@@ -98,6 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "title": "string",
         "location": "string",
         "experience": "string",
+        "skills": ["skill 1", "skill 2"],
         "employmentType": "FTE | C2C | C2H",
         "budget": "string",
         "workMode": "Onsite | Hybrid | Remote",
@@ -121,63 +132,104 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   `;
 
     const result = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        responseMimeType: 'application/json'
-      }
+        responseMimeType: "application/json",
+      },
     });
 
-    const cleanText = (result.text || '').replace(/```json|```/g, "").trim();
+    const cleanText = (result.text || "")
+      .replace(/\`\`\`json|\`\`\`/g, "")
+      .trim();
     const insight = JSON.parse(cleanText);
 
     // Auto-log to Firestore
     if (db) {
-       await db.collection('system_events').add({
-         type: 'brain_process',
-         message: `AI Brain processed interaction: ${insight.profile.intent}`,
-         timestamp: new Date().toISOString(),
-         data: { emailId: emailId || null, intent: insight.profile.intent }
-       });
-       
-       // Update email with AI Analysis
-       if (emailId) {
-          await db.collection('emails').doc(emailId).update({
-             isAiAnalyzed: true,
-             aiAnalysis: insight,
-             entityType: insight.profile.intent
-          });
-          
-          if (insight.profile.intent === 'Requirement' && insight.extractedRequirement?.title) {
-              await db.collection('requirements').add({
-                 ...insight.extractedRequirement,
-                 sourceEmailId: emailId,
-                 sourceContext: context || null,
-                 source: 'mailos',
-                 createdAt: new Date().toISOString()
-              });
-          }
-          
-          if (insight.profile.intent === 'Vendor Submission' && insight.extractedSubmission?.candidateName) {
-              await db.collection('submissions').add({
-                 ...insight.extractedSubmission,
-                 sourceEmailId: emailId,
-                 sourceContext: context || null,
-                 source: 'mailos',
-                 createdAt: new Date().toISOString()
-              });
-          }
+      await db.collection("system_events").add({
+        type: "brain_process",
+        message: `AI Brain processed interaction: ${insight.profile.intent}`,
+        timestamp: new Date().toISOString(),
+        data: {
+          emailId: emailId || null,
+          intent: insight.profile.intent,
+          confidence: insight.profile.confidence,
+        },
+      });
 
-          if (insight.profile.intent === 'Interview' && insight.extractedInterview?.client) {
-              await db.collection('interviews').add({
-                 ...insight.extractedInterview,
-                 sourceEmailId: emailId,
-                 sourceContext: context || null,
-                 source: 'mailos',
-                 createdAt: new Date().toISOString()
-              });
-          }
-       }
+      await db.collection("classification_audit").add({
+        emailId: emailId || null,
+        classification: insight.profile.intent,
+        confidence: insight.profile.confidence || 0.8,
+        validated: false,
+        createdAt: new Date().toISOString(),
+      });
+
+      if (
+        insight.profile.intent === "Requirement" &&
+        insight.extractedRequirement &&
+        (insight.profile.confidence || 0.8) > 0.8
+      ) {
+        const reqRef = await db.collection("jobs").add({
+          title: insight.extractedRequirement.title || "Unknown Role",
+          clientName: insight.extractedRequirement.client || "Unknown Client",
+          location: insight.extractedRequirement.location || "",
+          type: insight.extractedRequirement.employmentType || "Full-time",
+          budget: insight.extractedRequirement.budget || "",
+          skills: insight.extractedRequirement.skills || [],
+          source: "mailos",
+          sourceEmailId: emailId,
+          status: "open",
+          createdAt: new Date().toISOString(),
+          broadcast_to_vendors: true,
+        });
+
+        await db.collection("system_events").add({
+          type: "lifecycle_automation",
+          message: `Automated Requirement Created: ${insight.extractedRequirement.title}`,
+          timestamp: new Date().toISOString(),
+          data: { event: "RequirementCreated", requirementId: reqRef.id },
+        });
+
+        await db.collection("system_events").add({
+          type: "lifecycle_automation",
+          message: `Requirement Broadcasted to Vendor Network: ${insight.extractedRequirement.title}`,
+          timestamp: new Date().toISOString(),
+          data: { event: "VendorBroadcast", requirementId: reqRef.id },
+        });
+      }
+
+      if (
+        insight.profile.intent === "Vendor Submission" &&
+        insight.extractedSubmission &&
+        (insight.profile.confidence || 0.8) > 0.8
+      ) {
+        const candRef = await db.collection("candidates").add({
+          name:
+            insight.extractedSubmission.candidateName || "Unknown Candidate",
+          source: insight.extractedSubmission.vendorName || "mailos",
+          stage: "submission",
+          email: "unknown@example.com",
+          location: insight.extractedSubmission.noticePeriod || "",
+          sourceEmailId: emailId,
+          createdAt: new Date().toISOString(),
+        });
+
+        await db.collection("system_events").add({
+          type: "lifecycle_automation",
+          message: `Automated Vendor Submission: ${insight.extractedSubmission.candidateName}`,
+          timestamp: new Date().toISOString(),
+          data: { event: "SubmissionCreated", candidateId: candRef.id },
+        });
+      }
+
+      if (emailId) {
+        await db.collection("emails").doc(emailId).update({
+          isAiAnalyzed: true,
+          aiAnalysis: insight,
+          entityType: insight.profile.intent,
+        });
+      }
     }
 
     return res.status(200).json(insight);

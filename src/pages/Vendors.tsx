@@ -28,7 +28,7 @@ import { safeArray, safeString } from '@/utils/safe';
 import { cn } from '@/lib/utils';
 
 export default function Vendors() {
-  const { vendors, loading, addVendor } = useData();
+  const { vendors, loading, addVendor, candidates, deals } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setForm] = useState({
@@ -155,78 +155,104 @@ export default function Vendors() {
       )}
       {/* Vendor Detail/Edit Modal */}
       {selectedVendor && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-8">
+          <div className="bg-slate-50 w-full max-w-5xl rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[95vh]">
+            <div className="p-6 md:p-8 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white">
-                  <Handshake className="w-6 h-6" />
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <Handshake className="w-7 h-7" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">{selectedVendor.name}</h2>
-                  <p className="text-slate-400 text-xs mt-0.5">{selectedVendor.company} • ID: {selectedVendor.vendorCode || 'N/A'}</p>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">{selectedVendor.name}</h2>
+                  <p className="text-slate-500 font-medium text-sm mt-0.5">{selectedVendor.company} • ID: {selectedVendor.vendorCode || 'N/A'}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedVendor(null)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors"
               >
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
             
-            <div className="p-8 space-y-8 bg-slate-50">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Partner Profile</h3>
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Specialization</label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {safeArray(selectedVendor.specialization).map(s => (
-                          <span key={s} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded uppercase tracking-wider">{s}</span>
+            <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1">
+              <div className="mb-8">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Pipeline Velocity</h3>
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+                  {[
+                    { label: 'Bench Resources', val: selectedVendor.benchSize || '0', color: 'text-slate-600' },
+                    { label: 'Submissions', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length, color: 'text-blue-600' },
+                    { label: 'Interviews', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && c.stage === 'interview').length, color: 'text-indigo-600' },
+                    { label: 'Placements', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && (c.stage === 'placed' || c.stage === 'joined')).length, color: 'text-emerald-600' },
+                    { label: 'Strike Rate', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length > 0 ? `${Math.round((safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && (c.stage === 'placed' || c.stage === 'joined')).length / safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length) * 100)}%` : '0%', color: 'text-purple-600' },
+                    { label: 'Response Time', val: selectedVendor.responseTime || '12h', color: 'text-orange-600' },
+                    { label: 'Quality Score', val: selectedVendor.qualityScore ? `${selectedVendor.qualityScore}%` : '85%', color: 'text-teal-600' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>
+                      <p className={cn("text-2xl font-black", stat.color)}>{stat.val}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Candidates List */}
+                  <section>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                         <Activity className="w-4 h-4 text-indigo-600" /> Active Submissions
+                      </h3>
+                      <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700">View All</button>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="divide-y divide-slate-100">
+                        {safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length === 0 ? (
+                           <div className="p-8 text-center text-slate-500 font-medium text-sm">
+                             No active candidates from this vendor.
+                           </div>
+                        ) : safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).slice(0, 5).map((cand: any, idx) => (
+                           <div key={idx} className="p-4 hover:bg-slate-50 flex items-center justify-between">
+                             <div>
+                               <p className="font-bold text-slate-900">{cand.name}</p>
+                               <p className="text-xs text-slate-500 mt-1">{cand.email || 'No email'}</p>
+                             </div>
+                             <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full">
+                               {cand.stage.toUpperCase()}
+                             </span>
+                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-1 pt-2">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Company Bench</label>
-                      <p className="text-sm font-bold text-slate-900 capitalize">{selectedVendor.benchSize || '15+ Professional Consultants'}</p>
-                    </div>
-                  </div>
-                </section>
+                  </section>
+                </div>
 
-                <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Pipeline Intelligence</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase">Submissions</p>
-                      <p className="text-lg font-black text-indigo-700">24</p>
+                <div className="space-y-6">
+                  {/* Financials block */}
+                  <div className="bg-slate-900 p-6 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                      <CheckCircle2 className="w-32 h-32" />
                     </div>
-                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-[10px] font-bold text-emerald-400 uppercase">Active Picks</p>
-                      <p className="text-lg font-black text-emerald-700">06</p>
+                    <div className="relative z-10 space-y-4">
+                      <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" /> Commercials (Admin)
+                      </h3>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Revenue Generated</p>
+                        <p className="text-xl font-black text-white">₹0</p>
+                      </div>
+                      <div className="pt-4 border-t border-white/10">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Outstanding Payables</p>
+                        <p className="text-2xl font-black text-rose-400">₹0</p>
+                      </div>
+                      <div className="pt-4 border-t border-white/10">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Collection Status</p>
+                        <p className="text-sm font-black text-emerald-400 uppercase tracking-widest mt-1">Up to date</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center gap-2">
-                    <Filter className="w-3 h-3 text-amber-600" />
-                    <span className="text-[10px] text-amber-800 font-bold uppercase tracking-tight">Missing in Pipeline: 3 candidates awaiting review</span>
-                  </div>
-                </section>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
-                <button 
-                  onClick={() => setSelectedVendor(null)}
-                  className="px-6 py-2.5 bg-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-300 transition-all text-sm"
-                >
-                  Close
-                </button>
-                <button 
-                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm shadow-lg shadow-indigo-600/20"
-                  onClick={() => toast.success('Vendor profile updated')}
-                >
-                  Save Changes
-                </button>
+                </div>
               </div>
             </div>
           </div>

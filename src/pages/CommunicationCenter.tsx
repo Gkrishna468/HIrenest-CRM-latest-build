@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  MessageSquare, 
-  Mail, 
-  Search, 
-  Clock, 
+import React, { useState, useEffect } from "react";
+import {
+  MessageSquare,
+  Mail,
+  Search,
+  Clock,
   Bot,
   Zap,
   Send,
@@ -11,50 +11,113 @@ import {
   Users,
   Handshake,
   ArrowRight,
-  RefreshCw
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { processInteraction, BrainInsight } from '@/services/brainService';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+  RefreshCw,
+  Plus,
+  Briefcase,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { processInteraction, BrainInsight } from "@/services/brainService";
+import { useAuth } from "@/contexts/AuthContext";
+import { useData } from "@/contexts/DataContext";
+import { toast } from "sonner";
 
-type EntityType = 'client' | 'vendor' | 'candidate';
+type EntityType = "client" | "vendor" | "candidate";
 
 export default function CommunicationCenter() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<EntityType | 'all'>('all');
+  const { jobs, candidates, deals, addJob, addCandidate } = useData();
+  const [activeTab, setActiveTab] = useState<EntityType | "all">("all");
   const [selectedComm, setSelectedComm] = useState<any | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [insight, setInsight] = useState<BrainInsight | null>(null);
-  
+
   const [emails, setEmails] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [draftBody, setDraftBody] = useState<string>('');
+  const [draftBody, setDraftBody] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
+
+  // Copilot State
+  const [copilotMode, setCopilotMode] = useState<string>("Founder Mode");
+  const [isGeneratingCopilot, setIsGeneratingCopilot] = useState(false);
+
+  const generateCopilotDraft = async (action: string) => {
+    if (!selectedComm) return;
+    setIsGeneratingCopilot(true);
+    setDraftBody("Generating...");
+    try {
+      const response = await fetch("/api/ai/copilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: {
+            email: selectedComm.content,
+            subject: selectedComm.subject,
+            sender: selectedComm.sender,
+            insight: insight,
+          },
+          emailId: selectedComm.id,
+          mode: copilotMode,
+          action: action,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setDraftBody(data.draft);
+      toast.success("Draft generated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to generate draft");
+      setDraftBody("");
+    } finally {
+      setIsGeneratingCopilot(false);
+    }
+  };
+
+  // Stats for KPI Strip
+  const todayEmails =
+    emails.filter(
+      (e) => new Date(e.timestamp).toDateString() === new Date().toDateString(),
+    ).length || emails.length;
+  const submissionsCount = candidates.filter(
+    (c) => c.stage === "submission",
+  ).length;
+  const interviewsCount = candidates.filter(
+    (c) => c.stage === "interview",
+  ).length;
+  const pipelineValue = deals.reduce(
+    (sum, d) => sum + (Number(d.revenue_amount) || 0),
+    0,
+  );
+  const marginValue = pipelineValue; // Placeholder
 
   const fetchEmails = async () => {
     setIsLoading(true);
     try {
-      const userQuery = user?.id ? `?userId=${encodeURIComponent(user.id)}` : '';
+      const userQuery = user?.id
+        ? `?userId=${encodeURIComponent(user.id)}`
+        : "";
       const response = await fetch(`/api/gmail/list${userQuery}`);
-      if (!response.ok) throw new Error('Failed to fetch emails');
+      if (!response.ok) throw new Error("Failed to fetch emails");
       const data = await response.json();
-      
+
       const formattedMails = (data.emails || []).map((e: any) => ({
         id: e.id,
-        type: 'email',
-        // Attempt to extract sender name from "Name <email@domain>" format
-        sender: e.from?.replace(/<.*>/, '').trim() || e.from,
-        senderEmail: e.from, // keep the full from header for replying
-        content: e.snippet || '',
-        fullBody: e.body || '',
-        subject: e.subject || 'No Subject',
-        timestamp: new Date(e.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }),
-        entityType: 'vendor', // Mock entity type for now until AI extracts it
-        entityName: 'Vendor',
-        isAiAnalyzed: false,
-        threadId: e.threadId
+        type: "email",
+        sender: e.from?.replace(/<.*>/, "").trim() || e.from,
+        senderEmail: e.from,
+        content: e.snippet || "",
+        fullBody: e.body || "",
+        subject: e.subject || "No Subject",
+        timestamp: new Date(e.receivedAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          month: "short",
+          day: "numeric",
+        }),
+        entityType: e.entityType || "vendor",
+        entityName: "Vendor",
+        isAiAnalyzed: e.isAiAnalyzed || false,
+        threadId: e.threadId,
       }));
 
       setEmails(formattedMails);
@@ -63,7 +126,7 @@ export default function CommunicationCenter() {
       }
     } catch (error) {
       console.error(error);
-      toast.error('Failed to load emails');
+      toast.error("Failed to load emails");
     } finally {
       setIsLoading(false);
     }
@@ -71,26 +134,29 @@ export default function CommunicationCenter() {
 
   const handleSync = async () => {
     if (!user?.id) {
-      toast.error('User ID not found');
+      toast.error("User ID not found");
       return;
     }
-    
+
     setIsSyncing(true);
     try {
-      const response = await fetch(`/api/gmail/sync?userId=${encodeURIComponent(user.id)}`, {
-        method: 'POST' // POST since sync modifies state
-      });
+      const response = await fetch(
+        `/api/gmail/sync?userId=${encodeURIComponent(user.id)}`,
+        {
+          method: "POST",
+        },
+      );
       const data = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to sync');
+        throw new Error(data.error || "Failed to sync");
       }
-      
-      toast.success(data.message || 'Inbox synced successfully');
+
+      toast.success(data.message || "Inbox synced successfully");
       await fetchEmails();
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || 'Error syncing inbox');
+      toast.error(error.message || "Error syncing inbox");
     } finally {
       setIsSyncing(false);
     }
@@ -103,22 +169,33 @@ export default function CommunicationCenter() {
   const runIntelligence = async (comm: any) => {
     setIsAnalyzing(true);
     setInsight(null);
-    setDraftBody('');
+    setDraftBody("");
     try {
-      const source = comm.type === 'whatsapp' ? 'whatsapp' : 'email';
-      const res = await processInteraction(comm.fullBody || comm.content, { source, from: comm.sender, entityType: comm.entityType }, comm.id);
-      
-      // Update local state if the API marked it as analyzed
+      const source = comm.type === "whatsapp" ? "whatsapp" : "email";
+      const res = await processInteraction(
+        comm.fullBody || comm.content,
+        { source, from: comm.sender, entityType: comm.entityType },
+        comm.id,
+      );
+
       if (comm.id) {
-         setEmails(prev => prev.map(c => c.id === comm.id ? {...c, isAiAnalyzed: true, entityType: res.profile?.intent } : c));
+        setEmails((prev) =>
+          prev.map((c) =>
+            c.id === comm.id
+              ? { ...c, isAiAnalyzed: true, entityType: res.profile?.intent }
+              : c,
+          ),
+        );
       }
-      
+
       setInsight(res);
-      setDraftBody(res.pitch || '');
-      toast.success(`AI Classified as: ${res.profile?.intent}`, { style: { background: '#10b981', color: 'white' }});
+      setDraftBody(res.pitch || "");
+      toast.success(`AI Classified as: ${res.profile?.intent}`, {
+        style: { background: "#10b981", color: "white" },
+      });
     } catch (err) {
       console.error(err);
-      toast.error('AI Analysis failed');
+      toast.error("AI Analysis failed");
     } finally {
       setIsAnalyzing(false);
     }
@@ -126,32 +203,32 @@ export default function CommunicationCenter() {
 
   const handleSendDraft = async () => {
     if (!draftBody.trim()) {
-      toast.error('Draft is empty');
+      toast.error("Draft is empty");
       return;
     }
     if (!selectedComm) return;
 
     setIsSending(true);
     try {
-      const response = await fetch('/api/gmail/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/gmail/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-           userId: user?.id,
-           to: selectedComm.senderEmail,
-           subject: `Re: ${selectedComm.subject?.replace(/^(Re:\s*)+/i, '') || 'Your inquiry'}`,
-           body: draftBody,
-           threadId: selectedComm.threadId,
-           messageId: selectedComm.id
-        })
+          userId: user?.id,
+          to: selectedComm.senderEmail,
+          subject: `Re: ${selectedComm.subject?.replace(/^(Re:\s*)+/i, "") || "Your inquiry"}`,
+          body: draftBody,
+          threadId: selectedComm.threadId,
+          messageId: selectedComm.id,
+        }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to send');
-      toast.success('Email sent successfully');
-      setDraftBody('');
+      if (!response.ok) throw new Error(data.error || "Failed to send");
+      toast.success("Email sent successfully");
+      setDraftBody("");
     } catch (error: any) {
-      toast.error(error.message || 'Failed to send email');
+      toast.error(error.message || "Failed to send email");
     } finally {
       setIsSending(false);
     }
@@ -163,397 +240,614 @@ export default function CommunicationCenter() {
     }
   }, [selectedComm]);
 
-  const filteredComms = emails.filter(c => activeTab === 'all' || c.entityType === activeTab);
+  const saveRequirement = async () => {
+    if (!insight?.extractedRequirement) return;
+    try {
+      await addJob({
+        title: insight.extractedRequirement.title,
+        clientName: insight.extractedRequirement.client,
+        location: insight.extractedRequirement.location,
+        type: insight.extractedRequirement.employmentType,
+        salary: insight.extractedRequirement.budget,
+        source: "mailos",
+      } as any);
+      toast.success("Requirement Created");
+    } catch (e) {
+      toast.error("Failed to create Requirement");
+    }
+  };
+
+  const saveSubmission = async () => {
+    if (!insight?.extractedSubmission) return;
+    try {
+      await addCandidate({
+        name: insight.extractedSubmission.candidateName,
+        source: insight.extractedSubmission.vendorName || "mailos",
+        stage: "submission",
+        location: insight.extractedSubmission.noticePeriod || "",
+        email: selectedComm?.senderEmail || "unknown@example.com",
+      } as any);
+      toast.success("Submission Created");
+    } catch (e) {
+      toast.error("Failed to create Submission");
+    }
+  };
+
+  const scheduleInterview = async () => {
+    if (!insight?.extractedInterview) return;
+    try {
+      // Currently no dedicated interview API in Supabase client context, just log it visually
+      toast.success("Interview Created (Phase 6 DB Check pending)");
+    } catch (e) {
+      toast.error("Failed to schedule Interview");
+    }
+  };
+
+  const filteredComms = emails.filter(
+    (c) => activeTab === "all" || c.entityType === activeTab,
+  );
 
   return (
     <div className="flex flex-col h-full w-full gap-4">
       {/* KPI Strip */}
       <div className="grid grid-cols-6 gap-4 shrink-0">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-center">
-           <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">Emails Today</span>
-           <span className="text-2xl font-black text-slate-900 mt-1">57</span>
+          <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+            Emails Today
+          </span>
+          <span className="text-2xl font-black text-slate-900 mt-1">
+            {todayEmails}
+          </span>
         </div>
         <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex flex-col justify-center">
-           <span className="text-indigo-600 text-xs font-bold uppercase tracking-widest">Requirements</span>
-           <span className="text-2xl font-black text-indigo-900 mt-1">12</span>
+          <span className="text-indigo-600 text-xs font-bold uppercase tracking-widest">
+            Requirements
+          </span>
+          <span className="text-2xl font-black text-indigo-900 mt-1">
+            {jobs.length}
+          </span>
         </div>
         <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex flex-col justify-center">
-           <span className="text-emerald-600 text-xs font-bold uppercase tracking-widest">Submissions</span>
-           <span className="text-2xl font-black text-emerald-900 mt-1">18</span>
+          <span className="text-emerald-600 text-xs font-bold uppercase tracking-widest">
+            Submissions
+          </span>
+          <span className="text-2xl font-black text-emerald-900 mt-1">
+            {submissionsCount}
+          </span>
         </div>
         <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100 flex flex-col justify-center">
-           <span className="text-purple-600 text-xs font-bold uppercase tracking-widest">Interviews</span>
-           <span className="text-2xl font-black text-purple-900 mt-1">5</span>
+          <span className="text-purple-600 text-xs font-bold uppercase tracking-widest">
+            Interviews
+          </span>
+          <span className="text-2xl font-black text-purple-900 mt-1">
+            {interviewsCount}
+          </span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-center">
-           <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">Pipeline Value</span>
-           <span className="text-2xl font-black text-slate-900 mt-1">₹62L</span>
+          <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+            Pipeline Value
+          </span>
+          <span className="text-2xl font-black text-slate-900 mt-1">
+            ₹
+            {pipelineValue > 100000
+              ? (pipelineValue / 100000).toFixed(1) + "L"
+              : pipelineValue.toLocaleString()}
+          </span>
         </div>
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col justify-center">
-           <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">Expected Margin</span>
-           <span className="text-2xl font-black text-white mt-1">₹11L</span>
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">
+            Expected Margin
+          </span>
+          <span className="text-2xl font-black text-white mt-1">
+            ₹
+            {marginValue > 100000
+              ? (marginValue / 100000).toFixed(1) + "L"
+              : marginValue.toLocaleString()}
+          </span>
         </div>
       </div>
 
       <div className="flex-1 bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-0">
         {/* Header */}
         <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Mail Dashboard</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Unified Relationship Layer (Email & Intelligence)</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-            {isSyncing ? "Syncing..." : "Sync Inbox"}
-          </button>
-          <div className="w-px h-8 bg-slate-200"></div>
-          <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-            {[
-              { id: 'all', label: 'All Mail' },
-              { id: 'client', label: 'Clients', icon: Building2 },
-              { id: 'vendor', label: 'Vendors', icon: Handshake },
-              { id: 'candidate', label: 'Candidates', icon: Users }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
-                  activeTab === tab.id 
-                    ? "bg-white text-indigo-600 shadow-sm" 
-                    : "text-slate-500 hover:text-slate-900"
-                )}
-              >
-                {tab.icon && <tab.icon className="w-4 h-4" />}
-                {tab.label}
-              </button>
-            ))}
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              MailOS
+            </h1>
+            <p className="text-sm font-medium text-slate-500 mt-1">
+              Requirement Intake Engine
+            </p>
           </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Thread List */}
-        <div className="w-[25%] min-w-[300px] border-r border-slate-100 bg-slate-50/50 flex flex-col shrink-0">
-          <div className="p-4 border-b border-slate-100 bg-white">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text"
-                placeholder="Search emails..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20"
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", isSyncing && "animate-spin")}
               />
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
-              <div className="p-8 flex items-center justify-center text-slate-400 text-sm font-medium">
-                Loading emails...
-              </div>
-            ) : filteredComms.length === 0 ? (
-              <div className="p-8 flex flex-col items-center justify-center text-center">
-                <Mail className="w-8 h-8 text-slate-300 mb-3" />
-                <p className="text-sm font-bold text-slate-600">No emails found</p>
-                <p className="text-xs text-slate-400 mt-1">Click "Sync Inbox" to fetch new emails from Gmail.</p>
-              </div>
-            ) : (
-              filteredComms.map(comm => (
+              {isSyncing ? "Syncing..." : "Sync Inbox"}
+            </button>
+            <div className="w-px h-8 bg-slate-200"></div>
+            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+              {[
+                { id: "all", label: "All Mail" },
+                { id: "Requirement", label: "Reqs", icon: Building2 },
+                { id: "Vendor Submission", label: "Vendors", icon: Handshake },
+                { id: "Interview", label: "Interviews", icon: Users },
+              ].map((tab) => (
                 <button
-                  key={comm.id}
-                  onClick={() => setSelectedComm(comm)}
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
                   className={cn(
-                    "w-full p-5 text-left border-b border-slate-100 transition-all hover:bg-slate-50 group",
-                    selectedComm?.id === comm.id ? "bg-white shadow-sm ring-1 ring-slate-200" : ""
+                    "px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+                    activeTab === tab.id
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900",
                   )}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2 max-w-[250px]">
-                      <Mail className="w-4 h-4 text-indigo-500 shrink-0" />
-                      <span className="text-xs font-black uppercase tracking-widest text-slate-400 truncate" title={comm.sender}>
-                        {comm.sender}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap ml-2">{comm.timestamp}</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mb-1 leading-tight line-clamp-1">{comm.subject}</h4>
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{comm.content}</p>
+                  {tab.icon && <tab.icon className="w-4 h-4" />}
+                  {tab.label}
                 </button>
-              ))
-            )}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Conversation View */}
-        {selectedComm ? (
-          <div className="flex-1 flex overflow-hidden">
-            <div className="w-[60%] flex flex-col bg-white border-r border-slate-100">
-               <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl shrink-0">
-                     {selectedComm.sender[0]?.toUpperCase()}
-                   </div>
-                   <div className="min-w-0">
-                     <h2 className="text-lg font-black text-slate-900 truncate">{selectedComm.subject}</h2>
-                     <p className="text-xs font-bold text-slate-500 uppercase tracking-widest truncate">{selectedComm.sender}</p>
-                   </div>
-                 </div>
-                 <div className="flex gap-2 shrink-0">
-                   <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                     Log Meeting
-                   </button>
-                   <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                     Reply
-                   </button>
-                 </div>
-               </div>
+        <div className="flex-1 flex overflow-hidden">
+          {/* Thread List */}
+          <div className="w-[25%] min-w-[280px] border-r border-slate-100 bg-slate-50/50 flex flex-col shrink-0">
+            <div className="p-4 border-b border-slate-100 bg-white">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search emails..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="p-8 flex items-center justify-center text-slate-400 text-sm font-medium">
+                  Loading emails...
+                </div>
+              ) : filteredComms.length === 0 ? (
+                <div className="p-8 flex flex-col items-center justify-center text-center">
+                  <Mail className="w-8 h-8 text-slate-300 mb-3" />
+                  <p className="text-sm font-bold text-slate-600">
+                    No emails found
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Click "Sync Inbox" to fetch new emails from Gmail.
+                  </p>
+                </div>
+              ) : (
+                filteredComms.map((comm) => (
+                  <button
+                    key={comm.id}
+                    onClick={() => setSelectedComm(comm)}
+                    className={cn(
+                      "w-full p-5 text-left border-b border-slate-100 transition-all hover:bg-slate-50 group",
+                      selectedComm?.id === comm.id
+                        ? "bg-white shadow-sm ring-1 ring-slate-200"
+                        : "",
+                    )}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2 max-w-[250px]">
+                        <Mail className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <span
+                          className="text-xs font-black uppercase tracking-widest text-slate-400 truncate"
+                          title={comm.sender}
+                        >
+                          {comm.sender}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap ml-2">
+                        {comm.timestamp}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900 mb-1 leading-tight line-clamp-1">
+                      {comm.subject}
+                    </h4>
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      {comm.content}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
 
-               <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+          {/* Conversation View */}
+          {selectedComm ? (
+            <>
+              <div className="w-[45%] flex flex-col bg-white border-r border-slate-100 shrink-0">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-4 overflow-hidden">
+                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl shrink-0">
+                      {selectedComm.sender[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg font-black text-slate-900 truncate">
+                        {selectedComm.subject}
+                      </h2>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest truncate">
+                        {selectedComm.sender}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
                   <div className="max-w-3xl mx-auto space-y-6">
                     {/* The inbound message */}
                     <div className="bg-white p-6 rounded-3xl rounded-tl-sm border border-slate-200 shadow-sm">
-                      <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-[15px] font-medium text-slate-800 leading-[1.7] whitespace-pre-wrap max-w-full">
                         {selectedComm.fullBody || selectedComm.content}
                       </p>
-                      <div className="mt-4 flex items-center gap-2 text-slate-400">
+                      <div className="mt-6 flex items-center gap-2 text-slate-400 pt-4 border-t border-slate-100">
                         <Clock className="w-3 h-3" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">{selectedComm.timestamp} via {selectedComm.type}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">
+                          {selectedComm.timestamp} via {selectedComm.type}
+                        </span>
                       </div>
                     </div>
 
                     {/* AI Draft Response Placeholder */}
-                    <div className="bg-white p-6 rounded-3xl rounded-tr-sm border border-indigo-100 shadow-sm ml-12 relative overflow-hidden group">
+                    <div className="bg-white p-6 rounded-3xl rounded-tr-sm border border-indigo-100 shadow-sm ml-8 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
                         <Bot className="w-16 h-16 text-indigo-600" />
                       </div>
                       <div className="flex items-center gap-2 mb-4">
                         <Zap className="w-4 h-4 text-indigo-600" />
-                        <span className="text-xs font-black text-indigo-900 uppercase tracking-widest">Suggested Draft</span>
+                        <span className="text-xs font-black text-indigo-900 uppercase tracking-widest">
+                          Suggested Draft
+                        </span>
                       </div>
-                      <textarea 
-                        className="w-full min-h-[100px] p-4 bg-indigo-50/50 border-none rounded-2xl text-sm font-medium focus:ring-0 resize-none mb-4 text-slate-700"
+                      <textarea
+                        className="w-full min-h-[120px] p-4 bg-indigo-50/50 border-none rounded-2xl text-[14px] font-medium focus:ring-2 focus:ring-indigo-500/20 resize-y mb-4 text-slate-800 leading-relaxed"
                         readOnly={isAnalyzing || isSending}
-                        value={draftBody || ''}
+                        value={draftBody || ""}
                         onChange={(e) => setDraftBody(e.target.value)}
-                        placeholder="Neural engine drafting response..."
+                        placeholder="Assistant drafting response..."
                       />
                       <div className="flex justify-between items-center relative z-10">
                         <button className="text-[10px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">
                           Refine Draft
                         </button>
-                        <button 
+                        <button
                           onClick={handleSendDraft}
                           disabled={isSending}
-                          className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50">
+                          className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50"
+                        >
                           <Send className="w-4 h-4" />
-                          {isSending ? 'Sending...' : 'Send Draft'}
+                          {isSending ? "Sending..." : "Send Draft"}
                         </button>
                       </div>
                     </div>
                   </div>
-               </div>
-            </div>
-
-            {/* Context & Neural Insights Sidebar */}
-            <div className="w-[40%] bg-white p-6 overflow-y-auto shrink-0 flex flex-col space-y-8">
-              <div className="space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Neural Insights</h3>
-                {isAnalyzing ? (
-                  <div className="space-y-4">
-                    <div className="h-24 bg-slate-50 rounded-2xl animate-pulse" />
-                    <div className="h-24 bg-slate-50 rounded-2xl animate-pulse" />
-                  </div>
-                ) : insight ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <div className="flex justify-between mb-3 text-[10px] font-black uppercase">
-                         <span className="text-slate-400">Detected Intent</span>
-                         <span className="text-indigo-600">{insight.profile.intent}</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] font-black uppercase">
-                         <span className="text-slate-400">Urgency</span>
-                         <span className={insight.profile.urgency === 'high' ? 'text-red-500' : 'text-emerald-500'}>{insight.profile.urgency}</span>
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-slate-900 text-white rounded-2xl shadow-xl">
-                      <div className="flex items-center gap-2 mb-3">
-                         <Clock className="w-4 h-4 text-emerald-400" />
-                         <span className="text-[10px] font-black uppercase text-slate-300">Strategy</span>
-                      </div>
-                      <p className="text-xs font-medium text-slate-400 leading-relaxed">
-                        {insight.followUp.reason}
-                      </p>
-                      <button className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                        Schedule in {insight.followUp.timeline}
-                      </button>
-                    </div>
-
-                    {insight.extractedRequirement && (
-                      <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl mt-4">
-                        <div className="flex items-center justify-between mb-3">
-                           <span className="text-[10px] font-black text-indigo-800 uppercase tracking-widest flex items-center gap-1">
-                             <Zap className="w-3 h-3" /> Extracted Requirement
-                           </span>
-                        </div>
-                        <div className="space-y-2 text-xs">
-                          {insight.extractedRequirement.client && (
-                          <div className="flex justify-between border-b border-indigo-100 pb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Client</span>
-                            <span className="font-black text-indigo-900 truncate pl-2">{insight.extractedRequirement.client}</span>
-                          </div>
-                          )}
-                          <div className="flex justify-between border-b border-indigo-100 pb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Title</span>
-                            <span className="font-black text-indigo-900 truncate pl-2">{insight.extractedRequirement.title}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-indigo-100 pb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Location</span>
-                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.location}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-indigo-100 pb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Emp Type</span>
-                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.employmentType}</span>
-                          </div>
-                          {insight.extractedRequirement.workMode && (
-                          <div className="flex justify-between border-b border-indigo-100 pb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Work Mode</span>
-                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.workMode}</span>
-                          </div>
-                          )}
-                          {insight.extractedRequirement.budget && (
-                          <div className="flex justify-between mb-1">
-                            <span className="text-indigo-400 font-bold uppercase text-[9px]">Budget</span>
-                            <span className="font-bold text-indigo-900 truncate pl-2">{insight.extractedRequirement.budget}</span>
-                          </div>
-                          )}
-                        </div>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                           <button className="py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm">
-                             Create Req
-                           </button>
-                           <button className="py-2 bg-white text-indigo-600 hover:bg-indigo-50 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm border border-indigo-100">
-                             Broadcast
-                           </button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {insight.extractedSubmission && (
-                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl mt-4">
-                        <div className="flex items-center justify-between mb-3">
-                           <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest flex items-center gap-1">
-                             <Users className="w-3 h-3" /> Extracted Submission
-                           </span>
-                        </div>
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between border-b border-emerald-100 pb-1">
-                            <span className="text-emerald-500 font-bold uppercase text-[9px]">Name</span>
-                            <span className="font-black text-emerald-900 truncate pl-2">{insight.extractedSubmission.candidateName}</span>
-                          </div>
-                          {insight.extractedSubmission.vendorName && (
-                          <div className="flex justify-between border-b border-emerald-100 pb-1">
-                            <span className="text-emerald-500 font-bold uppercase text-[9px]">Vendor</span>
-                            <span className="font-bold text-emerald-900 truncate pl-2">{insight.extractedSubmission.vendorName}</span>
-                          </div>
-                          )}
-                          <div className="flex justify-between border-b border-emerald-100 pb-1">
-                            <span className="text-emerald-500 font-bold uppercase text-[9px]">Experience</span>
-                            <span className="font-bold text-emerald-900 truncate pl-2">{insight.extractedSubmission.experience}</span>
-                          </div>
-                          {insight.extractedSubmission.noticePeriod && (
-                          <div className="flex justify-between border-b border-emerald-100 pb-1">
-                            <span className="text-emerald-500 font-bold uppercase text-[9px]">Notice</span>
-                            <span className="font-bold text-emerald-900 truncate pl-2">{insight.extractedSubmission.noticePeriod}</span>
-                          </div>
-                          )}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {insight.extractedSubmission.skills?.map((s: string, i: number) => (
-                             <span key={i} className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md text-[9px] font-bold">{s}</span>
-                          ))}
-                        </div>
-                        <button className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
-                          Save Submission
-                        </button>
-                      </div>
-                    )}
-                    {insight.extractedInterview && (
-                      <div className="p-4 bg-purple-50 border border-purple-100 rounded-2xl mt-4">
-                        <div className="flex items-center justify-between mb-3">
-                           <span className="text-[10px] font-black text-purple-800 uppercase tracking-widest flex items-center gap-1">
-                             <Zap className="w-3 h-3" /> Extracted Interview
-                           </span>
-                        </div>
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between border-b border-purple-100 pb-1">
-                            <span className="text-purple-500 font-bold uppercase text-[9px]">Client</span>
-                            <span className="font-black text-purple-900 truncate pl-2">{insight.extractedInterview.client}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-purple-100 pb-1">
-                            <span className="text-purple-500 font-bold uppercase text-[9px]">Type</span>
-                            <span className="font-bold text-purple-900 truncate pl-2">{insight.extractedInterview.interviewType?.join(', ')}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-purple-100 pb-1">
-                            <span className="text-purple-500 font-bold uppercase text-[9px]">Date</span>
-                            <span className="font-bold text-purple-900 truncate pl-2">{insight.extractedInterview.date}</span>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {insight.extractedInterview.candidates?.map((c: string, i: number) => (
-                             <span key={i} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-md text-[9px] font-bold">{c}</span>
-                          ))}
-                        </div>
-                        <button className="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
-                          Schedule Interview
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-slate-400 text-xs text-center py-8">Select a message for AI insights.</div>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                  CRM Context
-                  <ArrowRight className="w-4 h-4" />
-                </h3>
-                <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
-                   <p className="text-xs font-bold text-slate-900 mb-1">{selectedComm.sender}</p>
-                   {selectedComm.entityType === 'vendor' && (
-                     <div className="space-y-2 text-xs mt-4">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Active Candidates</span>
-                          <span className="font-bold text-slate-900">0</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Placement Rate</span>
-                          <span className="font-bold text-emerald-600">Pending</span>
-                        </div>
-                     </div>
-                   )}
                 </div>
               </div>
+
+              {/* Context & Assistant Sidebar */}
+              <div className="w-[30%] bg-white p-6 overflow-y-auto shrink-0 flex flex-col space-y-6 min-w-[300px]">
+                {/* MailOS Copilot Section */}
+                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                      <Bot className="w-4 h-4" /> Copilot
+                    </h3>
+                    <select
+                      value={copilotMode}
+                      onChange={(e) => setCopilotMode(e.target.value)}
+                      className="text-[10px] font-bold text-slate-600 bg-white border border-slate-200 rounded-lg py-1 px-2 focus:ring-0 cursor-pointer"
+                    >
+                      <option>Founder Mode</option>
+                      <option>Recruiter Mode</option>
+                      <option>Vendor Manager Mode</option>
+                      <option>Finance Mode</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={() =>
+                        generateCopilotDraft("Generate Client Reply")
+                      }
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      ✉️ Generate Client Reply
+                    </button>
+                    <button
+                      onClick={() =>
+                        generateCopilotDraft("Generate Vendor Broadcast")
+                      }
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      📢 Generate Vendor Broadcast
+                    </button>
+                    <button
+                      onClick={() => generateCopilotDraft("Submission Mail")}
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      📝 Submission Mail
+                    </button>
+                    <button
+                      onClick={() =>
+                        generateCopilotDraft("Interview Coordination")
+                      }
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      📅 Interview Coordination
+                    </button>
+                    <button
+                      onClick={() => generateCopilotDraft("Offer Follow-up")}
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      🤝 Offer Follow-up
+                    </button>
+                    <button
+                      onClick={() =>
+                        generateCopilotDraft("Collection Reminder")
+                      }
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      💰 Collection Reminder
+                    </button>
+                    <button
+                      onClick={() => generateCopilotDraft("Client Engagement")}
+                      disabled={isGeneratingCopilot}
+                      className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      ☕ Client Engagement
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                    Analysis
+                  </h3>
+                  {isAnalyzing ? (
+                    <div className="space-y-4">
+                      <div className="h-24 bg-slate-50 rounded-2xl animate-pulse" />
+                      <div className="h-24 bg-slate-50 rounded-2xl animate-pulse" />
+                    </div>
+                  ) : insight ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="flex justify-between mb-3 text-[10px] font-black uppercase">
+                          <span className="text-slate-400">
+                            Detected Intent
+                          </span>
+                          <span className="text-indigo-600">
+                            {insight.profile.intent}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[10px] font-black uppercase">
+                          <span className="text-slate-400">Urgency</span>
+                          <span
+                            className={
+                              insight.profile.urgency === "high"
+                                ? "text-red-500"
+                                : "text-emerald-500"
+                            }
+                          >
+                            {insight.profile.urgency}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Engine rendering based on Intent */}
+                      {insight.profile.intent === "Requirement" &&
+                        insight.extractedRequirement && (
+                          <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-2xl mt-4">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-indigo-100">
+                              <span className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                                <Briefcase className="w-4 h-4 text-indigo-600" />{" "}
+                                New Requirement
+                              </span>
+                            </div>
+                            <div className="space-y-3 mb-5">
+                              {insight.extractedRequirement.client && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">
+                                    Client
+                                  </p>
+                                  <p className="text-sm font-black text-indigo-950">
+                                    {insight.extractedRequirement.client}
+                                  </p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">
+                                  Role
+                                </p>
+                                <p className="text-sm font-bold text-indigo-900">
+                                  {insight.extractedRequirement.title}
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">
+                                    Location
+                                  </p>
+                                  <p className="text-xs font-semibold text-indigo-900">
+                                    {insight.extractedRequirement.location ||
+                                      "Remote"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">
+                                    Budget
+                                  </p>
+                                  <p className="text-xs font-semibold text-indigo-900">
+                                    {insight.extractedRequirement.budget ||
+                                      "TBD"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <button
+                                onClick={saveRequirement}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-600/20"
+                              >
+                                <Plus className="w-4 h-4" /> Create Requirement
+                              </button>
+                              <button className="w-full flex items-center justify-center gap-2 py-3 bg-white text-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm border border-indigo-100">
+                                Match Bench Resources
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                      {insight.profile.intent === "Vendor Submission" &&
+                        insight.extractedSubmission && (
+                          <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl mt-4">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-emerald-100">
+                              <span className="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                                <Users className="w-4 h-4 text-emerald-600" />{" "}
+                                Vendor Submission
+                              </span>
+                            </div>
+                            <div className="space-y-3 mb-5">
+                              <div>
+                                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-0.5">
+                                  Candidate
+                                </p>
+                                <p className="text-sm font-black text-emerald-950">
+                                  {insight.extractedSubmission.candidateName}
+                                </p>
+                              </div>
+                              {insight.extractedSubmission.vendorName && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-0.5">
+                                    Vendor
+                                  </p>
+                                  <p className="text-xs font-bold text-emerald-900">
+                                    {insight.extractedSubmission.vendorName}
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {insight.extractedSubmission.skills?.map(
+                                  (s: string, i: number) => (
+                                    <span
+                                      key={i}
+                                      className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-bold"
+                                    >
+                                      {s}
+                                    </span>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={saveSubmission}
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20"
+                            >
+                              <Plus className="w-4 h-4" /> Create Submission
+                            </button>
+                          </div>
+                        )}
+
+                      {insight.profile.intent === "Interview" &&
+                        insight.extractedInterview && (
+                          <div className="p-5 bg-purple-50 border border-purple-100 rounded-2xl mt-4">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-100">
+                              <span className="text-xs font-black text-purple-900 uppercase tracking-widest flex items-center gap-2">
+                                <MessageSquare className="w-4 h-4 text-purple-600" />{" "}
+                                Interview Schedule
+                              </span>
+                            </div>
+                            <div className="space-y-3 mb-5">
+                              <div>
+                                <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">
+                                  Client
+                                </p>
+                                <p className="text-sm font-black text-purple-950">
+                                  {insight.extractedInterview.client}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">
+                                  Date & Time
+                                </p>
+                                <p className="text-xs font-bold text-purple-900">
+                                  {insight.extractedInterview.date}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">
+                                  Candidates
+                                </p>
+                                <div className="flex flex-col gap-1 mt-1">
+                                  {insight.extractedInterview.candidates?.map(
+                                    (c: string, i: number) => (
+                                      <span
+                                        key={i}
+                                        className="text-xs font-semibold text-purple-800 flex items-center gap-1.5"
+                                      >
+                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>{" "}
+                                        {c}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={scheduleInterview}
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-purple-600/20"
+                            >
+                              <Plus className="w-4 h-4" /> Create Interview
+                            </button>
+                          </div>
+                        )}
+
+                      <div className="p-4 bg-slate-900 text-white rounded-2xl shadow-xl mt-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Clock className="w-4 h-4 text-emerald-400" />
+                          <span className="text-[10px] font-black uppercase text-slate-300">
+                            Strategy
+                          </span>
+                        </div>
+                        <p className="text-[13px] font-medium text-slate-300 pt-2 border-slate-800">
+                          {insight.followUp.reason}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 text-xs text-center py-8">
+                      Select a message for AI insights.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50">
+              <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-xl border border-slate-100 mb-6">
+                <MessageSquare className="w-8 h-8 text-slate-300" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">MailOS</h3>
+              <p className="text-sm font-medium text-slate-500 mt-2 max-w-xs text-center">
+                Select an email thread to view context and generate AI
+                responses.
+              </p>
             </div>
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50">
-            <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-xl border border-slate-100 mb-6">
-              <MessageSquare className="w-8 h-8 text-slate-300" />
-            </div>
-            <h3 className="text-xl font-black text-slate-900">Mail Dashboard</h3>
-            <p className="text-sm font-medium text-slate-500 mt-2 max-w-xs text-center">
-              Select an email thread to view context and generate AI responses.
-            </p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </div>
   );

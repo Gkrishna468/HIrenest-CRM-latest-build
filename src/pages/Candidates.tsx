@@ -1,32 +1,69 @@
-import React, { useState } from 'react';
-import { useData } from '@/contexts/DataContext';
-import { Search, Filter, Mail, Phone, Calendar, ArrowRight, Building2, UserCircle, Briefcase } from 'lucide-react';
-import { SourceBadge } from '@/components/SourceBadge';
-import { cn } from '@/lib/utils';
-import { safeArray } from '@/utils/safe';
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { useData } from "@/contexts/DataContext";
+import {
+  Search,
+  Filter,
+  Mail,
+  Phone,
+  Calendar,
+  ArrowRight,
+  Building2,
+  UserCircle,
+  Briefcase,
+} from "lucide-react";
+import { SourceBadge } from "@/components/SourceBadge";
+import { cn } from "@/lib/utils";
+import { safeArray } from "@/utils/safe";
 
 export default function Candidates() {
   const { candidates, jobs } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStage, setFilterStage] = useState<string>('all');
+  const location = useLocation();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStage, setFilterStage] = useState<string>("all");
 
-  const filteredCandidates = safeArray(candidates).filter(c => {
-    const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          c.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStage = filterStage === 'all' || c.stage === filterStage;
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes("submissions")) setFilterStage("submission");
+    else if (path.includes("interviews")) setFilterStage("interview");
+    else if (path.includes("offers")) setFilterStage("offer");
+    else if (path.includes("placements")) setFilterStage("placed");
+    else setFilterStage("all");
+  }, [location.pathname]);
+
+  const filteredCandidates = safeArray(candidates).filter((c) => {
+    const matchesSearch =
+      c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.email?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Custom filter matching since "placed" can also mean "joined"
+    let matchesStage = false;
+    if (filterStage === "all") matchesStage = true;
+    else if (filterStage === "placed")
+      matchesStage = c.stage === "placed" || c.stage === "joined";
+    else matchesStage = c.stage === filterStage;
+
     return matchesSearch && matchesStage;
   });
 
   const getStageColor = (stage: string) => {
     switch (stage) {
-      case 'screening': return 'bg-slate-100 text-slate-700';
-      case 'submission': return 'bg-blue-100 text-blue-700';
-      case 'interview': return 'bg-indigo-100 text-indigo-700';
-      case 'offer': return 'bg-emerald-100 text-emerald-700';
-      case 'placed': return 'bg-emerald-500 text-white';
-      case 'joined': return 'bg-emerald-600 text-white';
-      case 'rejected': return 'bg-rose-100 text-rose-700';
-      default: return 'bg-slate-100 text-slate-700';
+      case "screening":
+        return "bg-slate-100 text-slate-700";
+      case "submission":
+        return "bg-blue-100 text-blue-700";
+      case "interview":
+        return "bg-indigo-100 text-indigo-700";
+      case "offer":
+        return "bg-emerald-100 text-emerald-700";
+      case "placed":
+        return "bg-emerald-500 text-white";
+      case "joined":
+        return "bg-emerald-600 text-white";
+      case "rejected":
+        return "bg-rose-100 text-rose-700";
+      default:
+        return "bg-slate-100 text-slate-700";
     }
   };
 
@@ -34,8 +71,12 @@ export default function Candidates() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Candidate Ecosystem</h1>
-          <p className="text-slate-500 mt-1">Unified view of all talent across CRM, Vendors, and MailOS.</p>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
+            Candidates
+          </h1>
+          <p className="text-slate-500 mt-1">
+            Unified view of all talent across CRM, Vendors, and MailOS.
+          </p>
         </div>
       </div>
 
@@ -50,7 +91,7 @@ export default function Candidates() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
           />
         </div>
-        <select 
+        <select
           value={filterStage}
           onChange={(e) => setFilterStage(e.target.value)}
           className="px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/10 transition-colors"
@@ -81,23 +122,41 @@ export default function Candidates() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredCandidates.map(cand => {
-                const associatedJob = jobs.find(j => j.id === cand.jobId);
+              {filteredCandidates.map((cand) => {
+                const associatedJob = jobs.find((j) => j.id === cand.jobId);
                 return (
-                  <tr key={cand.id} className="hover:bg-slate-50 transition-colors group">
+                  <tr
+                    key={cand.id}
+                    className="hover:bg-slate-50 transition-colors group"
+                  >
                     <td className="p-4">
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{cand.name}</span>
+                        <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                          {cand.name}
+                        </span>
                         <div className="flex items-center gap-2 mt-1">
-                          <SourceBadge source={cand.source || 'os'} className="scale-90 origin-left" />
-                          <span className="text-xs text-slate-500">{cand.vendorName || 'Direct Applicant'}</span>
+                          <SourceBadge
+                            source={cand.source || "os"}
+                            className="scale-90 origin-left"
+                          />
+                          <span className="text-xs text-slate-500">
+                            {cand.vendorName || "Direct Applicant"}
+                          </span>
                         </div>
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="flex flex-col gap-1 text-sm text-slate-500">
-                        {cand.email && <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {cand.email}</div>}
-                        {cand.phone && <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {cand.phone}</div>}
+                        {cand.email && (
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5" /> {cand.email}
+                          </div>
+                        )}
+                        {cand.phone && (
+                          <div className="flex items-center gap-1.5">
+                            <Phone className="w-3.5 h-3.5" /> {cand.phone}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="p-4">
@@ -107,14 +166,23 @@ export default function Candidates() {
                             <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
                             {associatedJob.title}
                           </span>
-                          <span className="text-xs text-slate-500 mt-0.5">{associatedJob.clientName}</span>
+                          <span className="text-xs text-slate-500 mt-0.5">
+                            {associatedJob.clientName}
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-xs italic text-slate-400">General Pool</span>
+                        <span className="text-xs italic text-slate-400">
+                          General Pool
+                        </span>
                       )}
                     </td>
                     <td className="p-4 text-right">
-                      <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest", getStageColor(cand.stage))}>
+                      <span
+                        className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          getStageColor(cand.stage),
+                        )}
+                      >
                         {cand.stage}
                       </span>
                     </td>

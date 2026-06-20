@@ -3,14 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useAuth } from './AuthContext';
-import { getClients, createClient, updateClient } from '@/lib/api/clients';
-import { getVendors, createVendor, updateVendor } from '@/lib/api/vendors';
-import { getJobs, createJob, approveJob } from '@/lib/api/jobs';
-import { getAllCandidates, createCandidate, updateCandidate, deleteCandidate } from '@/lib/api/candidates';
-import type { Client, Vendor, Job, Candidate, AgentLog, Deal } from '@/types';
-import { supabase } from '@/lib/supabase';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
+import { useAuth } from "./AuthContext";
+import { getClients, createClient, updateClient } from "@/lib/api/clients";
+import { getVendors, createVendor, updateVendor } from "@/lib/api/vendors";
+import { getJobs, createJob, approveJob } from "@/lib/api/jobs";
+import {
+  getAllCandidates,
+  createCandidate,
+  updateCandidate,
+  deleteCandidate,
+} from "@/lib/api/candidates";
+import type { Client, Vendor, Job, Candidate, AgentLog, Deal } from "@/types";
+import { supabase } from "@/lib/supabase";
 
 interface DataContextType {
   clients: Client[];
@@ -29,7 +40,11 @@ interface DataContextType {
   addJob: (data: Partial<Job>) => Promise<void>;
   addCandidate: (data: Partial<Candidate>) => Promise<void>;
   updateCandidate: (id: string, data: Partial<Candidate>) => Promise<void>;
-  updateCandidateStatus: (id: string, stage: Candidate['stage'], status?: string) => Promise<void>;
+  updateCandidateStatus: (
+    id: string,
+    stage: Candidate["stage"],
+    status?: string,
+  ) => Promise<void>;
   approveJobWithBudget: (id: string, budget: string) => Promise<void>;
 }
 
@@ -52,11 +67,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       // Fetch User Profile first for context
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
         .single();
-      
+
       setUserProfile(profile);
 
       const [cData, vData, jData, candData, dealData] = await Promise.all([
@@ -64,7 +79,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         getVendors(),
         getJobs(),
         getAllCandidates(),
-        supabase.from('deals').select('*').order('created_at', { ascending: false })
+        supabase
+          .from("deals")
+          .select("*")
+          .order("created_at", { ascending: false }),
       ]);
       setClients(cData);
       setVendors(vData);
@@ -74,38 +92,44 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch logs
       const { data: logsData, error: logsError } = await supabase
-        .from('agent_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
+        .from("agent_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
         .limit(50);
-      
+
       if (logsError) {
-        console.error('Error fetching agent logs:', logsError);
+        console.error("Error fetching agent logs:", logsError);
       }
-      
+
       if (logsData) {
-        setLogs(logsData.map(l => ({
-          id: l.id,
-          type: l.type,
-          level: l.level === 'success' ? 'success' : (l.level || 'info'),
-          message: l.message,
-          metadata: l.metadata,
-          companyId: l.company_id,
-          createdAt: l.created_at
-        } as AgentLog)));
+        setLogs(
+          logsData.map(
+            (l) =>
+              ({
+                id: l.id,
+                type: l.type,
+                level: l.level === "success" ? "success" : l.level || "info",
+                message: l.message,
+                metadata: l.metadata,
+                companyId: l.company_id,
+                createdAt: l.created_at,
+              }) as AgentLog,
+          ),
+        );
       }
 
       // Parity Check - Phase 4 dual-read simulation
-      import('@/services/firebase/migrationService').then(({ migrationService }) => {
-        migrationService.runParityCheck({
-           clients: cData,
-           vendors: vData,
-           jobs: jData
-        });
-      });
-
+      import("@/services/firebase/migrationService").then(
+        ({ migrationService }) => {
+          migrationService.runParityCheck({
+            clients: cData,
+            vendors: vData,
+            jobs: jData,
+          });
+        },
+      );
     } catch (err) {
-      console.error('Failed to load data:', err);
+      console.error("Failed to load data:", err);
     } finally {
       setLoading(false);
     }
@@ -120,13 +144,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     const channel = supabase
-      .channel('agent_logs_realtime')
+      .channel("agent_logs_realtime")
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'agent_logs' },
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "agent_logs" },
         (payload) => {
-          setLogs(prev => [payload.new as any, ...prev].slice(0, 50));
-        }
+          setLogs((prev) => [payload.new as any, ...prev].slice(0, 50));
+        },
       )
       .subscribe();
 
@@ -139,10 +163,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Auto-generate Client Code if not present: C-YYMM-RAND
     if (!data.clientCode) {
       const year = new Date().getFullYear().toString().slice(-2);
-      const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const rand = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, "0");
       data.clientCode = `CL-${year}${rand}`;
     }
-    await createClient({ ...data, source: data.source || 'crm' } as any);
+    await createClient({ ...data, source: data.source || "crm" } as any);
     await refreshAll();
   };
 
@@ -155,14 +181,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Auto-generate Vendor Code if not present: V-YYMM-RAND
     if (!data.vendorCode) {
       const year = new Date().getFullYear().toString().slice(-2);
-      const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const rand = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, "0");
       data.vendorCode = `VN-${year}${rand}`;
     }
     // Mapping: ensure companyId matches user context if possible
     if (!data.companyId && userProfile?.company_id) {
       data.companyId = userProfile.company_id;
     }
-    await createVendor({ ...data, source: data.source || 'vendor' } as any);
+    await createVendor({ ...data, source: data.source || "vendor" } as any);
     await refreshAll();
   };
 
@@ -173,12 +201,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const addJob = async (data: Partial<Job>) => {
     // If job has clientId, we should ideally check client mapping
-    await createJob({ ...data, source: data.source || 'os' } as any);
+    await createJob({ ...data, source: data.source || "os" } as any);
     await refreshAll();
   };
 
   const addCandidate = async (data: Partial<Candidate>) => {
-    await createCandidate({ ...data, source: data.source || 'os' } as any);
+    await createCandidate({ ...data, source: data.source || "os" } as any);
     await refreshAll();
   };
 
@@ -187,7 +215,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await refreshAll();
   };
 
-  const updateCandidateStatus = async (id: string, stage: Candidate['stage'], status?: string) => {
+  const updateCandidateStatus = async (
+    id: string,
+    stage: Candidate["stage"],
+    status?: string,
+  ) => {
     await updateCandidate(id, { stage, status });
     await refreshAll();
   };
@@ -198,15 +230,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{
-      clients, vendors, jobs, candidates, logs, deals, userProfile, loading,
-      refreshAll, 
-      addClient, updateClient: updateClientData,
-      addVendor, updateVendor: updateVendorData,
-      addJob, 
-      addCandidate, updateCandidate: updateCandidateData,
-      updateCandidateStatus, approveJobWithBudget
-    }}>
+    <DataContext.Provider
+      value={{
+        clients,
+        vendors,
+        jobs,
+        candidates,
+        logs,
+        deals,
+        userProfile,
+        loading,
+        refreshAll,
+        addClient,
+        updateClient: updateClientData,
+        addVendor,
+        updateVendor: updateVendorData,
+        addJob,
+        addCandidate,
+        updateCandidate: updateCandidateData,
+        updateCandidateStatus,
+        approveJobWithBudget,
+      }}
+    >
       {children}
     </DataContext.Provider>
   );
@@ -215,7 +260,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 export const useData = () => {
   const context = useContext(DataContext);
   if (context === undefined) {
-    throw new Error('useData must be used within a DataProvider');
+    throw new Error("useData must be used within a DataProvider");
   }
   return context;
 };
