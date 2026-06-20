@@ -783,16 +783,30 @@ export default function Jobs() {
                     </div>
                   )}
 
-                  {/* Sharing Tools */}
+                  {/* Sharing Tools / Vendor Broadcast Engine */}
                   <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Actions & Sourcing
+                      Vendor Broadcast Engine
                     </h3>
+                    <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-600 mb-2 border border-slate-200">
+                      Requirement: {selectedJob.title}
+                      <br />
+                      Location: {selectedJob.location}
+                      <br />
+                      Experience: {selectedJob.experienceRequired || '3-5 Years'}
+                      <br />
+                      Employment Type: {selectedJob.type}
+                      <br />
+                      <br />
+                      Interested vendors may share immediate joiners and active candidates.
+                      <br />
+                      HireNest Workforce Pvt Ltd
+                    </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
                           const text = encodeURIComponent(
-                            `Apply for this role: ${selectedJob.title} at ${selectedJob.clientName}. Details: ${window.location.origin}/#/apply/${selectedJob.id}?src=wa`,
+                            `Requirement: ${selectedJob.title}\nLocation: ${selectedJob.location}\nExperience: ${selectedJob.experienceRequired || '3-5 Years'}\nEmployment Type: ${selectedJob.type}\n\nInterested vendors may share immediate joiners and active candidates.\nHireNest Workforce Pvt Ltd\nDetails: ${window.location.origin}/#/apply/${selectedJob.id}?src=wa`,
                           );
                           window.open(`https://wa.me/?text=${text}`, "_blank");
                         }}

@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 import { safeArray, safeString } from '@/utils/safe';
 import { cn } from '@/lib/utils';
+import { SourceBadge } from "@/components/SourceBadge";
 
 export default function Vendors() {
   const { vendors, loading, addVendor, candidates, deals } = useData();
@@ -123,12 +124,15 @@ export default function Vendors() {
               </div>
               
               <div>
-                <h4 
-                  onClick={() => setSelectedVendor(vendor)}
-                  className="font-bold text-slate-900 text-lg cursor-pointer hover:text-indigo-600 transition-colors"
-                >
-                  {vendor.name}
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 
+                    onClick={() => setSelectedVendor(vendor)}
+                    className="font-bold text-slate-900 text-lg cursor-pointer hover:text-indigo-600 transition-colors"
+                  >
+                    {vendor.name}
+                  </h4>
+                  <SourceBadge source={vendor.source || 'crm'} />
+                </div>
                 <p className="text-sm text-slate-500 font-medium">{vendor.company}</p>
                 <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 opacity-60">

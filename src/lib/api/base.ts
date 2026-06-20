@@ -65,6 +65,7 @@ export async function safeDelete(table: string, id: string) {
 export const sanitizeClient = (c: any): Client => ({
   id: safeString(c.id),
   company: safeString(c.company),
+  source: (c.source as any) || 'crm',
   name: safeString(c.name),
   email: safeString(c.email),
   phone: safeString(c.phone),
@@ -84,6 +85,7 @@ export const sanitizeClient = (c: any): Client => ({
 export const sanitizeVendor = (v: any): Vendor => ({
   id: safeString(v.id),
   name: safeString(v.name),
+  source: (v.source as any) || 'crm',
   type: (v.type === 'recruiter' ? 'recruiter' : 'vendor'),
   company: safeString(v.company),
   email: safeString(v.email),
@@ -108,6 +110,7 @@ export const sanitizeJob = (j: any): Job => ({
   salary: safeString(j.salary),
   budget: j.budget || 0,
   skills: safeSkills(j.skills),
+  source: (j.source as any) || 'os',
   experienceRequired: safeString(j.experience_required),
   openings: safeNumber(j.openings),
   submissionsCount: safeNumber(j.submissions_count),
@@ -144,7 +147,7 @@ export const sanitizeCandidate = (c: any): Candidate => ({
   jobTitle: safeString(c.job_title),
   resumeUrl: safeString(c.resume_url),
   notes: safeString(c.notes),
-  source: safeString(c.source || 'portal'),
+  source: safeString(c.source || 'os') as any,
   userId: safeString(c.user_id),
   companyId: safeString(c.company_id),
   createdAt: safeString(c.created_at),

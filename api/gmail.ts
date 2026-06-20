@@ -114,11 +114,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // refresh tokens if needed
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
-    // Fetch last 15 messages from Inbox
+    // Fetch messages from Inbox with staffing filters
     const listRes = await gmail.users.messages.list({
       userId: 'me',
-      q: 'in:inbox',
-      maxResults: 15
+      q: `newer_than:30d ("requirement" OR "hiring" OR "profile" OR "resume" OR "candidate" OR "submission" OR "interview" OR "C2C" OR "FTE" OR "contract")`,
+      maxResults: 25 // increased to 25 to capture more relevant items
     });
 
     const messages = listRes.data.messages || [];

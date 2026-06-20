@@ -169,19 +169,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         insight.extractedRequirement &&
         (insight.profile.confidence || 0.8) > 0.8
       ) {
-        const reqRef = await db.collection("jobs").add({
+        const reqData = {
           title: insight.extractedRequirement.title || "Unknown Role",
-          clientName: insight.extractedRequirement.client || "Unknown Client",
+          client: insight.extractedRequirement.client || "Unknown Client",
           location: insight.extractedRequirement.location || "",
-          type: insight.extractedRequirement.employmentType || "Full-time",
+          employmentType: insight.extractedRequirement.employmentType || "Full-time",
           budget: insight.extractedRequirement.budget || "",
+          experience: insight.extractedRequirement.experience || "",
           skills: insight.extractedRequirement.skills || [],
           source: "mailos",
           sourceEmailId: emailId,
-          status: "open",
+          status: "Open",
+          createdBy: "mailos",
           createdAt: new Date().toISOString(),
-          broadcast_to_vendors: true,
-        });
+          confidence: insight.profile.confidence || 0.9,
+          requiresReview: (insight.profile.confidence || 0.9) < 0.95
+        };
+        
+        const reqRef = await db.collection("requirements_private").add(reqData);
+
+        // Sync sanitized version to public collection
+        const publicReqData = {
+          title: reqData.title,
+          location: reqData.location,
+          employmentType: reqData.employmentType,
+          experience: reqData.experience,
+          skills: reqData.skills,
+          status: reqData.status,
+          source: reqData.source,
+          createdBy: "system",
+          createdAt: reqData.createdAt,
+          confidence: reqData.confidence,
+          requiresReview: reqData.requiresReview,
+          parentRequirementId: reqRef.id
+        };
+        await db.collection("requirements_public").doc(reqRef.id).set(publicReqData);
 
         await db.collection("system_events").add({
           type: "lifecycle_automation",
@@ -203,22 +225,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         insight.extractedSubmission &&
         (insight.profile.confidence || 0.8) > 0.8
       ) {
-        const candRef = await db.collection("candidates").add({
-          name:
-            insight.extractedSubmission.candidateName || "Unknown Candidate",
-          source: insight.extractedSubmission.vendorName || "mailos",
-          stage: "submission",
-          email: "unknown@example.com",
-          location: insight.extractedSubmission.noticePeriod || "",
+        const candData = {
+          name: insight.extractedSubmission.candidateName || "Unknown Candidate",
+          source: "mailos",
+          createdBy: "mailos",
+          vendorName: insight.extractedSubmission.vendorName || "Unknown Vendor",
+          experience: insight.extractedSubmission.experience || "",
+          skills: insight.extractedSubmission.skills || [],
+          noticePeriod: insight.extractedSubmission.noticePeriod || "",
           sourceEmailId: emailId,
           createdAt: new Date().toISOString(),
+          confidence: insight.profile.confidence || 0.9,
+          requiresReview: (insight.profile.confidence || 0.9) < 0.95
+        };
+        
+        const candRef = await db.collection("candidatePool").add(candData);
+        
+        // Ownership mapping for the vendor
+        await db.collection("candidateOwnership").add({
+          candidateId: candRef.id,
+          vendorName: candData.vendorName,
+          source: "mailos",
+          createdAt: new Date().toISOString(),
+        });
+
+        // Submission linkage
+        const subRef = await db.collection("submissions").add({
+          candidateId: candRef.id,
+          status: "pending_review",
+          source: "mailos",
+          vendorName: candData.vendorName,
+          createdAt: new Date().toISOString()
         });
 
         await db.collection("system_events").add({
           type: "lifecycle_automation",
           message: `Automated Vendor Submission: ${insight.extractedSubmission.candidateName}`,
           timestamp: new Date().toISOString(),
-          data: { event: "SubmissionCreated", candidateId: candRef.id },
+          data: { event: "SubmissionCreated", candidateId: candRef.id, submissionId: subRef.id },
         });
       }
 

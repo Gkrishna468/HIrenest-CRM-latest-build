@@ -35,6 +35,7 @@ export interface User {
 
 export interface Client {
   id: string;
+  source?: "crm" | "os" | "mailos" | "vendor" | "manual";
   company: string;
   name?: string;
   email?: string;
@@ -54,6 +55,7 @@ export interface Client {
 
 export interface Vendor {
   id: string;
+  source?: "crm" | "os" | "mailos" | "vendor" | "manual";
   name: string;
   type: 'vendor' | 'recruiter';
   company?: string;
@@ -73,6 +75,7 @@ export interface Vendor {
 export interface Job {
   id: string;
   companyId: string;
+  source?: "crm" | "os" | "mailos" | "vendor" | "manual";
   title: string;
   description: string;
   location: string;
@@ -97,6 +100,7 @@ export interface Job {
 
 export interface Candidate {
   id: string;
+  source?: "crm" | "os" | "mailos" | "vendor" | "manual" | "resume";
   vendorCompanyId?: string;
   name: string;
   email?: string;
@@ -118,7 +122,6 @@ export interface Candidate {
   jobTitle?: string;
   resumeUrl?: string;
   notes?: string;
-  source: string;
   aiMatchScore?: number;
   userId?: string;
   companyId?: string;

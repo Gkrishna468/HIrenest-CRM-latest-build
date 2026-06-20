@@ -33,6 +33,15 @@ if (!getApps()?.length) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = req.query.action || (req.body && req.body.action);
+  
+  if (!action) {
+     return res.json({
+        status: "ok",
+        service: "HireNestOS",
+        timestamp: new Date().toISOString()
+     });
+  }
+
   switch (action) {
     case 'ai':
       return await (async () => {
