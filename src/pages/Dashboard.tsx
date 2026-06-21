@@ -172,47 +172,48 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-3">
-            {(agentActivities.length > 0 ? agentActivities.map(a => ({
-               name: a.agent,
-               status: a.status,
-               state: a.state,
-               icon: a.agent.includes("Requirement") ? Briefcase : a.agent.includes("Vendor") ? Handshake : a.agent.includes("Revenue") ? Zap : Users
-            })) : [
-              { name: "Requirement Agent", status: "Parsing 2 new emails", state: "working", icon: Briefcase },
-              { name: "Vendor Agent", status: "Broadcast dispatched", state: "working", icon: Handshake },
-              { name: "Recruiter Copilot", status: "Idle", state: "completed", icon: Users },
-              { name: "Revenue Agent", status: "Waiting for deal state", state: "waiting", icon: Zap },
-            ]).map((agent, i) => {
-              const IconComp = agent.icon as LucideIcon;
-              return (
-              <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#0B0F19] border border-[#1E293B]">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
-                    agent.state === 'working' ? 'bg-indigo-500/10 border-indigo-500/30' :
-                    agent.state === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30' :
-                    'bg-slate-800 border-slate-700'
-                  }`}>
-                    <IconComp className={`w-4 h-4 ${
-                      agent.state === 'working' ? 'text-indigo-400' :
-                      agent.state === 'completed' ? 'text-emerald-400' :
-                      'text-slate-500'
-                    }`} />
+            {agentActivities.length > 0 ? (
+              agentActivities.map(a => ({
+                 name: a.agent,
+                 status: a.status,
+                 state: a.state,
+                 icon: a.agent.includes("Requirement") ? Briefcase : a.agent.includes("Vendor") ? Handshake : a.agent.includes("Revenue") ? Zap : Users
+              })).map((agent, i) => {
+                const IconComp = agent.icon as LucideIcon;
+                return (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#0B0F19] border border-[#1E293B]">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
+                        agent.state === 'working' ? 'bg-indigo-500/10 border-indigo-500/30' :
+                        agent.state === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30' :
+                        'bg-slate-800 border-slate-700'
+                      }`}>
+                        <IconComp className={`w-4 h-4 ${
+                          agent.state === 'working' ? 'text-indigo-400' :
+                          agent.state === 'completed' ? 'text-emerald-400' :
+                          'text-slate-500'
+                        }`} />
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-bold text-slate-200">{agent.name}</h5>
+                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">{agent.status}</p>
+                      </div>
+                    </div>
+                    {agent.state === 'working' && (
+                      <div className="flex gap-1">
+                        <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h5 className="text-sm font-bold text-slate-200">{agent.name}</h5>
-                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">{agent.status}</p>
-                  </div>
-                </div>
-                {agent.state === 'working' && (
-                  <div className="flex gap-1">
-                    <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                )}
+                );
+              })
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-slate-500 text-xs uppercase tracking-widest">No recent agent activity...</p>
               </div>
-            );
-            })}
+            )}
           </div>
 
           <div className="mt-auto pt-6">

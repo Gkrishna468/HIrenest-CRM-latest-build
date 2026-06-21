@@ -637,7 +637,7 @@ export default function Jobs() {
                       <p className="text-emerald-700/80 text-sm font-medium">Broadcast to HireNest Vendor Network instantly.</p>
                     </div>
                   </div>
-                  <div className="mt-6 flex flex-wrap gap-3">
+                  <div className="flex mt-8 gap-4 border-t border-emerald-200/50 pt-6">
                     <button 
                       onClick={async () => {
                         try {
@@ -651,23 +651,27 @@ export default function Jobs() {
                           toast.error('Failed to trigger broadcast.');
                         }
                       }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-95"
                     >
-                      <Zap className="w-4 h-4" /> Trigger AI Broadcast Agent
+                      <Zap className="w-4 h-4 fill-emerald-100" /> Trigger AI Broadcast Agent
                     </button>
-                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2 px-4 rounded-lg border border-emerald-200 flex items-center gap-2 transition-colors">
+                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2.5 px-5 rounded-xl border border-emerald-200 flex items-center gap-2 transition-colors">
                       <Globe className="w-4 h-4" /> Generate LinkedIn Post
                     </button>
-                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2 px-4 rounded-lg border border-emerald-200 flex items-center gap-2 transition-colors">
+                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2.5 px-5 rounded-xl border border-emerald-200 flex items-center gap-2 transition-colors">
                       <FileText className="w-4 h-4" /> Copy Text Form
                     </button>
                   </div>
                 </div>
-                <div className="w-full md:w-auto flex flex-col items-center bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
-                  <div className="w-32 h-32 bg-slate-100 rounded-lg flex items-center justify-center mb-3">
-                    <span className="text-slate-400 font-mono text-xs text-center px-4">QR CODE MOCK<br/>Scan to Join</span>
+                <div className="w-full md:w-auto flex flex-col items-center bg-white p-6 rounded-2xl border border-emerald-100 shadow-lg relative overflow-hidden group hover:border-emerald-300 transition-colors">
+                  <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  <div className="w-36 h-36 bg-white border-2 border-dashed border-emerald-300 rounded-xl flex items-center justify-center mb-4 relative z-10 transition-transform group-hover:scale-105">
+                    <div className="absolute inset-2 bg-slate-50 flex items-center justify-center rounded-lg">
+                      <MessageSquare className="w-10 h-10 text-emerald-200" />
+                    </div>
                   </div>
-                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest text-center">Network Invite</p>
+                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest text-center">Network Invite Link</p>
+                  <p className="text-[10px] text-emerald-600/70 text-center mt-1">Vendor Scanning Allowed</p>
                 </div>
               </div>
 

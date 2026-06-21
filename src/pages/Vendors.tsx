@@ -240,7 +240,28 @@ export default function Vendors() {
             
             <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1">
               <div className="mb-8">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Vendor Scorecard & Funnel</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Vendor Scorecard & Funnel</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">Tier 1 Partner</span>
+                  </div>
+                </div>
+                
+                {/* Gamified Health Bar */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-6 flex items-center justify-between shadow-inner">
+                  <div className="flex flex-col w-full px-2">
+                    <div className="flex justify-between items-center mb-2">
+                       <span className="text-xs font-bold text-slate-600">Vendor Health Score</span>
+                       <span className="text-sm font-black text-indigo-600">850 / 1000</span>
+                    </div>
+                    <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                       <div className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 w-[85%] rounded-full shadow-[inset_0_-2px_4px_rgba(0,0,0,0.1)] relative">
+                          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {[
                     { label: 'Broadcasts Rcvd', val: selectedVendor.broadcastsReceived || '0', color: 'text-slate-600' },
@@ -254,7 +275,7 @@ export default function Vendors() {
                     { label: 'Interview Ratio', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length > 0 ? `${Math.round((safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && c.stage === 'interview').length / safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length) * 100)}%` : '0%', color: 'text-indigo-600' },
                     { label: 'Join Ratio', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length > 0 ? `${Math.round((safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && (c.stage === 'placed' || c.stage === 'joined')).length / safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length) * 100)}%` : '0%', color: 'text-emerald-600' },
                   ].map((stat, i) => (
-                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center hover:shadow-md hover:-translate-y-0.5 transition-all cursor-default">
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>
                       <p className={cn("text-2xl font-black", stat.color)}>{stat.val}</p>
                     </div>

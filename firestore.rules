@@ -212,5 +212,37 @@ service cloud.firestore {
       allow update: if false; // Immutable audit trail
       allow delete: if false;
     }
+
+    match /agent_activities/{id} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /activity_ledger/{id} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /submission_ledger/{id} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /vendor_broadcasts/{id} {
+      allow read, write: if isSignedIn();
+    }
+    
+    match /vendor_responses/{id} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /jobs/{id} {
+      allow read, write: if isSignedIn();
+    }
+    
+    match /candidates/{id} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /candidateOwnership/{id} {
+      allow read, write: if isSignedIn();
+    }
   }
 }
