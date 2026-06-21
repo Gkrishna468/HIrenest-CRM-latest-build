@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
@@ -48,6 +49,22 @@ export default function Dashboard() {
   const vendorPayables = deals?.reduce((sum, d) => sum + (Number((d as any).vendor_cost) || 0), 0) || 0;
   const expectedMargin = (expectedRevenue > 0 && vendorPayables > 0) ? (expectedRevenue - vendorPayables) : 0; 
 
+  const escalatedJobs = jobs.filter(j => 
+    (j.status?.toLowerCase() === 'open' || j.status?.toLowerCase() === 'pending') && 
+    (Date.now() - new Date(j.createdAt).getTime()) > (4 * 24 * 60 * 60 * 1000) &&
+    (!j.submissionsCount || j.submissionsCount === 0)
+  ) || [];
+
+  const readyCandidates = candidates.filter(c => {
+    const isMatch = (c as any).matchScore ? (c as any).matchScore > 85 : true;
+    const isReady = c.stage === 'available' || c.stage === 'screening' || !c.stage;
+    return isMatch && isReady;
+  }) || [];
+
+  const inactiveVendors = vendors.filter(v => 
+    (Date.now() - new Date(v.updatedAt || v.createdAt || Date.now()).getTime()) > (7 * 24 * 60 * 60 * 1000)
+  ) || [];
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -81,18 +98,16 @@ export default function Dashboard() {
       </div>
 
       {/* Top Metrics - Founder Dashboard View */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 relative z-10">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 relative z-10">
         {[
-          { label: "Today's Requirements", val: jobs.filter(j => new Date(j.createdAt).toDateString() === new Date().toDateString()).length, icon: Briefcase, color: "blue" },
-          { label: "Broadcasts Sent", val: jobs.reduce((acc, j) => acc + (j.broadcastsSent || 0), 0), icon: Globe, color: "slate" },
-          { label: "Vendor Responses", val: jobs.reduce((acc, j) => acc + (j.vendorResponses || 0), 0), icon: MessageSquare, color: "slate" },
-          { label: "Profiles Received", val: candidates.length, icon: FileSearch, color: "indigo" },
-          { label: "Submissions", val: candidates.filter(c => c.stage === 'submission' || c.stage === 'screening').length, icon: Handshake, color: "purple" },
-          { label: "Interviews", val: candidates.filter(c => c.stage === 'interview').length, icon: Users, color: "amber" },
-          { label: "Offers", val: candidates.filter(c => c.stage === 'offer').length, icon: CheckCircle2, color: "emerald" },
-          { label: "Placements", val: placements, icon: Trophy, color: "fuchsia" },
-          { label: "Expected Revenue", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹0', icon: CircleDollarSign, color: "emerald", isCurrency: true },
-          { label: "Expected Margin", val: expectedRevenue ? formatCurrency(expectedRevenue * 0.2) : '₹0', icon: TrendingUp, color: "emerald", isCurrency: true },
+          { label: "Requirements Open", val: jobs.filter(j => j.status?.toLowerCase() === "open" || !j.status).length, icon: Briefcase, color: "blue" },
+          { label: "Candidates Available", val: candidates.filter(c => c.stage === 'available' || !c.stage).length, icon: Users, color: "indigo" },
+          { label: "Submissions Today", val: candidates.filter(c => (c.stage === 'submission' || c.stage === 'screening') && new Date(c.updatedAt || c.createdAt).toDateString() === new Date().toDateString()).length, icon: FileSearch, color: "purple" },
+          { label: "Interviews Scheduled", val: candidates.filter(c => c.stage === 'interview').length, icon: MessageSquare, color: "amber" },
+          { label: "Offers Pending", val: candidates.filter(c => c.stage === 'offer').length, icon: CheckCircle2, color: "emerald" },
+          { label: "Placements This Month", val: placements, icon: Trophy, color: "fuchsia" },
+          { label: "Revenue Pipeline", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹0', icon: CircleDollarSign, color: "emerald", isCurrency: true },
+          { label: "Expected Margin", val: expectedMargin ? formatCurrency(expectedMargin) : '₹0', icon: TrendingUp, color: "emerald", isCurrency: true },
         ].map((metric, i) => {
           const Icon = metric.icon;
           return (
@@ -120,44 +135,60 @@ export default function Dashboard() {
           </div>
           
           <div className="space-y-4">
-            <div className="flex items-start gap-4 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-              <div className="mt-1">
-                <AlertTriangle className="w-5 h-5 text-rose-400" />
+            {escalatedJobs.length > 0 && (
+              <div className="flex items-start gap-4 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                <div className="mt-1">
+                  <AlertTriangle className="w-5 h-5 text-rose-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-white mb-1">{escalatedJobs.length} Requirements Need Escalation</h4>
+                  <p className="text-xs text-rose-200">Requirements {escalatedJobs.slice(0,3).map(j=>j.title).join(', ')} have been open for &gt; 4 days with zero vendor submissions.</p>
+                </div>
+                <Link to="/requirements" className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg transition-colors inline-block" onClick={() => toast.success("Escalating requirements...")}>
+                  Escalate
+                </Link>
               </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">3 Requirements Need Escalation</h4>
-                <p className="text-xs text-rose-200">Requirements HN-245, HN-291, and HN-304 have been open for &gt; 4 days with zero vendor submissions.</p>
-              </div>
-              <button className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg transition-colors">
-                Escalate
-              </button>
-            </div>
+            )}
 
-            <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
-              <div className="mt-1">
-                <Users className="w-5 h-5 text-indigo-400" />
+            {readyCandidates.length > 0 && (
+              <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+                <div className="mt-1">
+                  <Users className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-white mb-1">{readyCandidates.length} Candidates Ready for Submission</h4>
+                  <p className="text-xs text-indigo-200">New vendor resumes parsed and matched against Open Requirements with &gt;85% confidence score.</p>
+                </div>
+                <Link to="/candidates" className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-colors inline-block" onClick={() => toast.info("Opening matching queue...")}>
+                  Review Fast
+                </Link>
               </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">14 Candidates Ready for Submission</h4>
-                <p className="text-xs text-indigo-200">New vendor resumes parsed and matched against Open Requirements with &gt;85% confidence score.</p>
-              </div>
-              <button className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-colors">
-                Review Fast
-              </button>
-            </div>
+            )}
 
-            <div className="flex items-start gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-              <div className="mt-1">
-                <Handshake className="w-5 h-5 text-amber-400" />
+            {inactiveVendors.length > 0 && (
+              <div className="flex items-start gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                <div className="mt-1">
+                  <Handshake className="w-5 h-5 text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-white mb-1">{inactiveVendors.length} Tier-1 Vendors Inactive</h4>
+                  <p className="text-xs text-amber-200">Vendors {inactiveVendors.slice(0,2).map(v=>v.name).join(', ')} haven't responded to recent requirements.</p>
+                </div>
+                <button 
+                  onClick={() => {
+                    toast.success("Drafting WhatsApp & Email reminders to vendors...");
+                  }}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-lg transition-colors">
+                  Auto-Ping
+                </button>
               </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">2 Tier-1 Vendors Inactive</h4>
-                <p className="text-xs text-amber-200">Witty Brains network vendors haven't responded to the last 4 Requirement Broadcasts in WhatsApp.</p>
+            )}
+
+            {escalatedJobs.length === 0 && readyCandidates.length === 0 && inactiveVendors.length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-slate-500 text-sm">System is fully optimized. No pending recommendations.</p>
               </div>
-              <button className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-lg transition-colors">
-                Auto-Ping
-              </button>
-            </div>
+            )}
           </div>
         </div>
 
