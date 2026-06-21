@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
@@ -23,7 +24,8 @@ import {
   Globe,
   MessageSquare,
   Trophy,
-  LucideIcon
+  LucideIcon,
+  History
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -159,65 +161,47 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right: Agent Console Grid */}
+        {/* Right: Recent System Events */}
         <div className="bg-[#131B2C] border border-[#1E293B] rounded-3xl p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-6 justify-between">
             <div className="flex items-center gap-3">
-              <Bot className="w-5 h-5 text-indigo-400" />
-              <h2 className="text-lg font-bold text-white tracking-tight">Agent Console</h2>
+              <History className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-lg font-bold text-white tracking-tight">Recent Activity</h2>
             </div>
-            <button className="text-[10px] font-black uppercase text-indigo-400 hover:text-indigo-300">
-              View All
-            </button>
+            <Link to="/agents" className="text-[10px] font-black uppercase text-indigo-400 hover:text-indigo-300 transition-colors">
+              View Agents
+            </Link>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
             {agentActivities.length > 0 ? (
-              agentActivities.map(a => ({
-                 name: a.agent,
-                 status: a.status,
-                 state: a.state,
-                 icon: a.agent.includes("Requirement") ? Briefcase : a.agent.includes("Vendor") ? Handshake : a.agent.includes("Revenue") ? Zap : Users
-              })).map((agent, i) => {
-                const IconComp = agent.icon as LucideIcon;
+              agentActivities.map((a, i) => {
+                const isWorking = a.state === 'working';
                 return (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#0B0F19] border border-[#1E293B]">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
-                        agent.state === 'working' ? 'bg-indigo-500/10 border-indigo-500/30' :
-                        agent.state === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30' :
-                        'bg-slate-800 border-slate-700'
-                      }`}>
-                        <IconComp className={`w-4 h-4 ${
-                          agent.state === 'working' ? 'text-indigo-400' :
-                          agent.state === 'completed' ? 'text-emerald-400' :
-                          'text-slate-500'
-                        }`} />
+                  <div key={i} className="flex gap-4 items-start relative group">
+                    <div className="w-px h-full bg-[#1E293B] absolute left-2 top-4 -z-10 group-last:hidden" />
+                    <div className={`w-4 h-4 rounded-full mt-0.5 shrink-0 ${isWorking ? 'bg-indigo-500 animate-pulse' : 'bg-[#1E293B] border-2 border-[#131B2C]'}`} />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-sm font-bold text-slate-200">{a.agent}</h4>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                      <div>
-                        <h5 className="text-sm font-bold text-slate-200">{agent.name}</h5>
-                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">{agent.status}</p>
-                      </div>
+                      <p className="text-xs text-slate-400">{a.status}</p>
                     </div>
-                    {agent.state === 'working' && (
-                      <div className="flex gap-1">
-                        <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    )}
                   </div>
                 );
               })
             ) : (
               <div className="text-center py-8">
-                <p className="text-slate-500 text-xs uppercase tracking-widest">No recent agent activity...</p>
+                <p className="text-slate-500 text-xs uppercase tracking-widest">No recent system activity...</p>
               </div>
             )}
           </div>
 
-          <div className="mt-auto pt-6">
-            <button className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+          <div className="mt-auto pt-6 border-t border-[#1E293B] mt-4">
+            <button className="w-full py-3 bg-[#0B0F19] hover:bg-slate-800 border border-[#1E293B] text-slate-300 text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
               Deep Analysis <TrendingUp className="w-4 h-4" />
             </button>
           </div>

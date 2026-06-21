@@ -22,6 +22,8 @@ import {
   BrainCircuit,
   Mail,
   Database,
+  Trophy,
+  CheckCircle2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -49,8 +51,8 @@ const navGroups = [
        { icon: Users, label: 'Candidates', path: '/candidates' },
        { icon: FileText, label: 'Submissions', path: '/submissions' },
        { icon: MessageSquare, label: 'Interviews', path: '/interviews' },
-       { icon: ShieldCheck, label: 'Offers', path: '/offers' },
-       { icon: LayoutDashboard, label: 'Placements', path: '/placements' },
+       { icon: CheckCircle2, label: 'Offers', path: '/offers' },
+       { icon: Trophy, label: 'Placements', path: '/placements' },
     ]
   },
   {

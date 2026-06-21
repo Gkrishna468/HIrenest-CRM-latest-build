@@ -178,29 +178,6 @@ export default function App() {
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/deal-rooms"
-              element={
-                <PrivateRoute>
-                  <Requirements />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/integrations"
-              element={
-                <PrivateRoute>
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold text-slate-800">
-                        Integrations
-                      </h2>
-                      <p className="text-slate-500">Coming soon</p>
-                    </div>
-                  </div>
-                </PrivateRoute>
-              }
-            />
 
             <Route
               path="/ai-accuracy"
