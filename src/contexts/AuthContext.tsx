@@ -7,6 +7,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { User, Role } from '@/types';
 import { toast } from 'sonner';
+import { signInWithCustomToken } from 'firebase/auth';
+import { auth } from '@/services/firebase/config';
 
 interface AuthContextType {
   user: User | null;
@@ -14,6 +16,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, role: Role) => Promise<void>;
   signOut: () => Promise<void>;
+  apiFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +24,41 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const authenticateFirebase = async (token: string) => {
+    try {
+      const response = await fetch('/api/firebase-token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const { firebaseToken } = await response.json();
+        await signInWithCustomToken(auth, firebaseToken);
+      }
+    } catch (error) {
+      console.error('Firebase custom token auth failed:', error);
+    }
+  };
+
+  const apiFetch = async (url: string, options?: RequestInit) => {
+    let token = '';
+    const execSession = localStorage.getItem('hirenest_exec_session');
+    if (execSession) {
+      token = 'executive-bypass-token';
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) token = session.access_token;
+    }
+    
+    const headers = {
+      ...options?.headers,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+    
+    return fetch(url, { ...options, headers });
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -34,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              parsed.name = 'Gopal Krishna';
              localStorage.setItem('hirenest_exec_session', JSON.stringify(parsed));
           }
+          await authenticateFirebase('executive-bypass-token');
           setUser(parsed);
           setLoading(false);
           return;
@@ -46,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
+          await authenticateFirebase(session.access_token);
           await resolveUser(session.user);
         }
       } catch (err) {
@@ -61,9 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Use setTimeout to avoid React state update during render (OAuth redirect fix)
       setTimeout(async () => {
         if (session) {
+          await authenticateFirebase(session.access_token);
           await resolveUser(session.user);
         } else {
           setUser(null);
+          auth.signOut();
         }
         setLoading(false);
       }, 0);
@@ -126,6 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: 'admin', 
         status: 'active' 
       };
+      
+      await authenticateFirebase('executive-bypass-token');
+      
       setUser(execUser);
       localStorage.setItem('hirenest_exec_session', JSON.stringify(execUser));
       toast.success('Executive access granted');
@@ -156,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, apiFetch }}>
       {children}
     </AuthContext.Provider>
   );

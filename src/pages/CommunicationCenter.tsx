@@ -24,7 +24,7 @@ import { toast } from "sonner";
 type EntityType = "actionable" | "Requirement" | "Vendor Submission" | "Interview" | "Spam" | "Noise" | "all";
 
 export default function CommunicationCenter() {
-  const { user } = useAuth();
+  const { user, apiFetch } = useAuth();
   const { jobs, candidates, deals, addJob, addCandidate } = useData();
   const [activeTab, setActiveTab] = useState<EntityType>("actionable");
   const [selectedComm, setSelectedComm] = useState<any | null>(null);
@@ -45,7 +45,7 @@ export default function CommunicationCenter() {
     setIsGeneratingCopilot(true);
     setDraftBody("Generating...");
     try {
-      const response = await fetch("/api/ai?action=copilot", {
+      const response = await apiFetch("/api/ai?action=copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -114,9 +114,9 @@ export default function CommunicationCenter() {
     setIsLoading(true);
     try {
       const userQuery = user?.id
-        ? `&userId=${encodeURIComponent(user.id)}`
+        ? `&userId=${encodeURIComponent(user.id)}&email=${encodeURIComponent(user.email || "")}`
         : "";
-      const response = await fetch(`/api/gmail?action=list${userQuery}`);
+      const response = await apiFetch(`/api/gmail?action=list${userQuery}`);
       if (!response.ok) throw new Error("Failed to fetch emails");
       const data = await response.json();
 
@@ -160,8 +160,8 @@ export default function CommunicationCenter() {
 
     setIsSyncing(true);
     try {
-      const response = await fetch(
-        `/api/gmail?action=sync&userId=${encodeURIComponent(user.id)}`,
+      const response = await apiFetch(
+        `/api/gmail?action=sync&userId=${encodeURIComponent(user.id)}&email=${encodeURIComponent(user.email || "")}`,
         {
           method: "POST",
         },
@@ -169,6 +169,9 @@ export default function CommunicationCenter() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 404 && data.error === 'No connection found for this user') {
+           throw new Error('Gmail is not connected. Please go to Settings to connect your account.');
+        }
         throw new Error(data.error || "Failed to sync");
       }
 
@@ -238,7 +241,7 @@ export default function CommunicationCenter() {
       // Implement Reply-All Intelligence check
       const isReplyAll = !!selectedComm.cc;
       
-      const response = await fetch("/api/gmail?action=send", {
+      const response = await apiFetch("/api/gmail?action=send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,43 +327,43 @@ export default function CommunicationCenter() {
     <div className="flex flex-col h-full w-full gap-4">
       {/* KPI Strip */}
       <div className="grid grid-cols-6 gap-4 shrink-0">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-center">
+        <div className="skeuo-card p-4 flex flex-col justify-center">
           <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
             Emails Today
           </span>
-          <span className="text-2xl font-black text-slate-900 mt-1">
+          <span className="text-2xl font-extrabold text-slate-800 mt-1 drop-shadow-sm">
             {todayEmails}
           </span>
         </div>
-        <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex flex-col justify-center">
+        <div className="skeuo-card bg-indigo-50/20 p-4 border-indigo-200 flex flex-col justify-center">
           <span className="text-indigo-600 text-xs font-bold uppercase tracking-widest">
             Requirements
           </span>
-          <span className="text-2xl font-black text-indigo-900 mt-1">
+          <span className="text-2xl font-extrabold text-indigo-900 mt-1 drop-shadow-sm">
             {jobs.length}
           </span>
         </div>
-        <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex flex-col justify-center">
+        <div className="skeuo-card bg-emerald-50/20 p-4 border-emerald-200 flex flex-col justify-center">
           <span className="text-emerald-600 text-xs font-bold uppercase tracking-widest">
             Submissions
           </span>
-          <span className="text-2xl font-black text-emerald-900 mt-1">
+          <span className="text-2xl font-extrabold text-emerald-900 mt-1 drop-shadow-sm">
             {submissionsCount}
           </span>
         </div>
-        <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100 flex flex-col justify-center">
+        <div className="skeuo-card bg-purple-50/20 p-4 border-purple-200 flex flex-col justify-center">
           <span className="text-purple-600 text-xs font-bold uppercase tracking-widest">
             Interviews
           </span>
-          <span className="text-2xl font-black text-purple-900 mt-1">
+          <span className="text-2xl font-extrabold text-purple-900 mt-1 drop-shadow-sm">
             {interviewsCount}
           </span>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-center">
+        <div className="skeuo-card p-4 flex flex-col justify-center">
           <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
             Pipeline Value
           </span>
-          <span className="text-2xl font-black text-slate-900 mt-1">
+          <span className="text-2xl font-extrabold text-slate-800 mt-1 drop-shadow-sm">
             ₹
             {pipelineValue > 100000
               ? (pipelineValue / 100000).toFixed(1) + "L"
@@ -384,14 +387,14 @@ export default function CommunicationCenter() {
         </div>
       </div>
 
-      <div className="flex-1 bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-0">
+      <div className="flex-1 skeuo-card rounded-[2rem] overflow-hidden flex flex-col min-h-0">
         {/* Header */}
-        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+        <div className="px-8 py-6 border-b border-slate-200 flex items-center justify-between skeuo-bg shrink-0">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight" style={{textShadow: '0 1px 1px white'}}>
               MailOS
             </h1>
-            <p className="text-sm font-medium text-slate-500 mt-1">
+            <p className="text-sm font-medium text-slate-600 mt-1">
               Requirement Intake Engine
             </p>
           </div>
@@ -399,15 +402,15 @@ export default function CommunicationCenter() {
             <button
               onClick={handleSync}
               disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 skeuo-btn text-sm disabled:opacity-50"
             >
               <RefreshCw
-                className={cn("w-4 h-4", isSyncing && "animate-spin")}
+                className={cn("w-4 h-4 drop-shadow-sm", isSyncing && "animate-spin")}
               />
               {isSyncing ? "Syncing..." : "Sync Inbox"}
             </button>
-            <div className="w-px h-8 bg-slate-200"></div>
-            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+            <div className="w-[2px] h-8 bg-slate-300 shadow-[1px_0_0_white]"></div>
+            <div className="flex gap-2 skeuo-bg p-1.5 rounded-[1.25rem] border border-slate-300 shadow-inner">
               {[
                 { id: "actionable", label: "Inbox" },
                 { id: "Requirement", label: "Reqs", icon: Building2 },
@@ -422,8 +425,8 @@ export default function CommunicationCenter() {
                   className={cn(
                     "px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
                     activeTab === tab.id
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900",
+                      ? "skeuo-btn-primary"
+                      : "text-slate-600 hover:text-slate-900",
                   )}
                 >
                   {tab.icon && <tab.icon className="w-4 h-4" />}

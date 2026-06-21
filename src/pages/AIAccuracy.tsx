@@ -3,14 +3,17 @@ import { ShieldCheck, BrainCircuit, Activity, CheckCircle2, ChevronRight, XCircl
 import { cn } from '@/lib/utils';
 import { useData } from '@/contexts/DataContext';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function AIAccuracy() {
+  const { apiFetch } = useAuth();
   const [audits, setAudits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAudits = async () => {
       try {
-        const response = await fetch('/api/ai?action=audit');
+        const response = await apiFetch('/api/ai?action=audit');
         if (response.ok) {
            const data = await response.json();
            setAudits(data);

@@ -6,8 +6,8 @@ export default function KnowledgeVault() {
   const { candidates, jobs, clients } = useData();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const vendors = clients.filter(c => c.isVendor);
-  const regularClients = clients.filter(c => !c.isVendor);
+  const vendors = clients.filter(c => (c as any).isVendor || c.source === "vendor");
+  const regularClients = clients.filter(c => !(c as any).isVendor && c.source !== "vendor");
 
   const stats = [
     { label: "Requirements Knowledge", val: jobs.length, icon: Briefcase, color: "text-blue-500", bg: "bg-blue-50" },

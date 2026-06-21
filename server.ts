@@ -17,6 +17,10 @@ async function startServer() {
   // Use JSON parser for webhook bodies
   app.use(express.json());
 
+  // Use API Gateway Auth
+  const { requireAuth } = await import("./api/authMiddleware");
+  app.use("/api", requireAuth);
+
   // API ROUTES
 
   // 1. Health check
@@ -90,7 +94,18 @@ async function startServer() {
     }
   });
 
-  // 6. Health Gateway
+  // 8. Firebase Token Gateway
+  app.all("/api/firebase-token", async (req, res) => {
+    try {
+      const { default: handler } = await import("./api/firebase-token");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("[Firebase Token Error]", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // 9. Health Gateway
   app.all("/api/health/checks", async (req, res) => {
     try {
       const { default: handler } = await import("./api/health");

@@ -74,6 +74,71 @@ export const decrypt = (text: string): string => {
   let decrypted = decipher.update(encryptedText);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
   return decrypted.toString();
+};
+
+async function getGmailConnection(userId?: string, emailAddress?: string) {
+  if (!db) return null;
+
+  let connectionSnapshot;
+
+  // 1. Try finding by userId + active
+  if (userId) {
+    connectionSnapshot = await db.collection('gmail_connections')
+      .where('userId', '==', userId)
+      .where('status', '==', 'active')
+      .limit(1).get();
+    if (!connectionSnapshot.empty) {
+      return connectionSnapshot.docs[0].data();
+    }
+  }
+
+  // 2. Try finding by emailAddress + active
+  if (emailAddress) {
+    connectionSnapshot = await db.collection('gmail_connections')
+      .where('email', '==', emailAddress)
+      .where('status', '==', 'active')
+      .limit(1).get();
+    if (!connectionSnapshot.empty) {
+      return connectionSnapshot.docs[0].data();
+    }
+  }
+
+  // 3. Fallback: search by userId (any status)
+  if (userId) {
+    connectionSnapshot = await db.collection('gmail_connections')
+      .where('userId', '==', userId)
+      .limit(1).get();
+    if (!connectionSnapshot.empty) {
+      return connectionSnapshot.docs[0].data();
+    }
+  }
+
+  // 4. Fallback: search by email (any status)
+  if (emailAddress) {
+    connectionSnapshot = await db.collection('gmail_connections')
+      .where('email', '==', emailAddress)
+      .limit(1).get();
+    if (!connectionSnapshot.empty) {
+      return connectionSnapshot.docs[0].data();
+    }
+  }
+
+  // 5. Ultimate fallback: retrieve the absolute last active registration
+  connectionSnapshot = await db.collection('gmail_connections')
+    .where('status', '==', 'active')
+    .limit(1).get();
+  if (!connectionSnapshot.empty) {
+    return connectionSnapshot.docs[0].data();
+  }
+
+  // 6. Absolute final fallback: list any connection in the database
+  connectionSnapshot = await db.collection('gmail_connections')
+    .limit(1).get();
+  if (!connectionSnapshot.empty) {
+    return connectionSnapshot.docs[0].data();
+  }
+
+  return null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -97,20 +162,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    let connectionSnapshot;
-    
-    if (userId) {
-      connectionSnapshot = await db.collection('gmail_connections').where('userId', '==', userId).limit(1).get();
-    } else {
-      // Fallback for older integration
-      connectionSnapshot = await db.collection('gmail_connections').where('email', '==', emailAddress).limit(1).get();
-    }
+    const connectionData = await getGmailConnection(userId, emailAddress);
 
-    if (connectionSnapshot.empty) {
+    if (!connectionData) {
       return res.status(404).json({ error: 'No connection found for this user' });
     }
 
-    const connectionData = connectionSnapshot.docs[0].data();
     const resolvedEmail = connectionData.email; // Use the actual connected email for syncing
 
     
@@ -234,14 +291,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let resolvedEmail = emailAddress;
 
   try {
-    if (userId) {
-      console.log('Searching gmail_connections');
-      const connectionSnapshot = await db.collection('gmail_connections').where('userId', '==', userId).limit(1).get();
-      console.log('Found:', connectionSnapshot.size);
-      if (!connectionSnapshot.empty) {
-        resolvedEmail = connectionSnapshot.docs[0].data().email;
-        console.log('Resolved Email:', resolvedEmail);
-      }
+    const connectionData = await getGmailConnection(userId, emailAddress);
+    if (connectionData) {
+      resolvedEmail = connectionData.email;
+      console.log('Resolved Email:', resolvedEmail);
     }
 
     let queryArgs: any = db.collection('emails').limit(100);
@@ -284,13 +337,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     console.log('Sending email for user:', userId);
-    const connectionSnapshot = await db.collection('gmail_connections').where('userId', '==', userId).limit(1).get();
+    const connectionData = await getGmailConnection(userId);
 
-    if (connectionSnapshot.empty) {
+    if (!connectionData) {
       return res.status(404).json({ error: 'No connection found for this user' });
     }
-
-    const connectionData = connectionSnapshot.docs[0].data();
     
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,

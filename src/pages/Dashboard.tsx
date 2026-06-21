@@ -73,25 +73,24 @@ export default function Dashboard() {
     }).format(val);
 
   return (
-    <div className="bg-[#0B0F19] min-h-full rounded-3xl p-8 text-white relative overflow-hidden flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+    <div className="skeuo-bg border border-slate-300 min-h-full rounded-[2rem] p-8 text-slate-800 relative overflow-hidden flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 shadow-inner">
       
       <div className="flex justify-between items-end relative z-10">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-full flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">
+            <div className="px-3 py-1 skeuo-btn border border-indigo-200 rounded-full flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.8),0_0_8px_rgba(99,102,241,0.6)]" />
+              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
                 AI ORCHESTRATOR ONLINE
               </span>
             </div>
-            <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <div className="px-3 py-1 skeuo-btn rounded-full">
+              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
                 <ShieldCheck className="w-3 h-3" /> {user?.role || 'ADMIN'}
               </span>
             </div>
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tight">
+          <h1 className="text-4xl font-black text-slate-800 tracking-tight" style={{ textShadow: '0 1px 1px white' }}>
             Command Center
           </h1>
         </div>
@@ -111,15 +110,15 @@ export default function Dashboard() {
         ].map((metric, i) => {
           const Icon = metric.icon;
           return (
-            <div key={i} className={`bg-[#131B2C] border border-[#1E293B] rounded-2xl p-4 flex flex-col justify-between hover:border-${metric.color}-500/30 transition-colors`}>
+            <div key={i} className="skeuo-card p-4 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-3">
-                <div className={`w-8 h-8 rounded-lg bg-${metric.color}-500/10 flex items-center justify-center border border-${metric.color}-500/20`}>
-                  <Icon className={`w-4 h-4 text-${metric.color}-400`} />
+                <div className={`w-8 h-8 rounded-full border border-slate-200/50 flex items-center justify-center bg-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_white]`}>
+                  <Icon className={`w-4 h-4 text-${metric.color}-600`} />
                 </div>
               </div>
               <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">{metric.label}</p>
-                <p className={`text-xl font-black text-white`}>{metric.val}</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">{metric.label}</p>
+                <p className={`text-xl font-extrabold text-slate-800`}>{metric.val}</p>
               </div>
             </div>
           );
@@ -128,57 +127,57 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 flex-1">
         {/* Middle: AI Insights & Recommendations */}
-        <div className="lg:col-span-2 bg-[#131B2C] border border-[#1E293B] rounded-3xl p-6 flex flex-col">
+        <div className="lg:col-span-2 skeuo-card p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-6">
-            <BrainCircuit className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-lg font-bold text-white tracking-tight">AI Recommendations</h2>
+            <BrainCircuit className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight">AI Recommendations</h2>
           </div>
           
           <div className="space-y-4">
             {escalatedJobs.length > 0 && (
-              <div className="flex items-start gap-4 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+              <div className="flex items-start gap-4 p-4 rounded-xl shadow-[inset_0_2px_10px_rgba(0,0,0,0.05),0_1px_2px_white] bg-red-50/50 border border-red-200">
                 <div className="mt-1">
-                  <AlertTriangle className="w-5 h-5 text-rose-400" />
+                  <AlertTriangle className="w-5 h-5 text-rose-500 drop-shadow-sm" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-white mb-1">{escalatedJobs.length} Requirements Need Escalation</h4>
-                  <p className="text-xs text-rose-200">Requirements {escalatedJobs.slice(0,3).map(j=>j.title).join(', ')} have been open for &gt; 4 days with zero vendor submissions.</p>
+                  <h4 className="text-sm font-bold text-rose-800 mb-1">{escalatedJobs.length} Requirements Need Escalation</h4>
+                  <p className="text-xs text-rose-700">Requirements {escalatedJobs.slice(0,3).map(j=>j.title).join(', ')} have been open for &gt; 4 days with zero vendor submissions.</p>
                 </div>
-                <Link to="/requirements" className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg transition-colors inline-block" onClick={() => toast.success("Escalating requirements...")}>
+                <Link to="/requirements" className="px-3 py-1.5 skeuo-btn-primary text-xs" onClick={() => toast.success("Escalating requirements...")}>
                   Escalate
                 </Link>
               </div>
             )}
 
             {readyCandidates.length > 0 && (
-              <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+              <div className="flex items-start gap-4 p-4 rounded-xl shadow-[inset_0_2px_10px_rgba(0,0,0,0.05),0_1px_2px_white] bg-indigo-50/50 border border-indigo-200">
                 <div className="mt-1">
-                  <Users className="w-5 h-5 text-indigo-400" />
+                  <Users className="w-5 h-5 text-indigo-500 drop-shadow-sm" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-white mb-1">{readyCandidates.length} Candidates Ready for Submission</h4>
-                  <p className="text-xs text-indigo-200">New vendor resumes parsed and matched against Open Requirements with &gt;85% confidence score.</p>
+                  <h4 className="text-sm font-bold text-indigo-800 mb-1">{readyCandidates.length} Candidates Ready for Submission</h4>
+                  <p className="text-xs text-indigo-700">New vendor resumes parsed and matched against Open Requirements with &gt;85% confidence score.</p>
                 </div>
-                <Link to="/candidates" className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-colors inline-block" onClick={() => toast.info("Opening matching queue...")}>
+                <Link to="/candidates" className="px-3 py-1.5 skeuo-btn-primary text-xs inline-block" onClick={() => toast.info("Opening matching queue...")}>
                   Review Fast
                 </Link>
               </div>
             )}
 
             {inactiveVendors.length > 0 && (
-              <div className="flex items-start gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <div className="flex items-start gap-4 p-4 rounded-xl shadow-[inset_0_2px_10px_rgba(0,0,0,0.05),0_1px_2px_white] bg-amber-50/50 border border-amber-200">
                 <div className="mt-1">
-                  <Handshake className="w-5 h-5 text-amber-400" />
+                  <Handshake className="w-5 h-5 text-amber-500 drop-shadow-sm" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-white mb-1">{inactiveVendors.length} Tier-1 Vendors Inactive</h4>
-                  <p className="text-xs text-amber-200">Vendors {inactiveVendors.slice(0,2).map(v=>v.name).join(', ')} haven't responded to recent requirements.</p>
+                  <h4 className="text-sm font-bold text-amber-800 mb-1">{inactiveVendors.length} Tier-1 Vendors Inactive</h4>
+                  <p className="text-xs text-amber-700">Vendors {inactiveVendors.slice(0,2).map(v=>v.name).join(', ')} haven't responded to recent requirements.</p>
                 </div>
                 <button 
                   onClick={() => {
                     toast.success("Drafting WhatsApp & Email reminders to vendors...");
                   }}
-                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-lg transition-colors">
+                  className="px-3 py-1.5 skeuo-btn text-xs">
                   Auto-Ping
                 </button>
               </div>
@@ -186,20 +185,20 @@ export default function Dashboard() {
 
             {escalatedJobs.length === 0 && readyCandidates.length === 0 && inactiveVendors.length === 0 && (
               <div className="text-center py-6">
-                <p className="text-slate-500 text-sm">System is fully optimized. No pending recommendations.</p>
+                <p className="text-slate-500 text-sm" style={{textShadow: '0 1px 0 white'}}>System is fully optimized. No pending recommendations.</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Right: Recent System Events */}
-        <div className="bg-[#131B2C] border border-[#1E293B] rounded-3xl p-6 flex flex-col">
+        <div className="skeuo-card p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-6 justify-between">
             <div className="flex items-center gap-3">
-              <History className="w-5 h-5 text-indigo-400" />
-              <h2 className="text-lg font-bold text-white tracking-tight">Recent Activity</h2>
+              <History className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Recent Activity</h2>
             </div>
-            <Link to="/agents" className="text-[10px] font-black uppercase text-indigo-400 hover:text-indigo-300 transition-colors">
+            <Link to="/agents" className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors">
               View Agents
             </Link>
           </div>
@@ -210,30 +209,32 @@ export default function Dashboard() {
                 const isWorking = a.state === 'working';
                 return (
                   <div key={i} className="flex gap-4 items-start relative group">
-                    <div className="w-px h-full bg-[#1E293B] absolute left-2 top-4 -z-10 group-last:hidden" />
-                    <div className={`w-4 h-4 rounded-full mt-0.5 shrink-0 ${isWorking ? 'bg-indigo-500 animate-pulse' : 'bg-[#1E293B] border-2 border-[#131B2C]'}`} />
+                    <div className="w-px h-full bg-slate-200 shadow-[1px_0_0_white] absolute left-2 top-4 -z-10 group-last:hidden" />
+                    <div className={`w-4 h-4 rounded-full mt-0.5 shrink-0 shadow-inner ${isWorking ? 'bg-indigo-500 animate-pulse border-2 border-indigo-200' : 'bg-slate-300 border border-slate-400'}`} />
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-sm font-bold text-slate-200">{a.agent}</h4>
-                        <span className="text-[10px] font-mono text-slate-500">
+                        <h4 className="text-sm font-bold text-slate-700">{a.agent}</h4>
+                        <span className="text-[10px] font-bold text-slate-500">
                           {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400">{a.status}</p>
+                      <p className="text-xs font-medium text-slate-500">{a.status}</p>
                     </div>
                   </div>
                 );
               })
             ) : (
               <div className="text-center py-8">
-                <p className="text-slate-500 text-xs uppercase tracking-widest">No recent system activity...</p>
+                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest" style={{textShadow: '0 1px 0 white'}}>No recent system activity...</p>
               </div>
             )}
           </div>
 
-          <div className="mt-auto pt-6 border-t border-[#1E293B] mt-4">
-            <button className="w-full py-3 bg-[#0B0F19] hover:bg-slate-800 border border-[#1E293B] text-slate-300 text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
-              Deep Analysis <TrendingUp className="w-4 h-4" />
+          <div className="mt-auto pt-4 relative">
+            <div className="absolute top-0 inset-x-0 h-px bg-slate-200 shadow-[0_1px_0_white]" />
+            <br />
+            <button className="w-full py-3 skeuo-btn text-sm flex items-center justify-center gap-2">
+              Deep Analysis <TrendingUp className="w-4 h-4 drop-shadow-[0_1px_0_white]" />
             </button>
           </div>
         </div>

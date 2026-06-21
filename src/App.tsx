@@ -44,7 +44,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (!user) return <Navigate to="/login" />;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen skeuo-container">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
         <div className="w-full h-full p-8">{children}</div>

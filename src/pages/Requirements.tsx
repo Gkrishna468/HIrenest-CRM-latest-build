@@ -43,7 +43,7 @@ import { SourceBadge } from "@/components/SourceBadge";
 export default function Jobs() {
   const { jobs, loading, approveJobWithBudget, addJob, candidates, deals } =
     useData();
-  const { user } = useAuth();
+  const { user, apiFetch } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
@@ -143,26 +143,26 @@ export default function Jobs() {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+          className="flex items-center gap-2 skeuo-btn-primary px-4 py-2.5"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-5 h-5 drop-shadow-sm" />
           Create Requirement
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="skeuo-card p-4 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1 group">
-          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors drop-shadow-sm" />
           <input
             type="text"
             placeholder="Search by role or client..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+            className="skeuo-input w-full pl-10 pr-4 py-2"
           />
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium text-slate-700">
-          <Filter className="w-4 h-4 text-slate-400" />
+        <button className="flex items-center gap-2 px-4 py-2 skeuo-btn">
+          <Filter className="w-4 h-4 text-slate-500 drop-shadow-sm" />
           Filters
         </button>
       </div>
@@ -181,7 +181,7 @@ export default function Jobs() {
           {filteredJobs.map((job) => (
             <div
               key={job.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden flex flex-col"
+              className="skeuo-card hover:-translate-y-1 group overflow-hidden flex flex-col transition-transform"
             >
               <div className="p-6 flex-1">
                 <div className="flex items-start justify-between mb-4">
@@ -641,7 +641,7 @@ export default function Jobs() {
                     <button 
                       onClick={async () => {
                         try {
-                          await fetch('/api/agents', {
+                          await apiFetch('/api/agents', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ action: 'vendor_broadcast', requirementId: selectedJob.id })

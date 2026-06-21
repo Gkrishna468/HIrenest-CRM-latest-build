@@ -28,7 +28,10 @@ import { safeArray, safeString } from '@/utils/safe';
 import { cn } from '@/lib/utils';
 import { SourceBadge } from "@/components/SourceBadge";
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function Vendors() {
+  const { user, apiFetch } = useAuth();
   const { vendors, loading, addVendor, candidates, deals } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -68,7 +71,7 @@ export default function Vendors() {
     const identityHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     try {
-      const response = await fetch('/api/candidates?action=submitVendorCandidate', {
+      const response = await apiFetch('/api/candidates?action=submitVendorCandidate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -128,42 +131,42 @@ export default function Vendors() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Vendors and Recruiters</h1>
-          <p className="text-slate-500 mt-1">Manage your professional delivery network and partner benchmarks.</p>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight" style={{textShadow: '0 1px 1px white'}}>Vendors and Recruiters</h1>
+          <p className="text-slate-600 mt-1">Manage your professional delivery network and partner benchmarks.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+          className="flex items-center gap-2 skeuo-btn-primary px-4 py-2.5"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-5 h-5 drop-shadow-sm" />
           Add Partner
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="skeuo-card p-4 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1 group">
-          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors drop-shadow-sm" />
           <input
             type="text"
             placeholder="Search partners or agencies..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+            className="skeuo-input w-full pl-10 pr-4 py-2"
           />
         </div>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-          {[1, 2, 3].map(i => <div key={i} className="bg-white h-40 rounded-2xl border border-slate-100" />)}
+          {[1, 2, 3].map(i => <div key={i} className="skeuo-card h-40" />)}
         </div>
       ) : filteredVendors?.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredVendors.map((vendor, index) => (
-            <div key={vendor.id || ("vendor-" + index)} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+            <div key={vendor.id || ("vendor-" + index)} className="skeuo-card p-6 shadow-sm hover:-translate-y-1 transition-transform group">
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <Handshake className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-xl skeuo-bg flex items-center justify-center text-indigo-600 shadow-inner border border-slate-300">
+                  <Handshake className="w-6 h-6 drop-shadow-sm" />
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className={cn(

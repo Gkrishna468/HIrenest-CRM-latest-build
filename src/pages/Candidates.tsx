@@ -80,21 +80,21 @@ export default function Candidates() {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="skeuo-card p-4 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1 group">
-          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors drop-shadow-sm" />
           <input
             type="text"
             placeholder="Search candidates by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+            className="skeuo-input w-full pl-10 pr-4 py-2"
           />
         </div>
         <select
           value={filterStage}
           onChange={(e) => setFilterStage(e.target.value)}
-          className="px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/10 transition-colors"
+          className="skeuo-input px-4 py-2"
         >
           <option value="all">All Stages</option>
           <option value="screening">Screening</option>
@@ -104,13 +104,13 @@ export default function Candidates() {
           <option value="placed">Placed / Joined</option>
           <option value="rejected">Rejected</option>
         </select>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium text-slate-700">
-          <Filter className="w-4 h-4 text-slate-400" />
-          More Filters
+        <button className="skeuo-btn flex items-center gap-2 px-4 py-2 font-bold text-slate-700">
+          <Filter className="w-4 h-4 text-slate-500 drop-shadow-sm" />
+          Filters
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+      <div className="skeuo-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

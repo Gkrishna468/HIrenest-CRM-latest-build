@@ -40,17 +40,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-        <div className="p-8 bg-slate-900 flex flex-col items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-500 rounded-xl flex items-center justify-center">
-            <Zap className="text-white w-7 h-7 fill-current" />
+    <div className="min-h-screen skeuo-container flex items-center justify-center p-4">
+      <div className="w-full max-w-md skeuo-card overflow-hidden">
+        <div className="p-8 skeuo-bg flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-inner border border-indigo-700">
+            <Zap className="text-white w-7 h-7 fill-current drop-shadow" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white tracking-tight">
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight" style={{textShadow: '0 1px 1px white'}}>
               HireNestOS
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="text-slate-600 font-medium text-sm mt-1">
               AI-Native Staffing Operating System
             </p>
           </div>

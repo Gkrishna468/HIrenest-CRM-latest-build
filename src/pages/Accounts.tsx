@@ -78,32 +78,32 @@ export default function Clients() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="md:col-span-2 lg:col-span-2 space-y-6">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
+          <div className="skeuo-card p-4 flex flex-col md:flex-row gap-4">
             <div className="relative flex-1 group">
-              <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors drop-shadow-sm" />
               <input
                 type="text"
                 placeholder="Search clients..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                className="skeuo-input w-full pl-10 pr-4 py-2"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium text-slate-700">
-              <Filter className="w-4 h-4 text-slate-400" />
+            <button className="flex items-center gap-2 px-4 py-2 skeuo-btn">
+              <Filter className="w-4 h-4 text-slate-500 drop-shadow-sm" />
               Recent
             </button>
           </div>
 
           <div className="space-y-4">
             {loading ? (
-              [1, 2].map(i => <div key={i} className="bg-white h-24 rounded-2xl border border-slate-100 animate-pulse" />)
+              [1, 2].map(i => <div key={i} className="skeuo-card h-24 animate-pulse" />)
             ) : filteredClients?.length > 0 ? (
               filteredClients.map(client => (
-                <div key={client.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                <div key={client.id} className="skeuo-card p-6 shadow-sm hover:shadow-md transition-all group">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                      <div className="w-12 h-12 rounded-xl skeuo-bg flex items-center justify-center text-indigo-600 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_white] border border-slate-300">
                         <Building2 className="w-6 h-6" />
                       </div>
                       <div>

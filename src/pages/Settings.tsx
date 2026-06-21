@@ -30,7 +30,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, apiFetch } = useAuth();
   const [activeTab, setActiveTab] = useState('gmail');
   const [loading, setLoading] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -97,7 +97,7 @@ export default function Settings() {
   const connectGmail = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/auth?action=url&userId=${user?.id}`);
+      const response = await apiFetch(`/api/auth?action=url&userId=${user?.id}`);
       
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
