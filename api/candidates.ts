@@ -93,11 +93,35 @@ export default async function handler(req: any, res: any) {
       // We can also create a candidatePool record or rely on DataContext's addCandidate.
       const candRef = await db.collection("candidates").add({
         name: candidateName,
+        vendorId: vendorId, // Add standard vendorId mapping
         vendor_company_id: vendorId,
-        stage: "sourced",
+        stage: "submission", // Update to submission stage directly for vendor flows
         source: "vendor_submit",
         created_at: new Date().toISOString(),
         ...identityData
+      });
+
+      // Sprint 4: Add to submission_ledger
+      await db.collection("submission_ledger").add({
+        requirementId: "UNKNOWN", // In a real flow, the vendor submits against a specific req
+        candidateId: candRef.id,
+        vendorId: vendorId,
+        ownershipHash: candidateHash,
+        submittedAt: new Date().toISOString(),
+        status: "submitted"
+      });
+
+      // Sprint 4: Add to activity_ledger
+      await db.collection("activity_ledger").add({
+        entityType: "candidate_submission",
+        entityId: candRef.id,
+        event: "candidate_submitted",
+        performedBy: vendorId,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          vendorId,
+          candidateHash
+        }
       });
 
       return res.status(200).json({ success: true, candidateId: candRef.id });

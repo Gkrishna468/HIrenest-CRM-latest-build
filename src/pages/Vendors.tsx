@@ -240,16 +240,19 @@ export default function Vendors() {
             
             <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1">
               <div className="mb-8">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Pipeline Velocity</h3>
-                <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Vendor Scorecard & Funnel</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {[
-                    { label: 'Bench Resources', val: selectedVendor.benchSize || '0', color: 'text-slate-600' },
-                    { label: 'Submissions', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length, color: 'text-blue-600' },
-                    { label: 'Interviews', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && c.stage === 'interview').length, color: 'text-indigo-600' },
+                    { label: 'Broadcasts Rcvd', val: selectedVendor.broadcastsReceived || '0', color: 'text-slate-600' },
+                    { label: 'Responses', val: selectedVendor.responses || '0', color: 'text-slate-600' },
+                    { label: 'Profiles Shared', val: selectedVendor.profilesShared || '0', color: 'text-blue-600' },
+                    { label: 'Submissions Acc', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length, color: 'text-indigo-600' },
+                    { label: 'Interviews', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && c.stage === 'interview').length, color: 'text-purple-600' },
+                    { label: 'Offers', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && c.stage === 'offer').length, color: 'text-amber-600' },
                     { label: 'Placements', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && (c.stage === 'placed' || c.stage === 'joined')).length, color: 'text-emerald-600' },
-                    { label: 'Strike Rate', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length > 0 ? `${Math.round((safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && (c.stage === 'placed' || c.stage === 'joined')).length / safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length) * 100)}%` : '0%', color: 'text-purple-600' },
-                    { label: 'Response Time', val: selectedVendor.responseTime || '12h', color: 'text-orange-600' },
-                    { label: 'Quality Score', val: selectedVendor.qualityScore ? `${selectedVendor.qualityScore}%` : '85%', color: 'text-teal-600' },
+                    { label: 'Response Rate', val: selectedVendor.responseRate || '0%', color: 'text-slate-600' },
+                    { label: 'Interview Ratio', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length > 0 ? `${Math.round((safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && c.stage === 'interview').length / safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length) * 100)}%` : '0%', color: 'text-indigo-600' },
+                    { label: 'Join Ratio', val: safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length > 0 ? `${Math.round((safeArray(candidates).filter(c => c.vendorId === selectedVendor.id && (c.stage === 'placed' || c.stage === 'joined')).length / safeArray(candidates).filter(c => c.vendorId === selectedVendor.id).length) * 100)}%` : '0%', color: 'text-emerald-600' },
                   ].map((stat, i) => (
                     <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>

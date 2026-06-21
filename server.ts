@@ -79,6 +79,17 @@ async function startServer() {
     }
   });
 
+  // 7. Agents Gateway
+  app.all("/api/agents", async (req, res) => {
+    try {
+      const { default: handler } = await import("./api/agents");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("[Agents Error]", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   // 6. Health Gateway
   app.all("/api/health/checks", async (req, res) => {
     try {

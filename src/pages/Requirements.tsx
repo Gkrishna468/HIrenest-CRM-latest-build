@@ -31,6 +31,8 @@ import {
   Users,
   Activity,
   TrendingUp,
+  FileText,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -596,56 +598,17 @@ export default function Jobs() {
               {/* ECOSYSTEM METRICS */}
               <div className="mb-8">
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">
-                  Pipeline Velocity
+                  Requirement 360 Dashboard
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                   {[
-                    {
-                      label: "Vendor Coverage",
-                      val: selectedJob.broadcast_to_vendors
-                        ? "Active"
-                        : "Pending",
-                      color: "text-purple-600",
-                    },
-                    {
-                      label: "Submissions",
-                      val: safeArray(candidates).filter(
-                        (c) => c.jobId === selectedJob.id,
-                      ).length,
-                      color: "text-blue-600",
-                    },
-                    {
-                      label: "Interviews",
-                      val: safeArray(candidates).filter(
-                        (c) =>
-                          c.jobId === selectedJob.id && c.stage === "interview",
-                      ).length,
-                      color: "text-indigo-600",
-                    },
-                    {
-                      label: "Offers",
-                      val: safeArray(candidates).filter(
-                        (c) =>
-                          c.jobId === selectedJob.id && c.stage === "offer",
-                      ).length,
-                      color: "text-teal-600",
-                    },
-                    {
-                      label: "Placements",
-                      val: safeArray(candidates).filter(
-                        (c) =>
-                          c.jobId === selectedJob.id &&
-                          (c.stage === "placed" || c.stage === "joined"),
-                      ).length,
-                      color: "text-emerald-600",
-                    },
-                    {
-                      label: "Aging",
-                      val: selectedJob.createdAt
-                        ? `${Math.max(0, Math.floor((new Date().getTime() - new Date(selectedJob.createdAt).getTime()) / (1000 * 3600 * 24)))} days`
-                        : "0 days",
-                      color: "text-rose-600",
-                    },
+                    { label: "Broadcasts Sent", val: selectedJob.broadcastsSent || '0', color: "text-slate-600" },
+                    { label: "Vendor Responses", val: selectedJob.vendorResponses || '0', color: "text-slate-600" },
+                    { label: "Profiles Rcvd", val: safeArray(candidates).filter((c) => c.jobId === selectedJob.id).length, color: "text-blue-600" },
+                    { label: "Submissions", val: safeArray(candidates).filter((c) => c.jobId === selectedJob.id && (c.stage === 'submission' || c.stage === 'screening')).length, color: "text-indigo-600" },
+                    { label: "Interviews", val: safeArray(candidates).filter((c) => c.jobId === selectedJob.id && c.stage === "interview").length, color: "text-purple-600" },
+                    { label: "Offers", val: safeArray(candidates).filter((c) => c.jobId === selectedJob.id && c.stage === "offer").length, color: "text-amber-600" },
+                    { label: "Placements", val: safeArray(candidates).filter((c) => c.jobId === selectedJob.id && (c.stage === "placed" || c.stage === "joined")).length, color: "text-emerald-600" },
                   ].map((stat, i) => (
                     <div
                       key={i}
@@ -659,6 +622,52 @@ export default function Jobs() {
                       </p>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* WHATSAPP VENDOR HUB */}
+              <div className="mb-8 bg-emerald-50 rounded-2xl border border-emerald-100 p-6 flex flex-col md:flex-row gap-6 items-center shadow-sm">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                      <MessageSquare className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-emerald-900 tracking-tight">WhatsApp Vendor Hub</h3>
+                      <p className="text-emerald-700/80 text-sm font-medium">Broadcast to HireNest Vendor Network instantly.</p>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/agents', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'vendor_broadcast', requirementId: selectedJob.id })
+                          });
+                          toast.success('Broadcast agent dispatched!');
+                        } catch (err) {
+                          toast.error('Failed to trigger broadcast.');
+                        }
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                      <Zap className="w-4 h-4" /> Trigger AI Broadcast Agent
+                    </button>
+                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2 px-4 rounded-lg border border-emerald-200 flex items-center gap-2 transition-colors">
+                      <Globe className="w-4 h-4" /> Generate LinkedIn Post
+                    </button>
+                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2 px-4 rounded-lg border border-emerald-200 flex items-center gap-2 transition-colors">
+                      <FileText className="w-4 h-4" /> Copy Text Form
+                    </button>
+                  </div>
+                </div>
+                <div className="w-full md:w-auto flex flex-col items-center bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
+                  <div className="w-32 h-32 bg-slate-100 rounded-lg flex items-center justify-center mb-3">
+                    <span className="text-slate-400 font-mono text-xs text-center px-4">QR CODE MOCK<br/>Scan to Join</span>
+                  </div>
+                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest text-center">Network Invite</p>
                 </div>
               </div>
 

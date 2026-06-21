@@ -20,6 +20,9 @@ import {
   BrainCircuit,
   FileSearch,
   AlertTriangle,
+  Globe,
+  MessageSquare,
+  Trophy,
   LucideIcon
 } from "lucide-react";
 
@@ -75,56 +78,35 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10">
-        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-              <CircleDollarSign className="w-4 h-4 text-emerald-400" />
+      {/* Top Metrics - Founder Dashboard View */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 relative z-10">
+        {[
+          { label: "Today's Requirements", val: jobs.filter(j => new Date(j.createdAt).toDateString() === new Date().toDateString()).length, icon: Briefcase, color: "blue" },
+          { label: "Broadcasts Sent", val: jobs.reduce((acc, j) => acc + (j.broadcastsSent || 0), 0), icon: Globe, color: "slate" },
+          { label: "Vendor Responses", val: jobs.reduce((acc, j) => acc + (j.vendorResponses || 0), 0), icon: MessageSquare, color: "slate" },
+          { label: "Profiles Received", val: candidates.length, icon: FileSearch, color: "indigo" },
+          { label: "Submissions", val: candidates.filter(c => c.stage === 'submission' || c.stage === 'screening').length, icon: Handshake, color: "purple" },
+          { label: "Interviews", val: candidates.filter(c => c.stage === 'interview').length, icon: Users, color: "amber" },
+          { label: "Offers", val: candidates.filter(c => c.stage === 'offer').length, icon: CheckCircle2, color: "emerald" },
+          { label: "Placements", val: placements, icon: Trophy, color: "fuchsia" },
+          { label: "Expected Revenue", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹0', icon: CircleDollarSign, color: "emerald", isCurrency: true },
+          { label: "Expected Margin", val: expectedRevenue ? formatCurrency(expectedRevenue * 0.2) : '₹0', icon: TrendingUp, color: "emerald", isCurrency: true },
+        ].map((metric, i) => {
+          const Icon = metric.icon;
+          return (
+            <div key={i} className={`bg-[#131B2C] border border-[#1E293B] rounded-2xl p-4 flex flex-col justify-between hover:border-${metric.color}-500/30 transition-colors`}>
+              <div className="flex justify-between items-start mb-3">
+                <div className={`w-8 h-8 rounded-lg bg-${metric.color}-500/10 flex items-center justify-center border border-${metric.color}-500/20`}>
+                  <Icon className={`w-4 h-4 text-${metric.color}-400`} />
+                </div>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">{metric.label}</p>
+                <p className={`text-xl font-black text-white`}>{metric.val}</p>
+              </div>
             </div>
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Expected Revenue</p>
-            <p className="text-2xl font-black text-white">{expectedRevenue ? formatCurrency(expectedRevenue) : '₹0'}</p>
-          </div>
-        </div>
-
-        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-              <Briefcase className="w-4 h-4 text-blue-400" />
-            </div>
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Open Requirements</p>
-            <p className="text-2xl font-black text-white">{openRequirements}</p>
-          </div>
-        </div>
-
-        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
-              <FileSearch className="w-4 h-4 text-amber-400" />
-            </div>
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Submissions</p>
-            <p className="text-2xl font-black text-white">{totalSubmissions}</p>
-          </div>
-        </div>
-
-        <div className="bg-[#131B2C] border border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-8 h-8 rounded-lg bg-fuchsia-500/10 flex items-center justify-center border border-fuchsia-500/20">
-              <CheckCircle2 className="w-4 h-4 text-fuchsia-400" />
-            </div>
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Placements (YTD)</p>
-            <p className="text-2xl font-black text-white">{placements}</p>
-
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 flex-1">

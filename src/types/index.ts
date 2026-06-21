@@ -66,6 +66,10 @@ export interface Vendor {
   isRecruiter?: boolean;
   recruiterCompany?: string;
   vendorCode?: string;
+  broadcastsReceived?: number;
+  responses?: number;
+  profilesShared?: number;
+  responseRate?: string;
   userId?: string;
   companyId?: string;
   createdAt: string;
@@ -90,6 +94,8 @@ export interface Job {
   status: 'open' | 'closed' | 'filled' | 'pending';
   approvalStatus?: string;
   broadcastToVendors?: boolean;
+  broadcastsSent?: number;
+  vendorResponses?: number;
   clientId?: string;
   clientName?: string;
   userId?: string;
@@ -297,5 +303,50 @@ export interface EmailEntityLink {
   entityId: string;
   confidence: number;
   createdAt: string;
+}
+
+export interface VendorBroadcast {
+  id?: string;
+  broadcastId?: string;
+  requirementId: string;
+  requirementTitle?: string;
+  channel: string; // 'whatsapp' | 'email' | 'linkedin'
+  vendorId: string;
+  vendorName?: string;
+  sentAt: string;
+  status: string; // 'sent' | 'delivered' | 'opened'
+  source: string;
+}
+
+export interface VendorResponse {
+  id?: string;
+  responseId?: string;
+  broadcastId?: string;
+  requirementId: string;
+  vendorId: string;
+  responseType: string; // 'interested' | 'not_interested' | 'submitted'
+  receivedAt: string;
+  notes?: string;
+}
+
+export interface SubmissionLedger {
+  id?: string;
+  submissionId?: string;
+  requirementId: string;
+  candidateId: string;
+  vendorId: string;
+  ownershipHash: string;
+  submittedAt: string;
+  status: string;
+}
+
+export interface ActivityLedger {
+  id?: string;
+  entityType: string;
+  entityId: string;
+  event: string;
+  performedBy: string;
+  timestamp: string;
+  metadata?: any;
 }
 
