@@ -24,8 +24,18 @@ async function startServer() {
   // API ROUTES
 
   // 1. Health check
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", service: "hirenest-backend" });
+  app.all("/api/health", async (req, res) => {
+    if (req.query.action || (req.body && req.body.action)) {
+      try {
+        const { default: handler } = await import("./api/health");
+        await handler(req as any, res as any);
+      } catch (error) {
+        console.error("[Health Error]", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    } else {
+      res.json({ status: "ok", service: "hirenest-backend" });
+    }
   });
 
   // 2. Webhooks

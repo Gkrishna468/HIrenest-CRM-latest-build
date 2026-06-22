@@ -141,35 +141,50 @@ async function getGmailConnection(userId?: string, emailAddress?: string) {
   return null;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const action = req.query.action || (req.body && req.body.action);
-  switch (action) {
-    case 'sync':
-      return await (async () => {
+async function handleSync(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const emailAddress = req.query.email as string;
-  const userId = req.query.userId as string;
+  const emailAddress = (req.query.email || req.body?.email) as string;
+  const userId = (req.query.userId || req.body?.userId) as string;
+
+  console.log("=== START GMAIL SYNC ===");
+  console.log("SYNC PARAMETERS - Email:", emailAddress, "UserID:", userId);
 
   if (!emailAddress && !userId) {
+    console.error("Sync parameter missing error");
     return res.status(400).json({ error: 'Missing email or userId parameter' });
   }
 
   if (!db) {
+    console.error("Firestore DB reference is null");
     return res.status(500).json({ error: 'Firestore not initialized' });
   }
 
   try {
+    // Structured log for search debug as requested
+    if (userId) {
+      const dbConnections = await db.collection("gmail_connections")
+        .where("userId", "==", userId)
+        .get();
+      console.log(`[Sync Debug] Direct collection search of 'gmail_connections' for userId '${userId}' count:`, dbConnections.size);
+    }
+    
     const connectionData = await getGmailConnection(userId, emailAddress);
+    console.log("[Sync Debug] Resolved connectionData:", connectionData ? {
+      userId: connectionData.userId,
+      email: connectionData.email,
+      status: connectionData.status,
+      hasRefreshToken: !!connectionData.encryptedRefreshToken
+    } : "NULL");
 
     if (!connectionData) {
+      console.error(`[Sync Error] No connection found in Firestore for user '${userId}' or email '${emailAddress}'`);
       return res.status(404).json({ error: 'No connection found for this user' });
     }
 
     const resolvedEmail = connectionData.email; // Use the actual connected email for syncing
-
     
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
@@ -184,6 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
     // Fetch messages from Inbox with staffing filters
+    console.log("[Sync Debug] Fetching messages from Gmail API...");
     const listRes = await gmail.users.messages.list({
       userId: 'me',
       q: `newer_than:30d ("requirement" OR "hiring" OR "profile" OR "resume" OR "candidate" OR "submission" OR "interview" OR "C2C" OR "FTE" OR "contract")`,
@@ -191,7 +207,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const messages = listRes.data.messages || [];
+    console.log(`[Sync Debug] Retrieved ${messages.length} messages from Gmail query`);
+
     let syncedCount = 0;
+    let writeCount = 0;
 
     for (const msg of messages) {
       if (!msg.id) continue;
@@ -200,6 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const existing = await db.collection('emails').doc(msg.id).get();
       if (existing.exists) continue;
 
+      console.log(`[Sync Debug] Processing new message id: ${msg.id}`);
       const messageRes = await gmail.users.messages.get({
         userId: 'me',
         id: msg.id,
@@ -264,16 +284,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mail_classification: classification
       });
       syncedCount++;
+      writeCount++;
     }
 
-    return res.status(200).json({ success: true, syncedCount, message: `Synced ${syncedCount} new emails` });
+    console.log(`=== GMAIL SYNC SUCCESSFUL ===`);
+    console.log(`Synced message count: ${syncedCount}, Firestore write count: ${writeCount}`);
+
+    return res.status(200).json({ 
+      success: true, 
+      syncedCount, 
+      writeCount,
+      message: `Synced ${syncedCount} new emails` 
+    });
   } catch (error: any) {
     console.error('[Gmail Sync Error]', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || 'Internal connection/API error' });
   }
-})();
-    case 'list':
-      return await (async () => {
+}
+
+async function handleList(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -281,8 +310,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const emailAddress = req.query.email as string;
   const userId = req.query.userId as string;
 
-  console.log('EMAIL:', emailAddress);
-  console.log('USER ID:', userId);
+  console.log('EMAIL PARAM:', emailAddress);
+  console.log('USER ID PARAM:', userId);
 
   if (!db) {
     return res.status(500).json({ error: 'Firestore not initialized' });
@@ -294,7 +323,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const connectionData = await getGmailConnection(userId, emailAddress);
     if (connectionData) {
       resolvedEmail = connectionData.email;
-      console.log('Resolved Email:', resolvedEmail);
+      console.log('Resolved Email to List:', resolvedEmail);
     }
 
     let queryArgs: any = db.collection('emails').limit(100);
@@ -318,14 +347,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[Gmail List Error]', error);
     return res.status(500).json({ error: error.message });
   }
-})();
-    case 'send':
-      return await (async () => {
+}
+
+async function handleSend(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { userId, to, subject, body, threadId, messageId } = req.body;
+  const { userId, to, subject, body, threadId, messageId } = req.body || {};
 
   if (!userId) {
     return res.status(400).json({ error: 'Missing userId parameter' });
@@ -390,8 +419,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[Gmail Send Error]', error);
     return res.status(500).json({ error: error.message });
   }
-})();
-    default:
-      return res.status(400).json({ error: "Invalid action: " + action });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = (req.query.action || req.body?.action) as string;
+
+  const VALID_ACTIONS = ["list", "sync", "send"];
+
+  if (!action || !VALID_ACTIONS.includes(action)) {
+    return res.status(400).json({
+      error: "Unsupported gmail action",
+      action: action || "undefined"
+    });
+  }
+
+  try {
+    if (action === 'list') {
+      return await handleList(req, res);
+    }
+    if (action === 'sync') {
+      return await handleSync(req, res);
+    }
+    if (action === 'send') {
+      return await handleSend(req, res);
+    }
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || "Internal unhandled error" });
   }
 }

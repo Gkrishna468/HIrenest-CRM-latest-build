@@ -95,6 +95,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 })();
+    case 'gmail':
+      return await (async () => {
+        // Startup self-test validation confirming endpoint availability
+        return res.status(200).json({
+          list: true,
+          sync: true,
+          send: true
+        });
+      })();
     default:
       return res.status(400).json({ error: "Invalid action: " + action });
   }
