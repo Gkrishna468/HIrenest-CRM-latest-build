@@ -76,6 +76,127 @@ export const decrypt = (text: string): string => {
   return decrypted.toString();
 };
 
+interface ClassificationResponse {
+  classification: "Requirement" | "Submission" | "Interview" | "Offer" | "Vendor Response" | "Noise";
+  summary: string;
+  senderType: "Vendor" | "Client" | "Candidate" | "System/Automated" | "Unknown";
+}
+
+async function classifyEmailWithGemini(subject: string, from: string, bodySnippet: string): Promise<ClassificationResponse> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.log("[Classification] GEMINI_API_KEY is not defined, using regex classification fallback.");
+    return performRegexClassification(subject, from, bodySnippet);
+  }
+
+  try {
+    const { GoogleGenAI, Type } = await import("@google/genai");
+    const ai = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
+
+    const prompt = `You are an AI Recruitment & Staffing CRM classification engine.
+Analyze the following email metadata and content snippet, and categorize it accurately.
+
+Email Details:
+From: ${from}
+Subject: ${subject}
+Content Snippet: ${bodySnippet || '(empty)'}
+
+Classify into one of these:
+1. "Requirement": Client requests, hiring lookups, job openings, project requirements, position details, C2C (corp-to-corp) or FTE roles.
+2. "Submission": Re-submitting candidate profiles, resume sharing, profile submissions, subcontractor candidates shared by vendors.
+3. "Interview": Scheduling interviews, confirmations, calendar invites, interview slots.
+4. "Offer": Job offers, select feedback, onboarding files, assignment starts.
+5. "Vendor Response": Replies from candidates or vendors, rate negotiations.
+6. "Noise": Amazon, security notifications, newsletters, marketing list spam, automated notification alerts, standard non-recruitment updates.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            classification: {
+              type: Type.STRING,
+              enum: ["Requirement", "Submission", "Interview", "Offer", "Vendor Response", "Noise"],
+              description: "The core recruitment classification of the email."
+            },
+            summary: {
+              type: Type.STRING,
+              description: "A professional one-sentence summary of the email."
+            },
+            senderType: {
+              type: Type.STRING,
+              enum: ["Vendor", "Client", "Candidate", "System/Automated", "Unknown"],
+              description: "Type of the sender."
+            }
+          },
+          required: ["classification", "summary", "senderType"]
+        }
+      }
+    });
+
+    const text = response.text;
+    if (text) {
+      const data = JSON.parse(text);
+      if (data && data.classification) {
+        return data as ClassificationResponse;
+      }
+    }
+    
+    return performRegexClassification(subject, from, bodySnippet);
+  } catch (err) {
+    console.error("[Gemini Classification Error]", err);
+    return performRegexClassification(subject, from, bodySnippet);
+  }
+}
+
+function performRegexClassification(subject: string, from: string, bodySnippet: string): ClassificationResponse {
+  const lowerFrom = from.toLowerCase();
+  const lowerSub = subject.toLowerCase();
+  const lowerBody = bodySnippet.toLowerCase();
+
+  let classification: "Requirement" | "Submission" | "Interview" | "Offer" | "Vendor Response" | "Noise" = "Requirement";
+  let senderType: "Vendor" | "Client" | "Candidate" | "System/Automated" | "Unknown" = "Unknown";
+  let summary = `Email from ${from} regarding ${subject}`;
+
+  if (
+    lowerFrom.includes("amazon") || 
+    lowerFrom.includes("reddit") || 
+    lowerFrom.includes("newsletter") || 
+    lowerFrom.includes("alerts@") || 
+    lowerFrom.includes("marketing") ||
+    lowerFrom.includes("hdfc") ||
+    lowerFrom.includes("bank") ||
+    lowerFrom.includes("pay")
+  ) {
+    classification = "Noise";
+    senderType = "System/Automated";
+  } else if (lowerSub.includes("submission") || lowerSub.includes("profile") || lowerSub.includes("resume") || lowerBody.includes("resume linked") || lowerBody.includes("attached resume")) {
+    classification = "Submission";
+    senderType = "Vendor";
+  } else if (lowerSub.includes("interview") || lowerSub.includes("schedule") || lowerBody.includes("interview call")) {
+    classification = "Interview";
+    senderType = "Client";
+  } else if (lowerSub.includes("offer") || lowerSub.includes("selected") || lowerBody.includes("congratulations")) {
+    classification = "Offer";
+    senderType = "Client";
+  } else if (lowerSub.includes("invoice") || lowerSub.includes("billing")) {
+    classification = "Noise";
+    senderType = "System/Automated";
+  }
+
+  return { classification, summary, senderType };
+}
+
 async function getGmailConnection(userId?: string, emailAddress?: string) {
   if (!db) return null;
 
@@ -198,16 +319,16 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
     // refresh tokens if needed
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
-    // Fetch messages from Inbox with staffing filters
+    // Fetch messages from Inbox with broad timeline window as requested
     console.log("[Sync Debug] Fetching messages from Gmail API...");
     const listRes = await gmail.users.messages.list({
       userId: 'me',
-      q: `newer_than:30d ("requirement" OR "hiring" OR "profile" OR "resume" OR "candidate" OR "submission" OR "interview" OR "C2C" OR "FTE" OR "contract")`,
-      maxResults: 25 // increased to 25 to capture more relevant items
+      q: `newer_than:30d`, // Broad scan to avoid keyword misses
+      maxResults: 40 // Broad search range
     });
 
     const messages = listRes.data.messages || [];
-    console.log(`[Sync Debug] Retrieved ${messages.length} messages from Gmail query`);
+    console.log(`[Sync Debug] Retrieved ${messages.length} messages from broad Gmail scan`);
 
     let syncedCount = 0;
     let writeCount = 0;
@@ -235,30 +356,6 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
       const from = getHeader('from');
       const date = getHeader('date');
 
-      // Basic regex classifier to filter out noise
-      const lowerFrom = from.toLowerCase();
-      const lowerSub = subject.toLowerCase();
-      let classification = "Requirement"; // Default assumption for unanalyzed
-
-      if (
-        lowerFrom.includes("amazon") || 
-        lowerFrom.includes("reddit") || 
-        lowerFrom.includes("newsletter") || 
-        lowerFrom.includes("alerts@") || 
-        lowerFrom.includes("marketing") ||
-        lowerFrom.includes("hdfc") ||
-        lowerFrom.includes("bank") ||
-        lowerFrom.includes("pay")
-      ) {
-        classification = "Noise";
-      } else if (lowerSub.includes("submission") || lowerSub.includes("profile") || lowerSub.includes("resume")) {
-        classification = "Vendor Submission";
-      } else if (lowerSub.includes("interview") || lowerSub.includes("schedule")) {
-        classification = "Interview";
-      } else if (lowerSub.includes("invoice") || lowerSub.includes("payment")) {
-        classification = "Invoice";
-      }
-
       // Simple body extraction
       let body = '';
       if (payload?.parts) {
@@ -270,6 +367,11 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
         body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
       }
 
+      // Advanced Gemini AI classification with graceful regex fallback
+      console.log(`[Sync Debug] Classifying message ${msg.id} with Gemini AI...`);
+      const aiResult = await classifyEmailWithGemini(subject, from, messageRes.data.snippet || body.substring(0, 1000));
+      console.log(`[Sync Debug] Classified: ${msg.id} as [${aiResult.classification}] - Sender: ${aiResult.senderType}`);
+
       await db.collection('emails').doc(msg.id).set({
         gmailMessageId: msg.id,
         userEmail: resolvedEmail,
@@ -280,8 +382,10 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
         receivedAt: date,
         threadId: msg.threadId,
         createdAt: new Date().toISOString(),
-        entityType: classification,
-        mail_classification: classification
+        entityType: aiResult.classification,
+        mail_classification: aiResult.classification,
+        aiSummary: aiResult.summary,
+        senderType: aiResult.senderType
       });
       syncedCount++;
       writeCount++;
@@ -423,6 +527,19 @@ async function handleSend(req: VercelRequest, res: VercelResponse) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = (req.query.action || req.body?.action) as string;
+  const userId = (req.query.userId || req.body?.userId) as string;
+
+  console.log("[Gmail Gateway API Hit]", {
+    method: req.method,
+    action: action,
+    userId: userId,
+    query: req.query,
+    body: req.method === "POST" ? JSON.stringify(req.body) : undefined
+  });
+
+  if (action === "sync") {
+    console.log("[Gmail Gateway API Hit] SYNC HANDLER HIT");
+  }
 
   const VALID_ACTIONS = ["list", "sync", "send"];
 

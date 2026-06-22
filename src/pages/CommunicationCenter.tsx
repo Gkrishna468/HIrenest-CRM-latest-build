@@ -320,6 +320,9 @@ export default function CommunicationCenter() {
     if (activeTab === "actionable") {
       return c.entityType !== "Noise" && c.entityType !== "Spam";
     }
+    if (activeTab === "Vendor Submission") {
+      return c.entityType === "Vendor Submission" || c.entityType === "Submission" || c.entityType === "Vendor Response";
+    }
     return c.entityType === activeTab;
   });
 

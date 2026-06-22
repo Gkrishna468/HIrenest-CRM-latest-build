@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const logToFirestore = async (step: string, details?: any) => {
-    console.log(step, details || '');
+    console.log(`[OAuth Debug] ${step}`, details || '');
     if (db) {
       try {
         await db.collection('oauth_debug').add({
@@ -153,21 +153,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!emailAddress) throw new Error("Could not get email address");
 
-    let encryptedRefreshToken = '';
-    if (tokens.refresh_token) {
-      encryptedRefreshToken = encrypt(tokens.refresh_token);
-    }
+    // Look up any existing connection for this user or email to find refresh token fallback
+    let existingConnectionData: any = null;
+    let connRef: any = null;
 
-    let historyId = profile.data.historyId || '';
-
-    await logToFirestore("STEP_2_FIRESTORE_WRITE_START");
-    let connRefId = '';
     if (!db) {
       throw new Error("Firestore db is not initialized. Cannot save Gmail connection.");
     }
 
-    const connRef = db.collection('gmail_connections').doc(); 
-    connRefId = connRef.id;
+    if (userId && userId !== 'unknown') {
+      const snapshot = await db.collection('gmail_connections')
+        .where('userId', '==', userId)
+        .limit(1).get();
+      if (!snapshot.empty) {
+        connRef = snapshot.docs[0].ref;
+        existingConnectionData = snapshot.docs[0].data();
+      }
+    }
+
+    if (!connRef && emailAddress) {
+      const snapshot = await db.collection('gmail_connections')
+        .where('email', '==', emailAddress)
+        .limit(1).get();
+      if (!snapshot.empty) {
+        connRef = snapshot.docs[0].ref;
+        existingConnectionData = snapshot.docs[0].data();
+      }
+    }
+
+    let encryptedRefreshToken = '';
+    if (tokens.refresh_token) {
+      encryptedRefreshToken = encrypt(tokens.refresh_token);
+    } else if (existingConnectionData && existingConnectionData.encryptedRefreshToken) {
+      encryptedRefreshToken = existingConnectionData.encryptedRefreshToken;
+    }
+
+    let historyId = profile.data.historyId || existingConnectionData?.historyId || '';
+
+    await logToFirestore("STEP_2_FIRESTORE_WRITE_START", {
+      hasNewRefreshToken: !!tokens.refresh_token,
+      hasExistingTokenFallback: !!(existingConnectionData && existingConnectionData.encryptedRefreshToken),
+    });
+
+    if (!connRef) {
+      // Use userId as doc ID to guarantee unique connection record per user
+      if (userId && userId !== 'unknown') {
+        connRef = db.collection('gmail_connections').doc(userId);
+      } else {
+        connRef = db.collection('gmail_connections').doc();
+      }
+    }
+
+    const connRefId = connRef.id;
     await connRef.set({
       userId: userId || 'unknown',
       email: emailAddress,
@@ -175,19 +212,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       historyId: historyId,
       encryptedRefreshToken: encryptedRefreshToken,
       watchExpiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), 
-      createdAt: new Date().toISOString(),
+      createdAt: existingConnectionData?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
 
     // Emit GMAIL_CONNECTED event
     await db.collection('system_events').add({
       eventType: 'GMAIL_CONNECTED',
       entityCollection: 'gmail_connections',
-      entityId: connRef.id,
-      metadata: { email: emailAddress },
+      entityId: connRefId,
+      metadata: { email: emailAddress, isUpdate: !!existingConnectionData },
       createdAt: new Date().toISOString()
     });
-    await logToFirestore("STEP_2_FIRESTORE_WRITE_SUCCESS", { connectionId: connRef.id });
+    await logToFirestore("STEP_2_FIRESTORE_WRITE_SUCCESS", { connectionId: connRefId });
 
     // Try Watch API but don't fail the whole connection if it fails
     if (process.env.PUBSUB_TOPIC_NAME) {
@@ -203,16 +240,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         historyId = watchRes.data.historyId || historyId;
         console.log(`[Gmail Auth] Watch registration successful for ${emailAddress}`);
         
-        if (db && connRefId) {
-          await db.collection('gmail_connections').doc(connRefId).update({
-            historyId: historyId
-          });
-        }
+        await db.collection('gmail_connections').doc(connRefId).update({
+          historyId: historyId
+        });
         await logToFirestore("STEP_3_WATCH_API_SUCCESS");
       } catch (watchError: any) {
         console.error('[Gmail Auth Watch Error]', watchError);
         await logToFirestore("STEP_3_WATCH_API_FAILED", { error: watchError.message });
-        // We still redirect to success since auth and connection write succeeded
       }
     } else {
       await logToFirestore("STEP_3_WATCH_API_SKIPPED_NO_TOPIC");
