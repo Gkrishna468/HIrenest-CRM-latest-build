@@ -27,7 +27,7 @@ export async function createJob(data: Partial<Job>) {
     openings: data.openings || 1,
     status: 'pending',
     approval_status: 'pending',
-    client_id: data.clientId,
+    client_id: data.clientId || null,
     client_name: data.clientName,
   });
 }

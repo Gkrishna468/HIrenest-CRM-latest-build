@@ -1,8 +1,8 @@
 import { getApps, initializeApp, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import dotenv from "dotenv";
-import fs from "fs";
-import path from "path";
+import * as dotenv from "dotenv";
+import * as fs from "fs";
+import * as path from "path";
 import { AgentRuntime } from "../src/runtime/AgentRuntime";
 
 dotenv.config();

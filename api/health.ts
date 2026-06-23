@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 dotenv.config();
 
-import fs from "fs";
-import path from "path";
+import * as fs from "fs";
+import * as path from "path";
 
 let db: Firestore | null = null;
 let adminApp: any = null;
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     case 'ai':
       return await (async () => {
   return res.json({
-    geminiConfigured: !!process.env.GEMINI_API_KEY,
+    geminiConfigured: !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
     googleConfigured: !!process.env.GOOGLE_API_KEY
   });
 })();

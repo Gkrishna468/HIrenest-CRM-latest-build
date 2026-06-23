@@ -2,9 +2,9 @@ import type { Request, Response } from "express";
 import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
-import fs from "fs";
-import path from "path";
+import * as dotenv from "dotenv";
+import * as fs from "fs";
+import * as path from "path";
 
 dotenv.config();
 
@@ -90,13 +90,7 @@ export default async function handler(req: Request, res: Response) {
       email: user.email,
     };
 
-    if (!process.env.FIREBASE_PRIVATE_KEY) {
-      console.warn("[Firebase Token Warning] FIREBASE_PRIVATE_KEY is missing. Custom tokens cannot be minted in this environment without it.");
-      return res.status(500).json({ 
-        error: "Missing FIREBASE_PRIVATE_KEY", 
-        message: "Firebase custom tokens cannot be signed without a Service Account private key in this environment. Please add FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL to AI Studio secrets." 
-      });
-    }
+    
 
     const firebaseToken = await getAdminAuth(adminApp).createCustomToken(user.id, customClaims);
 

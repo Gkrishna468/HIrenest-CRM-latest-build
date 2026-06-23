@@ -3,11 +3,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import * as crypto from 'crypto';
 import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 dotenv.config();
 
-import fs from "fs";
-import path from "path";
+import * as fs from "fs";
+import * as path from "path";
 
 let db: Firestore | null = null;
 let adminApp: any = null;

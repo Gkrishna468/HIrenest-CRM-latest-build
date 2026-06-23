@@ -1,9 +1,9 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { getApps, initializeApp, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import dotenv from "dotenv";
-import fs from "fs";
-import path from "path";
+import * as dotenv from "dotenv";
+import * as fs from "fs";
+import * as path from "path";
 dotenv.config();
 
 let db: Firestore | null = null;

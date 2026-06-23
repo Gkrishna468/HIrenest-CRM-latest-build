@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 dotenv.config();
 
-import fs from "fs";
-import path from "path";
+import * as fs from "fs";
+import * as path from "path";
 
 let db: Firestore | null = null;
 let adminApp: any = null;
@@ -61,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     
-const apiKey = (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
+const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
 if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
 if (apiKey.includes("\"")) {
     console.error("API KEY INCLUDES QUOTES");
@@ -322,7 +322,7 @@ if (apiKey.includes("\"")) {
 
   try {
     
-const apiKey = (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
+const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
 if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
 if (apiKey.includes("\"")) {
     console.error("API KEY INCLUDES QUOTES");
