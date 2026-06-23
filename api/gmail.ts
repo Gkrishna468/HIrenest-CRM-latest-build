@@ -114,7 +114,7 @@ interface ClassificationResponse {
 }
 
 async function classifyEmailWithGemini(subject: string, from: string, bodySnippet: string): Promise<ClassificationResponse> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
   if (!apiKey) {
     console.log("[Classification] GEMINI_API_KEY is not defined, using regex classification fallback.");
     return performRegexClassification(subject, from, bodySnippet);
@@ -148,7 +148,7 @@ Classify into one of these:
 6. "Noise": Amazon, security notifications, newsletters, marketing list spam, automated notification alerts, standard non-recruitment updates.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",

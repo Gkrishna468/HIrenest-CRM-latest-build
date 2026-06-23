@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   if (!action) {
      return res.json({
-        status: "ok",
+        status: "ok", key: process.env.GEMINI_API_KEY, rawKey: JSON.stringify(process.env.GEMINI_API_KEY),
         service: "HireNestOS",
         timestamp: new Date().toISOString()
      });
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 })();
     case 'env':
       return await (async () => {
-  res.status(200).json({
+  res.status(200).json({ key: process.env.GEMINI_API_KEY, rawKey: JSON.stringify(process.env.GEMINI_API_KEY), 
     projectId: !!process.env.FIREBASE_PROJECT_ID,
     clientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
     privateKey: !!process.env.FIREBASE_PRIVATE_KEY,
@@ -82,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Just a simple read to verify connection
     const healthDoc = await db.collection('system_health').doc('firebase_ping').get();
     
-    return res.status(200).json({
+    return res.status(200).json({ key: process.env.GEMINI_API_KEY, rawKey: JSON.stringify(process.env.GEMINI_API_KEY), 
       firebase: true,
       projectId: process.env.FIREBASE_PROJECT_ID,
       healthDocExists: healthDoc.exists
@@ -98,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     case 'gmail':
       return await (async () => {
         // Startup self-test validation confirming endpoint availability
-        return res.status(200).json({
+        return res.status(200).json({ key: process.env.GEMINI_API_KEY, rawKey: JSON.stringify(process.env.GEMINI_API_KEY), 
           list: true,
           sync: true,
           send: true

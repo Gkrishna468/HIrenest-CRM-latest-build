@@ -11,7 +11,7 @@ let aiClient: GoogleGenAI | null = null;
 
 function getAI() {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
     if (!apiKey || apiKey === 'undefined') {
       throw new Error("GEMINI_API_KEY is not defined. Please set it in your environment variables.");
     }
@@ -77,7 +77,7 @@ export async function parseResumeWithAI(text: string): Promise<ParsedResume> {
 
   try {
     const response = await getAI().models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json"
@@ -147,7 +147,7 @@ export async function scoreCandidateForJob(job: any, candidate: any): Promise<Ma
 
   try {
     const response = await getAI().models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json"
