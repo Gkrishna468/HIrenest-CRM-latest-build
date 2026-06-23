@@ -10,7 +10,7 @@ export class AIProvider {
     ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) 
     : null;
 
-  static async generate(prompt: string, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.5-flash" }): Promise<string> {
+  static async generate(prompt: string, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.0-flash" }): Promise<string> {
     if (config.provider === "gemini") {
       if (!this.geminiClient) {
         throw new Error("Gemini client not initialized. GEMINI_API_KEY missing.");
@@ -27,7 +27,7 @@ export class AIProvider {
     throw new Error(`Provider ${config.provider} not supported yet.`);
   }
 
-  static async generateWithSchema(prompt: string, schema: any, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.5-flash" }): Promise<string> {
+  static async generateWithSchema(prompt: string, schema: any, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.0-flash" }): Promise<string> {
     if (config.provider === "gemini") {
       if (!this.geminiClient) {
         throw new Error("Gemini client not initialized. GEMINI_API_KEY missing.");

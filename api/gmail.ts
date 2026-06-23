@@ -148,7 +148,7 @@ Classify into one of these:
 6. "Noise": Amazon, security notifications, newsletters, marketing list spam, automated notification alerts, standard non-recruitment updates.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",

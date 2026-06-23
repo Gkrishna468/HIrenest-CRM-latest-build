@@ -77,7 +77,7 @@ export async function parseResumeWithAI(text: string): Promise<ParsedResume> {
 
   try {
     const response = await getAI().models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json"
@@ -147,7 +147,7 @@ export async function scoreCandidateForJob(job: any, candidate: any): Promise<Ma
 
   try {
     const response = await getAI().models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json"

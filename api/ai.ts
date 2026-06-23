@@ -60,8 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
+    const apiKey = process.env.GEMINI_API_KEY; console.log("API KEY:", apiKey?.substring(0,6)); if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
     const aiClient = new GoogleGenAI({ apiKey });
 
     const prompt = `
@@ -143,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   `;
 
     const result = await aiClient.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -316,8 +315,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
+    const apiKey = process.env.GEMINI_API_KEY; console.log("API KEY:", apiKey?.substring(0,6)); if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
     const aiClient = new GoogleGenAI({ apiKey });
 
     const systemPrompt = `
@@ -348,7 +346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
 
     const result = await aiClient.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: systemPrompt,
     });
 
