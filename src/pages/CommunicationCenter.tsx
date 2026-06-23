@@ -92,10 +92,7 @@ export default function CommunicationCenter() {
   };
 
   // Stats for KPI Strip
-  const todayEmails =
-    emails.filter(
-      (e) => new Date(e.timestamp).toDateString() === new Date().toDateString(),
-    ).length || emails.length;
+  const todayEmails = emails.length;
   const submissionsCount = candidates.filter(
     (c) => c.stage === "submission",
   ).length;
@@ -114,7 +111,7 @@ export default function CommunicationCenter() {
     setIsLoading(true);
     try {
       const userQuery = user?.id
-        ? `&userId=${encodeURIComponent(user.id)}&email=${encodeURIComponent(user.email || "")}`
+        ? `&userId=${encodeURIComponent(user.id)}`
         : "";
       const response = await apiFetch(`/api/gmail?action=list${userQuery}`);
       if (!response.ok) throw new Error("Failed to fetch emails");
@@ -172,7 +169,7 @@ export default function CommunicationCenter() {
     setIsSyncing(true);
     try {
       const response = await apiFetch(
-        `/api/gmail?action=sync&userId=${encodeURIComponent(user.id)}&email=${encodeURIComponent(user.email || "")}`,
+        `/api/gmail?action=sync&userId=${encodeURIComponent(user.id)}`,
         {
           method: "POST",
         },
@@ -326,16 +323,7 @@ export default function CommunicationCenter() {
     }
   };
 
-  const filteredComms = emails.filter((c) => {
-    if (activeTab === "all") return true;
-    if (activeTab === "actionable") {
-      return c.entityType !== "Noise" && c.entityType !== "Spam";
-    }
-    if (activeTab === "Vendor Submission") {
-      return c.entityType === "Vendor Submission" || c.entityType === "Submission" || c.entityType === "Vendor Response";
-    }
-    return c.entityType === activeTab;
-  });
+  const filteredComms = emails;
 
   return (
     <div className="flex flex-col h-full w-full gap-4">

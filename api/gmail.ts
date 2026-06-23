@@ -313,15 +313,14 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const emailAddress = (req.query.email || req.body?.email) as string;
   const userId = (req.query.userId || req.body?.userId) as string;
 
   console.log("=== START GMAIL SYNC ===");
-  console.log("SYNC PARAMETERS - Email:", emailAddress, "UserID:", userId);
+  console.log("SYNC PARAMETERS - UserID:", userId);
 
-  if (!emailAddress && !userId) {
+  if (!userId) {
     console.error("Sync parameter missing error");
-    return res.status(400).json({ error: 'Missing email or userId parameter' });
+    return res.status(400).json({ error: 'Missing userId parameter' });
   }
 
   if (!db) {
@@ -330,28 +329,30 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Structured log for search debug as requested
-    if (userId) {
-      const dbConnections = await db.collection("gmail_connections")
-        .where("userId", "==", userId)
-        .get();
-      console.log(`[Sync Debug] Direct collection search of 'gmail_connections' for userId '${userId}' count:`, dbConnections.size);
+    const snapshot = await db.collection("gmail_connections")
+      .where("userId", "==", userId)
+      .limit(1)
+      .get();
+      
+    console.log("USER ID", userId);
+    console.log("CONNECTIONS FOUND", snapshot.size);
+    console.log("CONNECTED EMAIL", snapshot.docs[0]?.data()?.email);
+
+    if (snapshot.empty) {
+      console.error(`[Sync Error] No connection found in Firestore for user '${userId}'`);
+      return res.status(404).json({ error: 'No connection found for this user' });
     }
+
+    const connectionData = snapshot.docs[0].data();
+    const resolvedEmail = connectionData.email;
     
-    const connectionData = await getGmailConnection(userId, emailAddress);
-    console.log("[Sync Debug] Resolved connectionData:", connectionData ? {
+    console.log("[Sync Debug] Resolved connectionData:", {
       userId: connectionData.userId,
       email: connectionData.email,
       status: connectionData.status,
       hasRefreshToken: !!connectionData.encryptedRefreshToken
-    } : "NULL");
+    });
 
-    if (!connectionData) {
-      console.error(`[Sync Error] No connection found in Firestore for user '${userId}' or email '${emailAddress}'`);
-      return res.status(404).json({ error: 'No connection found for this user' });
-    }
-
-    const resolvedEmail = connectionData.email; // Use the actual connected email for syncing
     
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
@@ -413,10 +414,12 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
         body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
       }
 
-      // Advanced Gemini AI classification with graceful regex fallback
-      console.log(`[Sync Debug] Classifying message ${msg.id} with Gemini AI...`);
-      const aiResult = await classifyEmailWithGemini(subject, from, messageRes.data.snippet || body.substring(0, 1000));
-      console.log(`[Sync Debug] Classified: ${msg.id} as [${aiResult.classification}] - Sender: ${aiResult.senderType}`);
+      // Temporarily bypass AI classification
+      const aiResult = {
+         classification: null,
+         summary: "Synced via broad scan (AI Bypassed)",
+         senderType: "Unknown"
+      };
 
       await db.collection('emails').doc(msg.id).set({
         gmailMessageId: msg.id,
@@ -457,20 +460,18 @@ async function handleList(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const emailAddress = req.query.email as string;
   const userId = req.query.userId as string;
 
-  console.log('EMAIL PARAM:', emailAddress);
   console.log('USER ID PARAM:', userId);
 
   if (!db) {
     return res.status(500).json({ error: 'Firestore not initialized' });
   }
 
-  let resolvedEmail = emailAddress;
+  let resolvedEmail = null;
 
   try {
-    const connectionData = await getGmailConnection(userId, emailAddress);
+    const connectionData = await getGmailConnection(userId);
     if (connectionData) {
       resolvedEmail = connectionData.email;
       console.log('Resolved Email to List:', resolvedEmail);

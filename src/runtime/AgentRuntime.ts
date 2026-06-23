@@ -1,4 +1,4 @@
-import { Firestore } from "firebase-admin/firestore";
+import { Firestore, FieldValue } from "firebase-admin/firestore";
 import { RequirementAgent } from "./agents/RequirementAgent";
 import { CandidateAgent } from "./agents/CandidateAgent";
 import { MatchingAgent } from "./agents/MatchingAgent";
@@ -181,14 +181,14 @@ export class AgentRuntime {
         agentId: task.agentId,
         lastExecutionTask: task.task,
         lastExecutionTime: new Date().toISOString(),
-        tasksCompleted: Firestore.FieldValue.increment(1)
+        tasksCompleted: FieldValue.increment(1)
       }, { merge: true });
 
       await this.db.collection("agent_metrics").doc(task.agentId).set({
         agent: task.agentId,
-        executions: Firestore.FieldValue.increment(1),
-        successes: Firestore.FieldValue.increment(1),
-        totalLatencyMs: Firestore.FieldValue.increment(latency)
+        executions: FieldValue.increment(1),
+        successes: FieldValue.increment(1),
+        totalLatencyMs: FieldValue.increment(latency)
       }, { merge: true });
 
     } catch (err: any) {
@@ -209,8 +209,8 @@ export class AgentRuntime {
 
       await this.db.collection("agent_metrics").doc(task.agentId).set({
         agent: task.agentId,
-        executions: Firestore.FieldValue.increment(1),
-        failures: Firestore.FieldValue.increment(1)
+        executions: FieldValue.increment(1),
+        failures: FieldValue.increment(1)
       }, { merge: true });
 
       const currentRetries = task.retries || 0;
