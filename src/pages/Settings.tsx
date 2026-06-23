@@ -71,36 +71,20 @@ export default function Settings() {
 
     const checkGmailFirebase = async () => {
       try {
-        let q = query(
-          collection(db, 'gmail_connections'), 
-          where('status', '==', 'active')
-        );
-        let snapshot = await getDocs(q);
+        const userId = user?.id || "unknown";
+        const email = user?.email || "";
+        const response = await apiFetch(`/api/gmail?action=status&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`);
+        const data = await response.json();
         
-        let foundData = null;
-        if (!snapshot.empty) {
-          // If we have a user.id, try to find their specific connection first
-          if (user?.id) {
-            const userDocs = snapshot.docs.filter(doc => doc.data().userId === user.id);
-            if (userDocs.length > 0) {
-              foundData = userDocs[0].data();
-            }
-          }
-          // Fallback to first active connection (matches api/gmail.ts behavior)
-          if (!foundData) {
-            foundData = snapshot.docs[0].data();
-          }
-        }
-        
-        if (foundData) {
+        if (data.connected && data.data) {
           setGmailConnected(true);
-          setGmailData(foundData);
+          setGmailData(data.data);
         } else {
           setGmailConnected(false);
           setGmailData(null);
         }
       } catch (error) {
-        console.error("Failed to fetch gmail_connection", error);
+        console.error("Failed to fetch gmail_connection status", error);
       }
     };
     checkGmailFirebase();

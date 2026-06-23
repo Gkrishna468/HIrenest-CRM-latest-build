@@ -587,7 +587,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("[Gmail Gateway API Hit] SYNC HANDLER HIT");
   }
 
-  const VALID_ACTIONS = ["list", "sync", "send"];
+  const VALID_ACTIONS = ["list", "sync", "send", "status"];
 
   if (!action || !VALID_ACTIONS.includes(action)) {
     return res.status(400).json({
@@ -597,6 +597,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (action === 'status') {
+       const conn = await getGmailConnection(userId, req.query.email as string);
+       if (conn) {
+         return res.status(200).json({ connected: true, data: conn });
+       }
+       return res.status(200).json({ connected: false });
+    }
     if (action === 'list') {
       return await handleList(req, res);
     }

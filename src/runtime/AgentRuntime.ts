@@ -1,4 +1,7 @@
 import { Firestore } from "firebase-admin/firestore";
+import { RequirementAgent } from "./agents/RequirementAgent";
+import { CandidateAgent } from "./agents/CandidateAgent";
+import { MatchingAgent } from "./agents/MatchingAgent";
 
 export interface SystemEvent {
   id?: string;
@@ -136,11 +139,21 @@ export class AgentRuntime {
     });
 
     try {
-      // TODO: Actually execute agent logic here based on task.task
-      // For now, simulate brief execution
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const startTime = Date.now();
+      let result;
+
+      if (task.task === "extract_requirement") {
+        result = await RequirementAgent.execute(this.db, task.payload);
+      } else if (task.task === "extract_candidate") {
+        result = await CandidateAgent.execute(this.db, task.payload);
+      } else if (task.task === "match_candidates" || task.task === "match_requirements") {
+        result = await MatchingAgent.execute(this.db, task.payload);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        result = { success: true, message: `Completed ${task.task}` };
+      }
       
-      const result = { success: true, message: `Completed ${task.task}` };
+      const latency = Date.now() - startTime;
 
       // 3. Mark as completed
       await this.db.collection("agent_tasks").doc(task.id).update({
@@ -159,16 +172,23 @@ export class AgentRuntime {
       await this.db.collection("agent_logs").add({
         taskId: task.id,
         level: "info",
-        message: `Task ${task.task} completed successfully`,
+        message: `Task ${task.task} completed successfully in ${latency}ms`,
         timestamp: new Date().toISOString()
       });
 
-      // 5. Update Agent Memory (Simulated generic update for now)
+      // 5. Update Agent Memory & Metrics
       await this.db.collection("agent_memory").doc(task.agentId).set({
         agentId: task.agentId,
         lastExecutionTask: task.task,
         lastExecutionTime: new Date().toISOString(),
         tasksCompleted: Firestore.FieldValue.increment(1)
+      }, { merge: true });
+
+      await this.db.collection("agent_metrics").doc(task.agentId).set({
+        agent: task.agentId,
+        executions: Firestore.FieldValue.increment(1),
+        successes: Firestore.FieldValue.increment(1),
+        totalLatencyMs: Firestore.FieldValue.increment(latency)
       }, { merge: true });
 
     } catch (err: any) {
@@ -186,6 +206,12 @@ export class AgentRuntime {
         message: `Task ${task.task} failed: ${err.message}`,
         timestamp: new Date().toISOString()
       });
+
+      await this.db.collection("agent_metrics").doc(task.agentId).set({
+        agent: task.agentId,
+        executions: Firestore.FieldValue.increment(1),
+        failures: Firestore.FieldValue.increment(1)
+      }, { merge: true });
 
       const currentRetries = task.retries || 0;
       const maxRetries = task.maxRetries || 3;
