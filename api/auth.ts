@@ -62,7 +62,8 @@ if (!getApps()?.length) {
 }
 
 const ALGORITHM = "aes-256-cbc";
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default-insecure-key-32-chars!!!";
+const rawKey = process.env.ENCRYPTION_KEY || "default-insecure-key-32-chars!!!";
+const ENCRYPTION_KEY = rawKey.padEnd(32, '!').substring(0, 32);
 const IV_LENGTH = 16;
 
 export const encrypt = (text: string): string => {
@@ -83,14 +84,29 @@ export const decrypt = (text: string): string => {
   if (!ivStr) return text;
   const iv = Buffer.from(ivStr, "hex");
   const encryptedText = Buffer.from(textParts.join(":"), "hex");
-  const decipher = crypto.createDecipheriv(
-    ALGORITHM,
-    Buffer.from(ENCRYPTION_KEY),
-    iv,
-  );
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
+
+  const tryDecrypt = (keyStr: string) => {
+    try {
+      if (keyStr.length !== 32) return null;
+      const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(keyStr), iv);
+      let decrypted = decipher.update(encryptedText);
+      decrypted = Buffer.concat([decrypted, decipher.final()]);
+      return decrypted.toString();
+    } catch(e) {
+      return null;
+    }
+  };
+
+  let decryptedVal = tryDecrypt(ENCRYPTION_KEY);
+  if (!decryptedVal) {
+    decryptedVal = tryDecrypt("default-insecure-key-32-chars!!!");
+  }
+  
+  if (!decryptedVal) {
+      throw new Error("bad decrypt");
+  }
+
+  return decryptedVal;
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -243,6 +259,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metadata: { email: emailAddress, isUpdate: !!existingConnectionData },
       createdAt: new Date().toISOString()
     });
+    
+    // PERMANENT PRODUCT-MANAGER FIX: Update users collection so MailOS avoids constant lookups
+    if (userId && userId !== 'unknown') {
+      try {
+        await db.collection('users').doc(userId).set({
+          id: userId,
+          gmailConnected: true,
+          gmailEmail: emailAddress,
+          gmailConnectionId: connRefId,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        await logToFirestore("STEP_2B_USER_RECORD_UPDATED");
+      } catch (err: any) {
+        console.error("Failed to update permanent user record", err);
+      }
+    }
+
     await logToFirestore("STEP_2_FIRESTORE_WRITE_SUCCESS", { connectionId: connRefId });
 
     // Try Watch API but don't fail the whole connection if it fails

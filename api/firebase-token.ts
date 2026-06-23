@@ -90,11 +90,19 @@ export default async function handler(req: Request, res: Response) {
       email: user.email,
     };
 
+    if (!process.env.FIREBASE_PRIVATE_KEY) {
+      console.warn("[Firebase Token Warning] FIREBASE_PRIVATE_KEY is missing. Custom tokens cannot be minted in this environment without it.");
+      return res.status(500).json({ 
+        error: "Missing FIREBASE_PRIVATE_KEY", 
+        message: "Firebase custom tokens cannot be signed without a Service Account private key in this environment. Please add FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL to AI Studio secrets." 
+      });
+    }
+
     const firebaseToken = await getAdminAuth(adminApp).createCustomToken(user.id, customClaims);
 
     res.status(200).json({ firebaseToken });
   } catch (error: any) {
-    console.error("Error creating Firebase custom token:", error);
+    console.error("[FIREBASE TOKEN ERRROR] Failed creating Firebase custom token:", error);
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 }

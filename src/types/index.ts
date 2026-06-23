@@ -31,6 +31,9 @@ export interface User {
   avatar?: string;
   phone?: string;
   status: 'active' | 'inactive';
+  gmailConnected?: boolean;
+  gmailEmail?: string;
+  gmailConnectionId?: string;
 }
 
 export interface Client {

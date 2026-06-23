@@ -8,7 +8,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { User, Role } from '@/types';
 import { toast } from 'sonner';
 import { signInWithCustomToken } from 'firebase/auth';
-import { auth } from '@/services/firebase/config';
+import { auth, db } from '@/services/firebase/config';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -124,6 +125,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', authUser.id)
         .maybeSingle();
 
+      let gmailConnected = false;
+      let gmailEmail = undefined;
+      let gmailConnectionId = undefined;
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', authUser.id));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          gmailConnected = !!data.gmailConnected;
+          gmailEmail = data.gmailEmail;
+          gmailConnectionId = data.gmailConnectionId;
+        }
+      } catch (err) {
+        console.warn('Could not fetch Firestore user sync record:', err);
+      }
+
       if (profile) {
         setUser({
           id: authUser.id,
@@ -132,6 +149,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: profile.role || 'viewer',
           companyId: profile.company_id,
           status: profile.status || 'active',
+          gmailConnected,
+          gmailEmail,
+          gmailConnectionId
         });
       } else {
         // Fallback to metadata
@@ -141,6 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: authUser.user_metadata?.name || authUser.email!.split('@')[0],
           role: (authUser.user_metadata?.role as Role) || 'viewer',
           status: 'active',
+          gmailConnected,
+          gmailEmail,
+          gmailConnectionId
         });
       }
     } catch (err) {

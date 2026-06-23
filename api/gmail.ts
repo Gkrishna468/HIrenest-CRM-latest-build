@@ -61,8 +61,8 @@ if (!getApps()?.length) {
   }
 }
 const ALGORITHM = "aes-256-cbc";
-const ENCRYPTION_KEY =
-  process.env.ENCRYPTION_KEY || "default-insecure-key-32-chars!!!";
+const rawKey = process.env.ENCRYPTION_KEY || "default-insecure-key-32-chars!!!";
+const ENCRYPTION_KEY = rawKey.padEnd(32, '!').substring(0, 32);
 const IV_LENGTH = 16;
 export const encrypt = (text: string): string => {
   const iv = crypto.randomBytes(IV_LENGTH);
@@ -82,14 +82,29 @@ export const decrypt = (text: string): string => {
   if (!ivStr) return text;
   const iv = Buffer.from(ivStr, "hex");
   const encryptedText = Buffer.from(textParts.join(":"), "hex");
-  const decipher = crypto.createDecipheriv(
-    ALGORITHM,
-    Buffer.from(ENCRYPTION_KEY),
-    iv,
-  );
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
+
+  const tryDecrypt = (keyStr: string) => {
+    try {
+      if (keyStr.length !== 32) return null;
+      const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(keyStr), iv);
+      let decrypted = decipher.update(encryptedText);
+      decrypted = Buffer.concat([decrypted, decipher.final()]);
+      return decrypted.toString();
+    } catch(e) {
+      return null;
+    }
+  };
+
+  let decryptedVal = tryDecrypt(ENCRYPTION_KEY);
+  if (!decryptedVal) {
+    decryptedVal = tryDecrypt("default-insecure-key-32-chars!!!");
+  }
+  
+  if (!decryptedVal) {
+      throw new Error("bad decrypt");
+  }
+
+  return decryptedVal;
 };
 
 interface ClassificationResponse {
@@ -315,8 +330,23 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
 
   const userId = (req.query.userId || req.body?.userId) as string;
 
-  console.log("=== START GMAIL SYNC ===");
-  console.log("SYNC PARAMETERS - UserID:", userId);
+  console.log("USER ID", userId);
+
+  if (db) {
+    try {
+      const snapshot = await db.collection("gmail_connections")
+        .where("userId", "==", userId)
+        .get();
+
+      console.log("FOUND DOCS", snapshot.size);
+
+      snapshot.forEach(doc => {
+        console.log(doc.id, doc.data());
+      });
+    } catch(e) {
+      console.error("Debug Query failed", e);
+    }
+  }
 
   if (!userId) {
     console.error("Sync parameter missing error");
@@ -329,21 +359,16 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const snapshot = await db.collection("gmail_connections")
-      .where("userId", "==", userId)
-      .limit(1)
-      .get();
+    const connectionData = await getGmailConnection(userId);
       
     console.log("USER ID", userId);
-    console.log("CONNECTIONS FOUND", snapshot.size);
-    console.log("CONNECTED EMAIL", snapshot.docs[0]?.data()?.email);
+    console.log("CONNECTION DATA FOUND", !!connectionData);
 
-    if (snapshot.empty) {
+    if (!connectionData) {
       console.error(`[Sync Error] No connection found in Firestore for user '${userId}'`);
       return res.status(404).json({ error: 'No connection found for this user' });
     }
 
-    const connectionData = snapshot.docs[0].data();
     const resolvedEmail = connectionData.email;
     
     console.log("[Sync Debug] Resolved connectionData:", {
