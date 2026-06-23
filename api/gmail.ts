@@ -15,8 +15,17 @@ let adminApp: any = null;
 if (!getApps()?.length) {
   try {
     const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    const projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
+    let firestoreDbId = "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24";
+    let projectId = process.env.FIREBASE_PROJECT_ID;
+    
+    try {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      if (firebaseConfig.firestoreDatabaseId) firestoreDbId = firebaseConfig.firestoreDatabaseId;
+      if (!projectId) projectId = firebaseConfig.projectId;
+    } catch (e) {
+      console.log("[Gmail API Init Warning] Could not read firebase-applet-config.json, using hardcoded fallback database ID");
+    }
+
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -27,21 +36,28 @@ if (!getApps()?.length) {
     } else {
       adminApp = initializeApp({
         credential: applicationDefault(),
-        projectId: projectId,
+        projectId: projectId || "hirenest-os",
       });
     }
-    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
+    db = getFirestore(adminApp, firestoreDbId);
   } catch (error) {
     console.error("Firebase initialization error", error);
+    try {
+      if (adminApp) {
+        db = getFirestore(adminApp, "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24");
+      }
+    } catch (fallbackError) {
+      console.error("Firebase ultimate fallback error", fallbackError);
+    }
   }
 } else {
   adminApp = getApps()[0];
   try {
     const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
     const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
+    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId || "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24");
   } catch(err) {
-    db = getFirestore(adminApp);
+    db = getFirestore(adminApp, "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24");
   }
 }
 const ALGORITHM = "aes-256-cbc";
@@ -198,48 +214,61 @@ function performRegexClassification(subject: string, from: string, bodySnippet: 
 }
 
 async function getGmailConnection(userId?: string, emailAddress?: string) {
-  if (!db) return null;
+  if (!db) {
+    console.error("[getGmailConnection] Db is null");
+    return null;
+  }
+
+  // Convert empty/placeholder string values to proper undefined
+  const cleanUserId = (userId === "undefined" || userId === "null" || userId === "unknown") ? undefined : userId;
+  const cleanEmail = (emailAddress === "undefined" || emailAddress === "null" || emailAddress === "unknown") ? undefined : emailAddress;
+
+  console.log("[getGmailConnection] Starting search with Cleaned params:", { cleanUserId, cleanEmail });
 
   let connectionSnapshot;
 
-  // 1. Try finding by userId + active
-  if (userId) {
+  // 1. Try finding by cleanUserId (with status == 'active')
+  if (cleanUserId) {
     connectionSnapshot = await db.collection('gmail_connections')
-      .where('userId', '==', userId)
+      .where('userId', '==', cleanUserId)
       .where('status', '==', 'active')
       .limit(1).get();
     if (!connectionSnapshot.empty) {
+      console.log("[getGmailConnection] Matched active userId in step 1:", cleanUserId);
       return connectionSnapshot.docs[0].data();
     }
   }
 
-  // 2. Try finding by emailAddress + active
-  if (emailAddress) {
+  // 2. Try finding by cleanEmail (with status == 'active')
+  if (cleanEmail) {
     connectionSnapshot = await db.collection('gmail_connections')
-      .where('email', '==', emailAddress)
+      .where('email', '==', cleanEmail)
       .where('status', '==', 'active')
       .limit(1).get();
     if (!connectionSnapshot.empty) {
+      console.log("[getGmailConnection] Matched active email in step 2:", cleanEmail);
       return connectionSnapshot.docs[0].data();
     }
   }
 
-  // 3. Fallback: search by userId (any status)
-  if (userId) {
+  // 3. Try finding by cleanUserId (any status)
+  if (cleanUserId) {
     connectionSnapshot = await db.collection('gmail_connections')
-      .where('userId', '==', userId)
+      .where('userId', '==', cleanUserId)
       .limit(1).get();
     if (!connectionSnapshot.empty) {
+      console.log("[getGmailConnection] Matched fallback userId in step 3:", cleanUserId);
       return connectionSnapshot.docs[0].data();
     }
   }
 
-  // 4. Fallback: search by email (any status)
-  if (emailAddress) {
+  // 4. Try finding by cleanEmail (any status)
+  if (cleanEmail) {
     connectionSnapshot = await db.collection('gmail_connections')
-      .where('email', '==', emailAddress)
+      .where('email', '==', cleanEmail)
       .limit(1).get();
     if (!connectionSnapshot.empty) {
+      console.log("[getGmailConnection] Matched fallback email in step 4:", cleanEmail);
       return connectionSnapshot.docs[0].data();
     }
   }
@@ -249,6 +278,7 @@ async function getGmailConnection(userId?: string, emailAddress?: string) {
     .where('status', '==', 'active')
     .limit(1).get();
   if (!connectionSnapshot.empty) {
+    console.log("[getGmailConnection] Fallback step 5 matched first active registration:", connectionSnapshot.docs[0].data().email);
     return connectionSnapshot.docs[0].data();
   }
 
@@ -256,7 +286,23 @@ async function getGmailConnection(userId?: string, emailAddress?: string) {
   connectionSnapshot = await db.collection('gmail_connections')
     .limit(1).get();
   if (!connectionSnapshot.empty) {
+    console.log("[getGmailConnection] Universal fallback step 6 matched first available connection:", connectionSnapshot.docs[0].data().email);
     return connectionSnapshot.docs[0].data();
+  }
+
+  // Log all existing connections to help debug if everything fails
+  try {
+    const allCons = await db.collection('gmail_connections').limit(5).get();
+    console.log("[getGmailConnection Debug] Total database connections found:", allCons.size);
+    allCons.forEach(doc => {
+      console.log(`Document ID: ${doc.id} =>`, {
+        userId: doc.data().userId,
+        email: doc.data().email,
+        status: doc.data().status
+      });
+    });
+  } catch (err) {
+    console.error("[getGmailConnection Debug] Failed listing connection collection", err);
   }
 
   return null;

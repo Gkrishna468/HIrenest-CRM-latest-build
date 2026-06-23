@@ -222,6 +222,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           message: `Automated Requirement Created: ${insight.extractedRequirement.title}`,
           timestamp: new Date().toISOString(),
           data: { event: "RequirementCreated", requirementId: reqRef.id },
+          // AgentRuntime integration
+          event: "requirement.created",
+          status: "pending",
+          payload: { requirementId: reqRef.id }
         });
 
         await db.collection("system_events").add({
@@ -275,6 +279,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           message: `Automated Vendor Submission: ${insight.extractedSubmission.candidateName}`,
           timestamp: new Date().toISOString(),
           data: { event: "SubmissionCreated", candidateId: candRef.id, submissionId: subRef.id },
+          // AgentRuntime integration
+          event: "candidate.created",
+          status: "pending",
+          payload: { candidateId: candRef.id, submissionId: subRef.id }
         });
       }
 

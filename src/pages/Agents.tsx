@@ -1,16 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
-import { BrainCircuit, Database, FileText, Target, Activity, CheckCircle2 } from "lucide-react";
+import { BrainCircuit, Database, FileText, Target, Activity, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
 
 export default function Agents() {
   const { user } = useAuth();
-  const [activities, setActivities] = useState<AgentActivity[]>([]);
-
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [executions, setExecutions] = useState<any[]>([]);
+  
   useEffect(() => {
-    return subscribeToAgentActivities((data) => {
-      setActivities(data);
-    });
+    const unsubTasks = onSnapshot(collection(db, "agent_tasks"), (snap) => {
+      const t: any[] = [];
+      snap.forEach(doc => t.push({id: doc.id, ...doc.data()}));
+      setTasks(t);
+    }, (err) => console.log("Tasks listener error:", err));
+
+    const unsubExecs = onSnapshot(collection(db, "agent_executions"), (snap) => {
+      const e: any[] = [];
+      snap.forEach(doc => e.push({id: doc.id, ...doc.data()}));
+      e.sort((a,b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime());
+      setExecutions(e.slice(0, 50)); // keeps recent 50
+    }, (err) => console.log("Executions listener error:", err));
+
+    return () => {
+      unsubTasks();
+      unsubExecs();
+    };
   }, []);
 
   const agents = [
@@ -19,28 +35,28 @@ export default function Agents() {
       name: "Requirement Extraction Agent", 
       role: "Extraction", 
       icon: FileText,
-      logs: activities.filter(a => a.agent.includes("Requirement"))
+      logs: executions.filter(a => a.agentId === "requirement_agent")
     },
     { 
       id: "vendor_agent", 
       name: "Vendor Broadcast Agent", 
       role: "Distribution", 
       icon: Target,
-      logs: activities.filter(a => a.agent.includes("Vendor"))
+      logs: executions.filter(a => a.agentId === "vendor_broadcast_agent")
     },
     { 
-      id: "submission_agent", 
-      name: "Submission Agent", 
+      id: "matching_agent", 
+      name: "Matching Agent", 
       role: "Processing", 
       icon: Database,
-      logs: activities.filter(a => a.agent.includes("Submission"))
+      logs: executions.filter(a => a.agentId === "matching_agent")
     },
     { 
       id: "interview_agent", 
       name: "Interview Agent", 
       role: "Scheduling", 
       icon: BrainCircuit,
-      logs: activities.filter(a => a.agent.includes("Interview"))
+      logs: executions.filter(a => a.agentId === "interview_agent")
     }
   ];
 
@@ -61,11 +77,11 @@ export default function Agents() {
       <div className="flex-1 overflow-y-auto pr-2 relative z-10 custom-scrollbar">
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-8">
           {agents.map((agent) => {
-            const lastRun = agent.logs.length > 0 ? new Date(agent.logs[0].timestamp) : null;
+            const lastRun = agent.logs.length > 0 ? new Date(agent.logs[0].startedAt) : null;
             const recordsProcessed = agent.logs.length;
-            const isRunning = agent.logs.some(l => l.state === "working");
+            const isRunning = agent.logs.some(l => l.status === "running");
             const successRate = recordsProcessed > 0 ? 
-              Math.min(100, Math.round((agent.logs.filter(l => l.state === "completed").length / recordsProcessed) * 100)) : 100;
+              Math.min(100, Math.round((agent.logs.filter(l => l.status === "completed").length / recordsProcessed) * 100)) : 100;
               
             return (
               <div key={agent.id} className="skeuo-card p-6 flex flex-col h-[500px]">
@@ -86,7 +102,7 @@ export default function Agents() {
                 
                 <div className="grid grid-cols-3 gap-3 mb-6 shrink-0">
                   <div className="bg-slate-100/50 p-3 rounded-xl border border-slate-300 shadow-inner">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1" style={{textShadow: '0 1px 0 white'}}>Records</p>
+                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1" style={{textShadow: '0 1px 0 white'}}>Executions</p>
                     <p className="text-xl font-extrabold text-slate-800">{recordsProcessed}</p>
                   </div>
                   <div className="bg-slate-100/50 p-3 rounded-xl border border-slate-300 shadow-inner">
@@ -98,7 +114,7 @@ export default function Agents() {
                   <div className="bg-slate-100/50 p-3 rounded-xl border border-slate-300 shadow-inner">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1" style={{textShadow: '0 1px 0 white'}}>Last Run</p>
                     <p className="text-sm font-bold text-slate-700 mt-1">
-                      {lastRun ? lastRun.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Idle'}
+                      {lastRun && !isNaN(lastRun.getTime()) ? lastRun.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Idle'}
                     </p>
                   </div>
                 </div>
@@ -106,21 +122,29 @@ export default function Agents() {
                 <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col min-h-0 shadow-sm">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 shrink-0">Execution Log</h4>
                   <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
-                    {agent.logs.length > 0 ? agent.logs.slice(0, 20).map((log, i) => (
+                    {agent.logs.length > 0 ? agent.logs.slice(0, 20).map((log, i) => {
+                      const logTime = new Date(log.startedAt);
+                      const timeStr = !isNaN(logTime.getTime()) ? logTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : "Recent";
+                      return (
                       <div key={log.id || i} className="flex gap-3 text-sm border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                         <div className="w-16 shrink-0 text-[10px] font-mono font-bold text-slate-400 pt-1">
-                          {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                          {timeStr}
                         </div>
                         <div className="flex-1 space-y-1 min-w-0">
-                          <p className="text-slate-700 font-bold break-words">{log.status}</p>
-                          {log.metadata && Object.keys(log.metadata).length > 0 && (
-                            <pre className="text-[10px] text-slate-600 font-mono bg-slate-50 p-2 rounded-lg border border-slate-200 overflow-x-auto whitespace-pre-wrap shadow-inner">
-                              {JSON.stringify(log.metadata, null, 2)}
-                            </pre>
+                          <div className="flex items-center gap-2">
+                            <p className="text-slate-700 font-bold break-words">{log.taskName || log.status}</p>
+                            <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full ${log.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : log.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                              {log.status}
+                            </span>
+                          </div>
+                          {(log.result || log.error) && (
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {log.error ? log.error : (log.result?.message || JSON.stringify(log.result))}
+                            </p>
                           )}
                         </div>
                       </div>
-                    )) : (
+                    )}) : (
                       <div className="flex items-center justify-center h-full">
                         <p className="text-slate-400 text-xs font-mono font-bold">No execution logs found.</p>
                       </div>

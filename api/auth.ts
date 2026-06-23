@@ -15,8 +15,17 @@ let adminApp: any = null;
 if (!getApps()?.length) {
   try {
     const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    const projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
+    let firestoreDbId = "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24";
+    let projectId = process.env.FIREBASE_PROJECT_ID;
+    
+    try {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      if (firebaseConfig.firestoreDatabaseId) firestoreDbId = firebaseConfig.firestoreDatabaseId;
+      if (!projectId) projectId = firebaseConfig.projectId;
+    } catch (e) {
+      console.log("[Auth API Init Warning] Could not read firebase-applet-config.json, using hardcoded fallback database ID");
+    }
+
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -27,21 +36,28 @@ if (!getApps()?.length) {
     } else {
       adminApp = initializeApp({
         credential: applicationDefault(),
-        projectId: projectId,
+        projectId: projectId || "hirenest-os",
       });
     }
-    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
+    db = getFirestore(adminApp, firestoreDbId);
   } catch (error) {
     console.error("Firebase initialization error", error);
+    try {
+      if (adminApp) {
+        db = getFirestore(adminApp, "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24");
+      }
+    } catch (fallbackError) {
+      console.error("Firebase ultimate fallback error", fallbackError);
+    }
   }
 } else {
   adminApp = getApps()[0];
   try {
     const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
     const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
+    db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId || "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24");
   } catch(err) {
-    db = getFirestore(adminApp);
+    db = getFirestore(adminApp, "ai-studio-b73763a6-9c1f-4b69-a850-b55bc897ef24");
   }
 }
 

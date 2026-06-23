@@ -126,6 +126,14 @@ async function startServer() {
     }
   });
 
+  // Setup the internal Agent Runtime (Listens to system_events)
+  try {
+    const { setupAgentRuntime } = await import("./api/setupRuntime");
+    setupAgentRuntime();
+  } catch (error) {
+    console.error("[AgentRuntime] Failed to import/execute setupAgentRuntime", error);
+  }
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

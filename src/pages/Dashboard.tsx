@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
 import {
   Briefcase,
   Users,
@@ -33,17 +35,68 @@ export default function Dashboard() {
   const { jobs, candidates, deals, vendors } = useData();
   const { user } = useAuth();
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
+  const [systemEvents, setSystemEvents] = useState<any[]>([]);
+  const [firestoreCounts, setFirestoreCounts] = useState({
+    requirements: 0,
+    candidates: 0,
+    submissions: 0,
+    interviews: 0,
+    offers: 0,
+    placements: 0,
+    systemEvents: 0
+  });
 
   useEffect(() => {
     const unsubscribe = subscribeToAgentActivities((data) => {
       setAgentActivities(data);
     });
-    return () => unsubscribe();
+
+    // 1. Listen to requirements_private
+    const unsubReqs = onSnapshot(collection(db, "requirements_private"), (snap) => {
+      setFirestoreCounts(p => ({ ...p, requirements: snap.size }));
+    }, (err) => console.log("requirements_private listener skipped:", err.message));
+
+    // 2. Listen to candidatePool
+    const unsubCands = onSnapshot(collection(db, "candidatePool"), (snap) => {
+      setFirestoreCounts(p => ({ ...p, candidates: snap.size }));
+    }, (err) => console.log("candidatePool listener skipped:", err.message));
+
+    // 3. Listen to submissions
+    const unsubSubs = onSnapshot(collection(db, "submissions"), (snap) => {
+      setFirestoreCounts(p => ({ ...p, submissions: snap.size }));
+    }, (err) => console.log("submissions listener skipped:", err.message));
+
+    // 4. Listen to interviews (or from fallback collection)
+    const unsubInterviews = onSnapshot(collection(db, "interviews"), (snap) => {
+      setFirestoreCounts(p => ({ ...p, interviews: snap.size }));
+    }, (err) => console.log("interviews listener skipped:", err.message));
+
+    // 5. Listen to system_events (immutable Company Ledger)
+    const unsubEvents = onSnapshot(collection(db, "system_events"), (snap) => {
+      setFirestoreCounts(p => ({ ...p, systemEvents: snap.size }));
+      const events: any[] = [];
+      snap.forEach(doc => {
+        events.push({ id: doc.id, ...doc.data() });
+      });
+      events.sort((a, b) => new Date(b.timestamp || b.createdAt || 0).getTime() - new Date(a.timestamp || a.createdAt || 0).getTime());
+      setSystemEvents(events.slice(0, 5));
+    }, (err) => console.log("system_events listener skipped:", err.message));
+
+    return () => {
+      unsubscribe();
+      unsubReqs();
+      unsubCands();
+      unsubSubs();
+      unsubInterviews();
+      unsubEvents();
+    };
   }, []);
 
-  const openRequirements = jobs.filter(j => j.status?.toLowerCase() === "open" || !j.status).length;
-  const totalSubmissions = candidates.filter(c => c.stage === "submission" || c.stage === "screening" || !c.stage).length;
-  const placements = candidates.filter(c => c.stage === "placed" || c.stage === "joined").length || deals.length;
+  const openRequirements = firestoreCounts.requirements || jobs.filter(j => j.status?.toLowerCase() === "open" || !j.status).length;
+  const totalSubmissions = firestoreCounts.submissions || candidates.filter(c => c.stage === "submission" || c.stage === "screening" || !c.stage).length;
+  const placements = firestoreCounts.placements || candidates.filter(c => c.stage === "placed" || c.stage === "joined").length || deals.length;
+  const readyCandidatesCount = firestoreCounts.candidates || candidates.filter(c => c.stage === 'available' || !c.stage).length;
+  const interviewsCount = firestoreCounts.interviews || candidates.filter(c => c.stage === 'interview').length;
   
   const expectedRevenue = deals.reduce((sum, d) => sum + (Number(d.revenue_amount) || 0), 0);
   const vendorPayables = deals?.reduce((sum, d) => sum + (Number((d as any).vendor_cost) || 0), 0) || 0;
@@ -99,10 +152,10 @@ export default function Dashboard() {
       {/* Top Metrics - Founder Dashboard View */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 relative z-10">
         {[
-          { label: "Requirements Open", val: jobs.filter(j => j.status?.toLowerCase() === "open" || !j.status).length, icon: Briefcase, color: "blue" },
-          { label: "Candidates Available", val: candidates.filter(c => c.stage === 'available' || !c.stage).length, icon: Users, color: "indigo" },
-          { label: "Submissions Today", val: candidates.filter(c => (c.stage === 'submission' || c.stage === 'screening') && new Date(c.updatedAt || c.createdAt).toDateString() === new Date().toDateString()).length, icon: FileSearch, color: "purple" },
-          { label: "Interviews Scheduled", val: candidates.filter(c => c.stage === 'interview').length, icon: MessageSquare, color: "amber" },
+          { label: "Requirements Open", val: openRequirements, icon: Briefcase, color: "blue" },
+          { label: "Candidates Available", val: readyCandidatesCount, icon: Users, color: "indigo" },
+          { label: "Submissions Today", val: totalSubmissions, icon: FileSearch, color: "purple" },
+          { label: "Interviews Scheduled", val: interviewsCount, icon: MessageSquare, color: "amber" },
           { label: "Offers Pending", val: candidates.filter(c => c.stage === 'offer').length, icon: CheckCircle2, color: "emerald" },
           { label: "Placements This Month", val: placements, icon: Trophy, color: "fuchsia" },
           { label: "Revenue Pipeline", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹0', icon: CircleDollarSign, color: "emerald", isCurrency: true },
@@ -204,7 +257,32 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
-            {agentActivities.length > 0 ? (
+            {systemEvents.length > 0 ? (
+              systemEvents.map((ev, i) => {
+                const eventDate = ev.timestamp || ev.createdAt ? new Date(ev.timestamp || ev.createdAt) : new Date();
+                const timeStr = isNaN(eventDate.getTime()) ? "Recently" : eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                  <div key={ev.id || i} className="flex gap-4 items-start relative group">
+                    <div className="w-px h-full bg-slate-200 shadow-[1px_0_0_white] absolute left-2 top-4 -z-10 group-last:hidden" />
+                    <div className="w-4 h-4 rounded-full mt-0.5 shrink-0 shadow-inner bg-indigo-500 border border-indigo-200" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide truncate max-w-[150px]" title={ev.type || ev.event}>
+                          {ev.type || ev.event || "SYSTEM EVENT"}
+                        </h4>
+                        <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap">
+                          {timeStr}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium text-slate-600 line-clamp-2">
+                        {ev.description || ev.message || `Recorded ledger event for: ${ev.entityType || 'entity'}`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : agentActivities.length > 0 ? (
               agentActivities.map((a, i) => {
                 const isWorking = a.state === 'working';
                 return (
