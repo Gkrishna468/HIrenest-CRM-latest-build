@@ -6,8 +6,8 @@ export interface AIProviderConfig {
 }
 
 export class AIProvider {
-  private static geminiClient = (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "") 
-    ? new GoogleGenAI({ apiKey: (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "") }) 
+  private static geminiClient = ((typeof process !== "undefined" ? process.env.GEMINI_API_KEY : import.meta.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "") 
+    ? new GoogleGenAI({ apiKey: ((typeof process !== "undefined" ? process.env.GEMINI_API_KEY : import.meta.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "") }) 
     : null;
 
   static async generate(prompt: string, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.5-flash" }): Promise<string> {

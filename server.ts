@@ -24,7 +24,7 @@ async function startServer() {
   // API ROUTES
 
   // 1. Health check
-  app.all("/api/health", async (req, res) => { if (req.query.keyCheck) return res.json({ key: process.env.GEMINI_API_KEY }); 
+  app.all("/api/health", async (req, res) => { 
     if (req.query.action || (req.body && req.body.action)) {
       try {
         const { default: handler } = await import("./api/health");

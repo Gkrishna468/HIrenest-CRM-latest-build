@@ -25,7 +25,7 @@ export async function runOutreachAgent() {
     if (candidate.outreach_logs && candidate.outreach_logs?.length > 0) continue;
 
     // Generate Personalized Outreach
-    const subject = `Opportunity: ${candidate.current_title || 'New Role'} at ${process.env.VITE_APP_NAME || 'HireNest'}`;
+    const subject = `Opportunity: ${candidate.current_title || 'New Role'} at ${(typeof process !== "undefined" ? process.env.VITE_APP_NAME : import.meta.env.VITE_APP_NAME) || 'HireNest'}`;
     const message = `
 Hi ${candidate.name},
 
