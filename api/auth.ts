@@ -102,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
       process.env.GMAIL_CLIENT_SECRET,
-      process.env.GMAIL_REDIRECT_URI || 'http://localhost:3000/api/auth?action=callback'
+      process.env.GMAIL_REDIRECT_URI || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}/api/auth?action=callback`
     );
 
     const scopes = [
@@ -130,7 +130,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const code = req.query.code as string;
-  const userId = req.query.state as string;
+  let userId = req.query.state as string;
+  if (userId === "undefined" || userId === "null" || !userId) {
+    userId = "unknown";
+  }
 
   if (!code) {
     return res.status(400).send('Missing authorization code');

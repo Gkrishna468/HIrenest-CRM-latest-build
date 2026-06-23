@@ -19,6 +19,8 @@ export interface AgentTask {
   agentId: string;
   result?: any;
   error?: string;
+  retries?: number;
+  maxRetries?: number;
 }
 
 export class AgentRuntime {
@@ -97,12 +99,14 @@ export class AgentRuntime {
     }
   }
 
-  private async queueTask(taskName: string, agentId: string, payload: any) {
+  private async queueTask(taskName: string, agentId: string, payload: any, maxRetries: number = 3) {
     const task: AgentTask = {
       task: taskName,
       agentId,
       status: "queued",
       payload,
+      retries: 0,
+      maxRetries,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -120,11 +124,13 @@ export class AgentRuntime {
       updatedAt: new Date().toISOString()
     });
 
-    // 2. Create an execution record
+    // 2. Create an execution record with Ownership Details
     const executionRef = await this.db.collection("agent_executions").add({
       taskId: task.id,
       taskName: task.task,
       agentId: task.agentId,
+      agentVersion: "1.0.0", // Tracking agent versions
+      provider: "gemini",    // Abstracted provider tracking
       status: "running",
       startedAt: new Date().toISOString()
     });
@@ -157,15 +163,17 @@ export class AgentRuntime {
         timestamp: new Date().toISOString()
       });
 
+      // 5. Update Agent Memory (Simulated generic update for now)
+      await this.db.collection("agent_memory").doc(task.agentId).set({
+        agentId: task.agentId,
+        lastExecutionTask: task.task,
+        lastExecutionTime: new Date().toISOString(),
+        tasksCompleted: Firestore.FieldValue.increment(1)
+      }, { merge: true });
+
     } catch (err: any) {
       console.error(`[AgentRuntime] Failed task ${task.id}:`, err);
-      // 3. Mark as failed
-      await this.db.collection("agent_tasks").doc(task.id).update({
-        status: "failed",
-        error: err.message,
-        updatedAt: new Date().toISOString()
-      });
-
+      
       await this.db.collection("agent_executions").doc(executionRef.id).update({
         status: "failed",
         endedAt: new Date().toISOString(),
@@ -178,6 +186,38 @@ export class AgentRuntime {
         message: `Task ${task.task} failed: ${err.message}`,
         timestamp: new Date().toISOString()
       });
+
+      const currentRetries = task.retries || 0;
+      const maxRetries = task.maxRetries || 3;
+
+      if (currentRetries < maxRetries) {
+        // Retry logic
+        const nextRetry = currentRetries + 1;
+        console.log(`[AgentRuntime] Retrying task ${task.id} (Attempt ${nextRetry}/${maxRetries})`);
+        await this.db.collection("agent_tasks").doc(task.id).update({
+          status: "queued",
+          retries: nextRetry,
+          updatedAt: new Date().toISOString(),
+          error: `${err.message} (Retry ${nextRetry})`
+        });
+      } else {
+        // Exceeded retries, mark as permanently failed and send to dead letter queue
+        console.error(`[AgentRuntime] Task ${task.id} permanently failed after ${maxRetries} retries.`);
+        await this.db.collection("agent_tasks").doc(task.id).update({
+          status: "failed",
+          error: err.message,
+          updatedAt: new Date().toISOString()
+        });
+
+        await this.db.collection("dead_letter_queue").add({
+          taskId: task.id,
+          taskName: task.task,
+          agentId: task.agentId,
+          payload: task.payload,
+          error: err.message,
+          failedAt: new Date().toISOString()
+        });
+      }
     }
   }
 }

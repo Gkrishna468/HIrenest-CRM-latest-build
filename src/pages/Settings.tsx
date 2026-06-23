@@ -70,25 +70,37 @@ export default function Settings() {
     }
 
     const checkGmailFirebase = async () => {
-      // In mixed-mode we still check using user.id from Supabase
-      if (user?.id) {
-        try {
-          const q = query(
-            collection(db, 'gmail_connections'), 
-            where('userId', '==', user.id),
-            where('status', '==', 'active')
-          );
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-            setGmailConnected(true);
-            setGmailData(snapshot.docs[0].data());
-          } else {
-            setGmailConnected(false);
-            setGmailData(null);
+      try {
+        let q = query(
+          collection(db, 'gmail_connections'), 
+          where('status', '==', 'active')
+        );
+        let snapshot = await getDocs(q);
+        
+        let foundData = null;
+        if (!snapshot.empty) {
+          // If we have a user.id, try to find their specific connection first
+          if (user?.id) {
+            const userDocs = snapshot.docs.filter(doc => doc.data().userId === user.id);
+            if (userDocs.length > 0) {
+              foundData = userDocs[0].data();
+            }
           }
-        } catch (error) {
-          console.error("Failed to fetch gmail_connection", error);
+          // Fallback to first active connection (matches api/gmail.ts behavior)
+          if (!foundData) {
+            foundData = snapshot.docs[0].data();
+          }
         }
+        
+        if (foundData) {
+          setGmailConnected(true);
+          setGmailData(foundData);
+        } else {
+          setGmailConnected(false);
+          setGmailData(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch gmail_connection", error);
       }
     };
     checkGmailFirebase();
