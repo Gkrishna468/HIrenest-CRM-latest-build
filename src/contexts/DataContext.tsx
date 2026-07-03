@@ -13,7 +13,7 @@ import React, {
 import { useAuth } from "./AuthContext";
 import { getClients, createClient, updateClient } from "@/lib/api/clients";
 import { getVendors, createVendor, updateVendor } from "@/lib/api/vendors";
-import { getJobs, createJob, approveJob } from "@/lib/api/jobs";
+import { getJobs, createJob, approveJob, updateJob } from "@/lib/api/jobs";
 import {
   getAllCandidates,
   createCandidate,
@@ -22,6 +22,7 @@ import {
 } from "@/lib/api/candidates";
 import type { Client, Vendor, Job, Candidate, AgentLog, Deal } from "@/types";
 import { supabase } from "@/lib/supabase";
+import { syncService } from "@/services/firebase/syncService";
 
 interface DataContextType {
   clients: Client[];
@@ -38,6 +39,7 @@ interface DataContextType {
   addVendor: (data: Partial<Vendor>) => Promise<void>;
   updateVendor: (id: string, data: Partial<Vendor>) => Promise<void>;
   addJob: (data: Partial<Job>) => Promise<void>;
+  updateJob: (id: string, data: Partial<Job>) => Promise<void>;
   addCandidate: (data: Partial<Candidate>) => Promise<void>;
   updateCandidate: (id: string, data: Partial<Candidate>) => Promise<void>;
   updateCandidateStatus: (
@@ -168,12 +170,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .padStart(3, "0");
       data.clientCode = `CL-${year}${rand}`;
     }
-    await createClient({ ...data, source: (data as any).source || "crm" } as any);
+    const res = await createClient({ ...data, source: (data as any).source || "crm" } as any);
+    if (res && res[0]) {
+      await syncService.syncClient(res[0].id, res[0]);
+    }
     await refreshAll();
   };
 
   const updateClientData = async (id: string, data: Partial<Client>) => {
-    await updateClient(id, data);
+    const res = await updateClient(id, data);
+    if (res && res[0]) {
+      await syncService.syncClient(id, res[0]);
+    }
     await refreshAll();
   };
 
@@ -190,28 +198,51 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!data.companyId && userProfile?.company_id) {
       data.companyId = userProfile.company_id;
     }
-    await createVendor({ ...data, source: (data as any).source || "vendor" } as any);
+    const res = await createVendor({ ...data, source: (data as any).source || "vendor" } as any);
+    if (res && res[0]) {
+      await syncService.syncVendor(res[0].id, res[0]);
+    }
     await refreshAll();
   };
 
   const updateVendorData = async (id: string, data: Partial<Vendor>) => {
-    await updateVendor(id, data);
+    const res = await updateVendor(id, data);
+    if (res && res[0]) {
+      await syncService.syncVendor(id, res[0]);
+    }
     await refreshAll();
   };
 
   const addJob = async (data: Partial<Job>) => {
     // If job has clientId, we should ideally check client mapping
-    await createJob({ ...data, source: (data as any).source || "os" } as any);
+    const res = await createJob({ ...data, source: (data as any).source || "os" } as any);
+    if (res && res[0]) {
+      await syncService.syncRequirement(res[0].id, res[0]);
+    }
+    await refreshAll();
+  };
+
+  const updateJobData = async (id: string, data: Partial<Job>) => {
+    const res = await updateJob(id, data);
+    if (res && res[0]) {
+      await syncService.syncRequirement(id, res[0]);
+    }
     await refreshAll();
   };
 
   const addCandidate = async (data: Partial<Candidate>) => {
-    await createCandidate({ ...data, source: data.source || "os" } as any);
+    const res = await createCandidate({ ...data, source: data.source || "os" } as any);
+    if (res && res[0]) {
+      await syncService.syncCandidate(res[0].id, res[0]);
+    }
     await refreshAll();
   };
 
   const updateCandidateData = async (id: string, data: Partial<Candidate>) => {
-    await updateCandidate(id, data);
+    const res = await updateCandidate(id, data);
+    if (res && res[0]) {
+      await syncService.syncCandidate(id, res[0]);
+    }
     await refreshAll();
   };
 
@@ -220,12 +251,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     stage: Candidate["stage"],
     status?: string,
   ) => {
-    await updateCandidate(id, { stage, status });
+    const res = await updateCandidate(id, { stage, status });
+    if (res && res[0]) {
+      await syncService.syncCandidate(id, res[0]);
+    }
     await refreshAll();
   };
 
   const approveJobWithBudget = async (id: string, budget: string) => {
-    await approveJob(id, budget);
+    const res = await approveJob(id, budget);
+    if (res && res[0]) {
+      await syncService.syncRequirement(id, res[0]);
+    }
     await refreshAll();
   };
 
@@ -246,6 +283,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         addVendor,
         updateVendor: updateVendorData,
         addJob,
+        updateJob: updateJobData,
         addCandidate,
         updateCandidate: updateCandidateData,
         updateCandidateStatus,

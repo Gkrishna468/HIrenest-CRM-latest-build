@@ -55,3 +55,10 @@ export async function updateJobStatus(jobId: string, status: Job['status']) {
     updated_at: new Date().toISOString(),
   });
 }
+
+export async function updateJob(jobId: string, updates: Partial<Job>) {
+  return safeUpdate('jobs', jobId, {
+    ...updates,
+    updated_at: new Date().toISOString(),
+  });
+}

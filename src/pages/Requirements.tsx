@@ -41,7 +41,7 @@ import { broadcastJob } from "@/services/marketplaceService";
 import { SourceBadge } from "@/components/SourceBadge";
 
 export default function Jobs() {
-  const { jobs, loading, approveJobWithBudget, addJob, candidates, deals } =
+  const { jobs, loading, approveJobWithBudget, addJob, updateJob, candidates, deals } =
     useData();
   const { user, apiFetch } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
@@ -50,6 +50,11 @@ export default function Jobs() {
   const [isViewDetailOpen, setIsViewDetailOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [approvedBudget, setApprovedBudget] = useState("");
+  
+  // Custom Broadcast Links & Templates view state
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [broadcastTargetJob, setBroadcastTargetJob] = useState<any>(null);
+
   const [newJob, setNewJob] = useState({
     title: "",
     clientName: "",
@@ -59,19 +64,144 @@ export default function Jobs() {
     openings: 1,
     description: "",
     skills: "",
+    experienceRequired: "3-5 Years"
   });
+
+  // Pricing Engine Interactive States
+  const [requirementType, setRequirementType] = useState("FTE"); // FTE, C2H, C2C
+  const [workMode, setWorkMode] = useState("Remote"); // Remote, Hybrid, Onsite
+  const [budgetUnit, setBudgetUnit] = useState("LPA"); // LPA, LPM, Hourly, Daily
+  const [billingType, setBillingType] = useState("Direct Payroll"); // Direct Payroll, Vendor Payroll, Client Payroll
+
+  // FTE inputs
+  const [fteBudgetLpa, setFteBudgetLpa] = useState("12");
+  const [ftePlacementPercent, setFtePlacementPercent] = useState("10");
+
+  // C2H inputs
+  const [c2hSalaryLpa, setC2hSalaryLpa] = useState("10");
+  const [c2hDurationMonths, setC2hDurationMonths] = useState("12");
+  const [c2hMonthlyMarginPercent, setC2hMonthlyMarginPercent] = useState("15");
+
+  // C2C inputs
+  const [c2cClientBillingLpm, setC2cClientBillingLpm] = useState("170000");
+  const [c2cVendorCostLpm, setC2cVendorCostLpm] = useState("150000");
+
+  // Interactive calculations helpers
+  const getFteCalculations = () => {
+    const budget = parseFloat(fteBudgetLpa) || 0;
+    const percent = parseFloat(ftePlacementPercent) || 0;
+    const placementFee = budget * (percent / 100);
+    const vendorShare = placementFee * 0.3; // 30% standard vendor share
+    const expectedRevenue = placementFee - vendorShare;
+    const gst = expectedRevenue * 0.18; // 18% GST
+    const totalExpectedRevenue = expectedRevenue + gst;
+    return {
+      placementFee: placementFee.toFixed(2),
+      vendorShare: vendorShare.toFixed(2),
+      expectedRevenue: expectedRevenue.toFixed(2),
+      gst: gst.toFixed(2),
+      totalExpectedRevenue: totalExpectedRevenue.toFixed(2),
+    };
+  };
+
+  const getC2hCalculations = () => {
+    const salary = parseFloat(c2hSalaryLpa) || 0;
+    const duration = parseInt(c2hDurationMonths) || 12;
+    const marginPercent = parseFloat(c2hMonthlyMarginPercent) || 0;
+    const monthlySalary = salary / 12;
+    const vendorMonthlyPayment = monthlySalary * (1 - marginPercent / 100);
+    const monthlyMargin = monthlySalary * (marginPercent / 100);
+    const annualRevenue = monthlyMargin * 12;
+    const projectedRevenue = monthlyMargin * duration;
+    const gst = projectedRevenue * 0.18;
+    return {
+      vendorMonthlyPayment: vendorMonthlyPayment.toFixed(2),
+      monthlyMargin: monthlyMargin.toFixed(2),
+      annualRevenue: annualRevenue.toFixed(2),
+      projectedRevenue: projectedRevenue.toFixed(2),
+      gst: gst.toFixed(2),
+    };
+  };
+
+  const getC2cCalculations = () => {
+    const clientBilling = parseFloat(c2cClientBillingLpm) || 0;
+    const vendorCost = parseFloat(c2cVendorCostLpm) || 0;
+    const margin = clientBilling - vendorCost;
+    const marginPercent = clientBilling > 0 ? (margin / clientBilling) * 100 : 0;
+    const monthlyRevenue = margin;
+    const annualRevenue = margin * 12;
+    const gst = margin * 0.18;
+    return {
+      margin: margin.toFixed(2),
+      marginPercent: marginPercent.toFixed(1),
+      gst: gst.toFixed(2),
+      monthlyRevenue: monthlyRevenue.toFixed(2),
+      annualRevenue: annualRevenue.toFixed(2),
+    };
+  };
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let computedBudget = "";
+      let calculatedMetadata: any = {};
+
+      if (requirementType === "FTE") {
+        const calcs = getFteCalculations();
+        computedBudget = `₹${fteBudgetLpa}L CTC (FTE)`;
+        calculatedMetadata = {
+          requirementType,
+          workMode,
+          budgetUnit,
+          billingType,
+          fteBudgetLpa,
+          ftePlacementPercent,
+          ...calcs
+        };
+      } else if (requirementType === "C2H") {
+        const calcs = getC2hCalculations();
+        computedBudget = `₹${c2hSalaryLpa}L CTC (C2H)`;
+        calculatedMetadata = {
+          requirementType,
+          workMode,
+          budgetUnit,
+          billingType,
+          c2hSalaryLpa,
+          c2hDurationMonths,
+          c2hMonthlyMarginPercent,
+          ...calcs
+        };
+      } else {
+        const calcs = getC2cCalculations();
+        computedBudget = `₹${parseFloat(c2cClientBillingLpm).toLocaleString()} LPM (C2C)`;
+        calculatedMetadata = {
+          requirementType,
+          workMode,
+          budgetUnit,
+          billingType,
+          c2cClientBillingLpm,
+          c2cVendorCostLpm,
+          ...calcs
+        };
+      }
+
+      const initialStatus = "draft"; // Starts as Draft according to Governance Rules
+      const initialApprovalStatus = "draft";
+
       await addJob({
         ...newJob,
         skills: newJob.skills
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
-      });
-      toast.success("Job created successfully");
+        budget: computedBudget,
+        status: initialStatus as any,
+        approvalStatus: initialApprovalStatus,
+        experienceRequired: newJob.experienceRequired || "3-5 Years",
+        pricing_data: calculatedMetadata, // Save metadata for BDM/Finance reviews
+      } as any);
+
+      toast.success("Requirement requisition saved as DRAFT. Submit for approval next.");
       setIsModalOpen(false);
       setNewJob({
         title: "",
@@ -82,9 +212,10 @@ export default function Jobs() {
         openings: 1,
         description: "",
         skills: "",
+        experienceRequired: "3-5 Years"
       });
     } catch (err) {
-      toast.error("Failed to create job");
+      toast.error("Failed to create requirement");
     }
   };
 
@@ -115,19 +246,23 @@ export default function Jobs() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "open":
-        return "bg-green-100 text-green-700 border-green-200";
-      case "filled":
-        return "bg-blue-100 text-blue-700 border-blue-200";
-      case "closed":
-        return "bg-slate-100 text-slate-700 border-slate-200";
-      case "pending":
-        return "bg-orange-100 text-orange-700 border-orange-200";
-      default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
+  const getStatusColor = (status: string, approvalStatus?: string) => {
+    if (approvalStatus === "draft" || status === "draft") {
+      return "bg-slate-100 text-slate-600 border-slate-200";
     }
+    if (approvalStatus === "pending" || status === "pending") {
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    }
+    if (status === "open") {
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    }
+    if (status === "filled") {
+      return "bg-blue-100 text-blue-700 border-blue-200";
+    }
+    if (status === "closed") {
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    }
+    return "bg-slate-100 text-slate-700 border-slate-200";
   };
 
   return (
@@ -187,11 +322,11 @@ export default function Jobs() {
                 <div className="flex items-start justify-between mb-4">
                   <div
                     className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-full border",
-                      getStatusColor(job.status),
+                       "px-2.5 py-1 text-xs font-bold rounded-full border",
+                       getStatusColor(job.status, job.approvalStatus),
                     )}
                   >
-                    {job.status.toUpperCase()}
+                    {job.approvalStatus === "draft" ? "DRAFT" : (job.approvalStatus === "pending" ? "PENDING REVIEW" : job.status.toUpperCase())}
                   </div>
                   <button className="text-slate-300 hover:text-slate-600 transition-colors">
                     <MoreVertical className="w-5 h-5" />
@@ -290,36 +425,41 @@ export default function Jobs() {
                     <Eye className="w-4 h-4" />
                     360 View
                   </button>
-                  {job.approvalStatus === "pending" ? (
-                    <button
-                      onClick={() => {
-                        setSelectedJob(job);
-                        setIsApproveOpen(true);
-                      }}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
-                    >
-                      Approve
-                    </button>
-                  ) : !job.broadcast_to_vendors ? (
+                  {(!job.approvalStatus || job.approvalStatus === "draft") ? (
                     <button
                       onClick={async () => {
                         try {
-                          await broadcastJob(job.id);
-                          toast.success("Broadcasted to Marketplace");
+                          await updateJob(job.id, { approvalStatus: "pending", status: "pending" as any });
+                          toast.success("Submitted to BDM Review & Finance Approval!");
                         } catch (err) {
-                          toast.error("Failed to broadcast");
+                          toast.error("Failed to submit review request");
                         }
                       }}
-                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
                     >
-                      <Globe className="w-3.5 h-3.5" />
-                      Broadcast
+                      Submit Review
+                    </button>
+                  ) : job.approvalStatus === "pending" ? (
+                    <button
+                      onClick={() => {
+                        setSelectedJob(job);
+                        setApprovedBudget(job.budget || "");
+                        setIsApproveOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                    >
+                      Approve
                     </button>
                   ) : (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Live
-                    </div>
+                    <button
+                      onClick={() => {
+                        setBroadcastTargetJob(job);
+                        setIsBroadcastOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1"
+                    >
+                      <Globe className="w-3.5 h-3.5" /> Broadcast
+                    </button>
                   )}
                   <button className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-indigo-600 transition-all border border-transparent hover:border-slate-100 shadow-none hover:shadow-sm">
                     <ChevronRight className="w-4 h-4" />
@@ -367,7 +507,7 @@ export default function Jobs() {
 
             <form
               onSubmit={handleCreateJob}
-              className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6"
+              className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[80vh] overflow-y-auto"
             >
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
@@ -419,20 +559,250 @@ export default function Jobs() {
 
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
-                  Job Type
+                  Requirement Type (Commercial Route)
                 </label>
                 <select
-                  value={newJob.type}
-                  onChange={(e) =>
-                    setNewJob({ ...newJob, type: e.target.value })
-                  }
+                  value={requirementType}
+                  onChange={(e) => setRequirementType(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-bold"
+                >
+                  <option value="FTE">Full-Time Employee (FTE)</option>
+                  <option value="C2H">Contract-to-Hire (C2H)</option>
+                  <option value="C2C">Contract-to-Contract (C2C)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
+                  Work Mode
+                </label>
+                <select
+                  value={workMode}
+                  onChange={(e) => setWorkMode(e.target.value)}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
                 >
-                  <option>Full-time</option>
-                  <option>Contract</option>
-                  <option>Freelance</option>
-                  <option>Internship</option>
+                  <option>Remote</option>
+                  <option>Hybrid</option>
+                  <option>Onsite</option>
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
+                  Budget Unit
+                </label>
+                <select
+                  value={budgetUnit}
+                  onChange={(e) => setBudgetUnit(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                >
+                  <option>LPA</option>
+                  <option>LPM</option>
+                  <option>Hourly</option>
+                  <option>Daily</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
+                  Billing Type
+                </label>
+                <select
+                  value={billingType}
+                  onChange={(e) => setBillingType(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                >
+                  <option>Direct Payroll</option>
+                  <option>Vendor Payroll</option>
+                  <option>Client Payroll</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
+                  Openings Count
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={newJob.openings}
+                  onChange={(e) =>
+                    setNewJob({ ...newJob, openings: parseInt(e.target.value) || 1 })
+                  }
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+
+              {/* DYNAMIC PRICING ENGINE CALCULATOR INTERACTIVE PANEL */}
+              <div className="md:col-span-2 p-5 bg-slate-900 text-white rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400">
+                    Interactive Pricing & Margin Engine ({requirementType})
+                  </h3>
+                </div>
+
+                {requirementType === "FTE" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        FTE Budget (LPA)
+                      </label>
+                      <input
+                        type="number"
+                        value={fteBudgetLpa}
+                        onChange={(e) => setFteBudgetLpa(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Placement Fee Percentage (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={ftePlacementPercent}
+                        onChange={(e) => setFtePlacementPercent(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 text-center">
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Placement Fee</span>
+                        <span className="text-sm font-black text-white">₹{getFteCalculations().placementFee}L</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Vendor Share (30%)</span>
+                        <span className="text-sm font-black text-slate-300">₹{getFteCalculations().vendorShare}L</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Expected Revenue</span>
+                        <span className="text-sm font-black text-emerald-400">₹{getFteCalculations().expectedRevenue}L</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">GST (18%)</span>
+                        <span className="text-sm font-black text-slate-300">₹{getFteCalculations().gst}L</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {requirementType === "C2H" && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Salary Equivalent (LPA)
+                      </label>
+                      <input
+                        type="number"
+                        value={c2hSalaryLpa}
+                        onChange={(e) => setC2hSalaryLpa(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Duration (Months)
+                      </label>
+                      <select
+                        value={c2hDurationMonths}
+                        onChange={(e) => setC2hDurationMonths(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      >
+                        <option value="6">6 Months</option>
+                        <option value="12">12 Months</option>
+                        <option value="18">18 Months</option>
+                        <option value="24">24 Months</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Monthly Margin (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={c2hMonthlyMarginPercent}
+                        onChange={(e) => setC2hMonthlyMarginPercent(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      />
+                    </div>
+
+                    <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 text-center">
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Monthly Payment</span>
+                        <span className="text-xs font-black text-white">₹{parseFloat(getC2hCalculations().vendorMonthlyPayment).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Monthly Margin</span>
+                        <span className="text-xs font-black text-emerald-400">₹{parseFloat(getC2hCalculations().monthlyMargin).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Annual Margin</span>
+                        <span className="text-xs font-black text-white">₹{parseFloat(getC2hCalculations().annualRevenue).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Projected Revenue</span>
+                        <span className="text-xs font-black text-emerald-400">₹{parseFloat(getC2hCalculations().projectedRevenue).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">GST on Margin</span>
+                        <span className="text-xs font-black text-slate-300">₹{parseFloat(getC2hCalculations().gst).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {requirementType === "C2C" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Client Billing (LPM)
+                      </label>
+                      <input
+                        type="number"
+                        value={c2cClientBillingLpm}
+                        onChange={(e) => setC2cClientBillingLpm(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Expected Vendor Cost (LPM)
+                      </label>
+                      <input
+                        type="number"
+                        value={c2cVendorCostLpm}
+                        onChange={(e) => setC2cVendorCostLpm(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none font-bold"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 text-center">
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Monthly Margin</span>
+                        <span className="text-xs font-black text-emerald-400">₹{parseFloat(getC2cCalculations().margin).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Margin %</span>
+                        <span className="text-xs font-black text-emerald-300">{getC2cCalculations().marginPercent}%</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Monthly Revenue</span>
+                        <span className="text-xs font-black text-white">₹{parseFloat(getC2cCalculations().monthlyRevenue).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Annual Revenue</span>
+                        <span className="text-xs font-black text-emerald-400 font-bold">₹{parseFloat(getC2cCalculations().annualRevenue).toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-2.5 rounded-xl border border-slate-800">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase block">GST (18%)</span>
+                        <span className="text-xs font-black text-slate-300">₹{parseFloat(getC2cCalculations().gst).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -479,7 +849,7 @@ export default function Jobs() {
                   type="submit"
                   className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                 >
-                  Post Job
+                  Save Draft Requisition
                 </button>
               </div>
             </form>
@@ -488,14 +858,14 @@ export default function Jobs() {
       )}
 
       {/* Approve Modal */}
-      {isApproveOpen && (
+      {isApproveOpen && selectedJob && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold">Approve Job Listing</h2>
+                <h2 className="text-xl font-bold">Approve Job Requisition</h2>
                 <p className="text-slate-400 text-xs mt-1">
-                  Reviewing: {selectedJob?.title}
+                  BDM Commercial Audit & Security Verification
                 </p>
               </div>
               <button
@@ -507,23 +877,121 @@ export default function Jobs() {
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-start gap-4">
-                <DollarSign className="w-6 h-6 text-indigo-600 shrink-0 mt-1" />
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-4">
+                <DollarSign className="w-6 h-6 text-amber-600 shrink-0 mt-1" />
                 <div>
-                  <h4 className="font-bold text-indigo-900 mb-1">
-                    Set Approved Budget
+                  <h4 className="font-bold text-amber-950 mb-1">
+                    Enterprise Margin Intelligence Audit
                   </h4>
-                  <p className="text-indigo-700/70 text-xs leading-relaxed">
-                    Set the official budget for this role. This will be visible
-                    to vendors and recruiters.
+                  <p className="text-amber-800/80 text-xs leading-relaxed">
+                    Verify Client Budget, Margins, and estimated GST before official authorization. Approved requisitions transition to <b>OPEN</b>.
                   </p>
                 </div>
+              </div>
+
+              {/* Real-time Commercial Overview */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Saved Requisition Commercials
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] text-slate-500 font-bold uppercase block">Job Title</span>
+                    <span className="text-sm font-bold text-slate-800">{selectedJob.title}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 font-bold uppercase block">Client Name</span>
+                    <span className="text-sm font-bold text-slate-800">{selectedJob.clientName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 font-bold uppercase block">Commercial Route</span>
+                    <span className="text-sm font-bold text-slate-800">
+                      {selectedJob.pricing_data?.requirementType || "FTE (Standard)"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 font-bold uppercase block">Initial Budget State</span>
+                    <span className="text-sm font-bold text-indigo-600">{selectedJob.budget}</span>
+                  </div>
+                </div>
+
+                {/* Pricing details if available */}
+                {selectedJob.pricing_data && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Work Mode & Billing:</span>
+                      <span className="font-bold text-slate-700">
+                        {selectedJob.pricing_data.workMode} | {selectedJob.pricing_data.billingType}
+                      </span>
+                    </div>
+                    {selectedJob.pricing_data.requirementType === "FTE" && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Placement Fee ({selectedJob.pricing_data.ftePlacementPercent}%):</span>
+                          <span className="font-bold text-slate-800">₹{selectedJob.pricing_data.placementFee}L</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Vendor Share & Service Split:</span>
+                          <span className="font-bold text-slate-700">₹{selectedJob.pricing_data.vendorShare}L</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600 font-bold">Net Project Revenue:</span>
+                          <span className="font-black text-emerald-600">₹{selectedJob.pricing_data.expectedRevenue}L</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>GST (18% code enforced):</span>
+                          <span>₹{selectedJob.pricing_data.gst}L</span>
+                        </div>
+                      </>
+                    )}
+                    {selectedJob.pricing_data.requirementType === "C2H" && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Monthly Margin ({selectedJob.pricing_data.c2hMonthlyMarginPercent}%):</span>
+                          <span className="font-bold text-slate-800">₹{parseFloat(selectedJob.pricing_data.monthlyMargin).toLocaleString()}/m</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Duration Period:</span>
+                          <span className="font-bold text-slate-700">{selectedJob.pricing_data.c2hDurationMonths} Months</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600 font-bold">Projected Net Revenue:</span>
+                          <span className="font-black text-emerald-600">₹{parseFloat(selectedJob.pricing_data.projectedRevenue).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>GST (18% code enforced):</span>
+                          <span>₹{parseFloat(selectedJob.pricing_data.gst).toLocaleString()}</span>
+                        </div>
+                      </>
+                    )}
+                    {selectedJob.pricing_data.requirementType === "C2C" && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Client Billing Rate:</span>
+                          <span className="font-bold text-slate-800">₹{parseFloat(selectedJob.pricing_data.c2cClientBillingLpm).toLocaleString()}/m</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Vendor Cost Base:</span>
+                          <span className="font-bold text-slate-700">₹{parseFloat(selectedJob.pricing_data.c2cVendorCostLpm).toLocaleString()}/m</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600 font-bold">Expected Margin ({selectedJob.pricing_data.marginPercent}%):</span>
+                          <span className="font-black text-emerald-600">₹{parseFloat(selectedJob.pricing_data.margin).toLocaleString()}/m</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>GST (18% code enforced):</span>
+                          <span>₹{parseFloat(selectedJob.pricing_data.gst).toLocaleString()}/m</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
-                    Budget Amount (₹)
+                    Budget / Salary Statement for Sourcing
                   </label>
                   <input
                     type="text"
@@ -543,13 +1011,226 @@ export default function Jobs() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleApprove}
-                  className="px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 text-sm flex items-center justify-center gap-2"
+                  onClick={async () => {
+                    try {
+                      // Update job both on Supabase and Firebase
+                      await updateJob(selectedJob.id, {
+                        approvalStatus: "approved",
+                        status: "open" as any,
+                        budget: approvedBudget,
+                      });
+                      toast.success(`Requirement authorized & set to active with budget: ${approvedBudget}`);
+                      setIsApproveOpen(false);
+                      setSelectedJob(null);
+                      setApprovedBudget("");
+                    } catch (err) {
+                      toast.error("Authorization failed");
+                    }
+                  }}
+                  className="px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-amber-600/20 text-sm flex items-center justify-center gap-2"
                 >
-                  Confirm Approval
+                  Confirm Authorization
                   <CheckCircle className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Broadcast Intelligence & Sourcing Center Modal */}
+      {isBroadcastOpen && broadcastTargetJob && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-emerald-400" />
+                  One-Click Broadcast & Sourcing Center
+                </h2>
+                <p className="text-slate-400 text-xs mt-1">
+                  Requisition: {broadcastTargetJob.title} ({broadcastTargetJob.clientName})
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsBroadcastOpen(false);
+                  setBroadcastTargetJob(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
+              {/* Broadcast Engine Ecosystem Indicators */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex flex-col justify-center">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-800">Careers Page</span>
+                  <span className="text-xs font-bold text-emerald-600 mt-0.5">● ONLINE & INDEXED</span>
+                </div>
+                <div className="bg-sky-50 border border-sky-100 p-3 rounded-xl flex flex-col justify-center">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-sky-800">WhatsApp Dispatch</span>
+                  <span className="text-xs font-bold text-sky-600 mt-0.5">● BROADCAST READY</span>
+                </div>
+                <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex flex-col justify-center">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-indigo-800">Vendor Submission</span>
+                  <span className="text-xs font-bold text-indigo-600 mt-0.5">● SECURED GATEWAY</span>
+                </div>
+              </div>
+
+              {/* Share links */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                  Source-Tracked Sourcing Links
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+                      Public Candidate Application Link
+                    </span>
+                    <p className="text-xs text-slate-600 break-all font-mono">
+                      {window.location.origin}/#/apply/{broadcastTargetJob.id}?src=direct
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=direct`);
+                        toast.success("Candidate Apply Link copied!");
+                      }}
+                      className="py-1.5 px-3 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Copy Candidate Link
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+                      Secure Vendor Submission Link
+                    </span>
+                    <p className="text-xs text-slate-600 break-all font-mono">
+                      {window.location.origin}/#/apply/{broadcastTargetJob.id}?type=vendor
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor`);
+                        toast.success("Vendor Submission Link copied!");
+                      }}
+                      className="py-1.5 px-3 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Copy Vendor Link
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Broadcast Integrations */}
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                  Interactive Network Broadcast Channels
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* WhatsApp Hub */}
+                  <div className="p-4 border border-emerald-100 bg-emerald-50/50 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="w-5 h-5 text-emerald-600" />
+                      <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-widest">WhatsApp Broadcast Hub</h4>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 leading-relaxed">
+                      Launches pre-formatted broadcast layout containing tracked application URLs and pricing routes.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const sList = Array.isArray(broadcastTargetJob.skills) ? broadcastTargetJob.skills : (broadcastTargetJob.skills ? broadcastTargetJob.skills.split(',') : []);
+                        const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
+                        const text = encodeURIComponent(`🚀 Immediate Hiring | ${broadcastTargetJob.title}
+📍 Location: ${broadcastTargetJob.location || 'Remote'}
+💼 Employment: ${broadcastTargetJob.type || 'Full-time'}
+💰 Salary: ${broadcastTargetJob.budget || '₹12–15 LPA'}
+👥 Openings: ${broadcastTargetJob.openings || 1}
+
+Skills Required:
+${fSkills || '• Core developer competencies'}
+
+Experience:
+${broadcastTargetJob.experienceRequired || '3-5 Years'}
+
+🎯 Candidates can be on your payroll or HireNest Workforce payroll.
+
+📄 Full Job Description & Apply:
+${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=wa
+
+📤 Vendors Submit Candidate:
+${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor`);
+                        window.open(`https://wa.me/?text=${text}`, "_blank");
+                        toast.success("WhatsApp template prepared & dispatched!");
+                      }}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-600/15"
+                    >
+                      <MessageCircle className="w-4 h-4" /> Launch WhatsApp
+                    </button>
+                  </div>
+
+                  {/* LinkedIn Hub */}
+                  <div className="p-4 border border-blue-100 bg-blue-50/50 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Linkedin className="w-5 h-5 text-blue-600" />
+                      <h4 className="text-xs font-bold text-blue-900 uppercase tracking-widest">LinkedIn Social Sharing</h4>
+                    </div>
+                    <p className="text-[11px] text-blue-700 leading-relaxed">
+                      Copies a beautiful social engagement layout and triggers LinkedIn's official content dialog.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const sList = Array.isArray(broadcastTargetJob.skills) ? broadcastTargetJob.skills : (broadcastTargetJob.skills ? broadcastTargetJob.skills.split(',') : []);
+                        const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
+                        const text = `🚀 Immediate Hiring | ${broadcastTargetJob.title}
+📍 Location: ${broadcastTargetJob.location || 'Remote'}
+💼 Employment: ${broadcastTargetJob.type || 'Full-time'}
+💰 Salary: ${broadcastTargetJob.budget || '₹12–15 LPA'}
+👥 Openings: ${broadcastTargetJob.openings || 1}
+
+Skills Required:
+${fSkills || '• Core developer competencies'}
+
+Experience:
+${broadcastTargetJob.experienceRequired || '3-5 Years'}
+
+🎯 Candidates can be on your payroll or HireNest Workforce payroll.
+
+📄 Full Job Description & Apply:
+${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=li
+
+📤 Vendors Submit Candidate:
+${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor
+
+Powered by HireNestOS AI`;
+                        navigator.clipboard.writeText(text);
+                        const url = encodeURIComponent(`${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=li`);
+                        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, "_blank");
+                        toast.success("LinkedIn template copied to clipboard & sharing dialog launched!");
+                      }}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-blue-600/15"
+                    >
+                      <Linkedin className="w-4 h-4" /> Launch LinkedIn
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+              <button
+                onClick={() => {
+                  setIsBroadcastOpen(false);
+                  setBroadcastTargetJob(null);
+                }}
+                className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all"
+              >
+                Close Sourcing Hub
+              </button>
             </div>
           </div>
         </div>

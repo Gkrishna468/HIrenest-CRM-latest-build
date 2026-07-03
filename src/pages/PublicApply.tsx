@@ -418,26 +418,81 @@ export default function PublicApply() {
           {/* RIGHT 5 COLUMNS: INTERACTIVE SUBMISSION PANEL */}
           <div className="lg:col-span-5 space-y-6">
             
-            {/* VENDOR SPECIFIC PRICING INTELLIGENCE (Visible only when vendor tab is chosen) */}
+            {/* VENDOR SPECIFIC COMMERCIAL INTELLIGENCE (Visible only when vendor tab is chosen) */}
             {activeTab === 'vendor' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl text-sm animate-in fade-in slide-in-from-top-4 duration-300">
-                <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest font-mono flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" /> Margin Intelligence Dashboard
+                <h4 className="text-xs font-black text-amber-400 uppercase tracking-widest font-mono flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" /> Vendor Sourcing Guidelines & Commercials
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
-                    <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Expected Vendor Cost</p>
-                    <p className="text-base font-black text-slate-300 mt-1">₹1,45,000</p>
+                
+                {job.pricing_data ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      {job.pricing_data.requirementType === "FTE" && (
+                        <>
+                          <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Your Placement Share</p>
+                            <p className="text-base font-black text-emerald-400 mt-1">₹{job.pricing_data.vendorShare}L</p>
+                          </div>
+                          <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Commission Share</p>
+                            <p className="text-base font-black text-slate-300 mt-1">30% split</p>
+                          </div>
+                        </>
+                      )}
+                      {job.pricing_data.requirementType === "C2H" && (
+                        <>
+                          <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Sourcing Cap Rate</p>
+                            <p className="text-base font-black text-emerald-400 mt-1">
+                              ₹{Math.floor(parseFloat(job.pricing_data.monthlyMargin) * 0.7).toLocaleString()}/m
+                            </p>
+                          </div>
+                          <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Work Mode</p>
+                            <p className="text-base font-black text-slate-300 mt-1">{job.pricing_data.workMode}</p>
+                          </div>
+                        </>
+                      )}
+                      {job.pricing_data.requirementType === "C2C" && (
+                        <>
+                          <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Max Sourcing Cost</p>
+                            <p className="text-base font-black text-emerald-400 mt-1">
+                              ₹{parseFloat(job.pricing_data.c2cVendorCostLpm || "150000").toLocaleString()}/m
+                            </p>
+                          </div>
+                          <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Billing Cycle</p>
+                            <p className="text-base font-black text-slate-300 mt-1">Monthly Retrospective</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="text-[11px] text-slate-400 font-mono pt-2 border-t border-slate-800/60 leading-relaxed">
+                      All calculations are after margin deductions. Private client commercial agreements are restricted. 
+                      GST (18%) is applied securely.
+                    </div>
                   </div>
-                  <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
-                    <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Projected Net Margin</p>
-                    <p className="text-base font-black text-emerald-400 mt-1">₹35,000</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Expected Vendor Cost</p>
+                        <p className="text-base font-black text-emerald-400 mt-1">Standard Scale</p>
+                      </div>
+                      <div className="bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Payment Mode</p>
+                        <p className="text-base font-black text-slate-300 mt-1">Net 45 Days</p>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono pt-2 border-t border-slate-800/60 leading-relaxed">
+                      Confidential client margins, internal notes, and assignment metadata are restricted. 
+                      Standard recruitment commission shares apply.
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold text-slate-400 border-t border-slate-800/60 pt-3 font-mono">
-                  <span>Vendor Share Mode: Direct Billing</span>
-                  <span className="text-emerald-400">Margin: 19.4%</span>
-                </div>
+                )}
               </div>
             )}
 
