@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { executeAITask, executeAITaskWithSchema, DEFAULT_AI_MODEL } from "@/utils/aiGateway";
 
 export interface AIProviderConfig {
   provider: "gemini" | "openai" | "claude";
@@ -6,46 +6,29 @@ export interface AIProviderConfig {
 }
 
 export class AIProvider {
-  private static geminiClient = ((typeof process !== "undefined" ? process.env.GEMINI_API_KEY : import.meta.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "") 
-    ? new GoogleGenAI({ apiKey: ((typeof process !== "undefined" ? process.env.GEMINI_API_KEY : import.meta.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "") }) 
-    : null;
-
-  static async generate(prompt: string, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.5-flash" }): Promise<string> {
+  static async generate(prompt: string, config: AIProviderConfig = { provider: "gemini", model: DEFAULT_AI_MODEL }): Promise<string> {
     if (config.provider === "gemini") {
-      if (!this.geminiClient) {
-        throw new Error("Gemini client not initialized. GEMINI_API_KEY missing.");
-      }
-      
-      const response = await this.geminiClient.models.generateContent({
-        model: config.model,
-        contents: prompt,
+      return await executeAITask({
+        agentName: "AIProvider-generate",
+        prompt,
+        modelUsed: config.model || DEFAULT_AI_MODEL,
       });
-
-      return response.text || "";
     }
 
     throw new Error(`Provider ${config.provider} not supported yet.`);
   }
 
-  static async generateWithSchema(prompt: string, schema: any, config: AIProviderConfig = { provider: "gemini", model: "gemini-2.5-flash" }): Promise<string> {
+  static async generateWithSchema(prompt: string, schema: any, config: AIProviderConfig = { provider: "gemini", model: DEFAULT_AI_MODEL }): Promise<string> {
     if (config.provider === "gemini") {
-      if (!this.geminiClient) {
-        throw new Error("Gemini client not initialized. GEMINI_API_KEY missing.");
-      }
-      
-      const response = await this.geminiClient.models.generateContent({
-        model: config.model,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: schema,
-          temperature: 0.2
-        }
+      return await executeAITaskWithSchema({
+        agentName: "AIProvider-generateWithSchema",
+        prompt,
+        modelUsed: config.model || DEFAULT_AI_MODEL,
+        responseSchema: schema,
       });
-
-      return response.text || "";
     }
 
     throw new Error(`Provider ${config.provider} not supported yet.`);
   }
 }
+

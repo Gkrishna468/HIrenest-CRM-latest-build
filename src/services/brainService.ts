@@ -4,6 +4,7 @@
  */
 
 import { safeString, safeArray } from "@/utils/safe";
+import { auth } from "@/services/firebase/config";
 
 export interface BrainInsight {
   profile: {
@@ -54,16 +55,8 @@ export async function processInteraction(text: string, context?: any, emailId?: 
     const execSession = localStorage.getItem('hirenest_exec_session');
     if (execSession) {
       token = 'executive-bypass-token';
-    } else {
-      const sessionStr = localStorage.getItem('sb-yoursupabaseproject-auth-token') // Optional fallback
-    }
-
-    // the best way to do this in a regular ts file:
-    // Actually we can just get it from supabase if we import supabase
-    const { supabase } = await import('@/lib/supabase');
-    if (!token) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) token = session.access_token;
+    } else if (auth.currentUser) {
+      token = await auth.currentUser.getIdToken();
     }
 
     const response = await fetch('/api/ai?action=classify', {

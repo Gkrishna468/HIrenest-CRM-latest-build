@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { isSupabaseConfigured } from "@/lib/supabase";
 
 const navGroups = [
   {
@@ -159,21 +158,13 @@ export function Sidebar() {
 
         <div className="px-3 pt-2">
           <div
-            className={cn(
-              "flex items-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border shadow-[inset_0_2px_4px_rgba(0,0,0,0.05),0_1px_1px_white]",
-              isSupabaseConfigured()
-                ? "bg-green-50/50 text-green-700 border-green-300"
-                : "bg-red-50/50 text-red-700 border-red-300",
-            )}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest border shadow-[inset_0_2px_4px_rgba(0,0,0,0.05),0_1px_1px_white] bg-green-50/50 text-green-700 border-green-300"
             style={{textShadow: '0 1px 0 rgba(255,255,255,0.7)'}}
           >
             <div
-              className={cn(
-                "w-2 h-2 rounded-full animate-pulse shadow-inner border",
-                isSupabaseConfigured() ? "bg-green-500 border-green-600" : "bg-red-500 border-red-600",
-              )}
+              className="w-2 h-2 rounded-full animate-pulse shadow-inner border bg-green-500 border-green-600"
             />
-            {isSupabaseConfigured() ? "Cloud Sync Active" : "Offline Mode"}
+            Firebase SSOT Active
           </div>
         </div>
       </div>

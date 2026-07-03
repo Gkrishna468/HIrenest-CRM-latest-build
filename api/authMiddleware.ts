@@ -1,12 +1,46 @@
 import { Request, Response, NextFunction } from "express";
-import { createClient } from "@supabase/supabase-js";
+import { initializeApp, getApps, cert, applicationDefault } from "firebase-admin/app";
+import { getAuth as getAdminAuth } from "firebase-admin/auth";
+import * as fs from "fs";
+import * as path from "path";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+let adminApp: any = null;
+
+if (!getApps()?.length) {
+  try {
+    const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+    let projectId = process.env.FIREBASE_PROJECT_ID;
+    
+    try {
+      if (fs.existsSync(configPath)) {
+        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        if (!projectId) projectId = firebaseConfig.projectId;
+      }
+    } catch (e) {
+      console.log("[Auth Middleware Init] Warning: Could not read firebase-applet-config.json");
+    }
+
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+    if (projectId && clientEmail && privateKey) {
+      adminApp = initializeApp({
+        credential: cert({ projectId, clientEmail, privateKey }),
+      });
+    } else {
+      adminApp = initializeApp({
+        credential: applicationDefault(),
+        projectId: projectId || "hirenest-os",
+      });
+    }
+  } catch (error) {
+    console.error("Firebase Auth Middleware initialization error", error);
+  }
+} else {
+  adminApp = getApps()[0];
+}
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Extract path without base /api
   const p = req.path;
   
   // Allow health checks, webhooks, and token endpoints
@@ -26,16 +60,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return next();
   }
 
-  if (!supabase) {
-    return res.status(500).json({ error: 'Supabase UI env config missing' });
+  if (!adminApp) {
+    return res.status(500).json({ error: 'Firebase Admin initialization failed on server' });
   }
 
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  
-  if (error || !user) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  try {
+    const decodedToken = await getAdminAuth(adminApp).verifyIdToken(token);
+    (req as any).user = {
+      id: decodedToken.uid,
+      email: decodedToken.email,
+      role: decodedToken.role || "viewer"
+    };
+    next();
+  } catch (error: any) {
+    console.error("Firebase ID Token verification failed:", error);
+    return res.status(401).json({ error: `Unauthorized: Invalid token: ${error.message}` });
   }
-
-  (req as any).user = user;
-  next();
 }

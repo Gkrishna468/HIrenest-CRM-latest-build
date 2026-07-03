@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { RequirementRepository } from '@/repositories/RequirementRepository';
+import { VendorRepository } from '@/repositories/VendorRepository';
 import { 
   Briefcase, 
   Building2, 
@@ -78,25 +79,18 @@ export default function PublicApply() {
       try {
         setLoading(true);
         
-        // Load Job Details
-        const { data: jobData, error: jobErr } = await supabase
-          .from('jobs')
-          .select('*')
-          .eq('id', jobId)
-          .single();
+        // Load Job Details (Requirements collection)
+        if (!jobId) return;
+        const jobData = await RequirementRepository.getById(jobId);
+        if (!jobData) {
+          throw new Error('Requirement details not found');
+        }
         
-        if (jobErr) throw jobErr;
         setJob(jobData);
 
         // Load Vendors list for dropdown
-        const { data: vendorsData } = await supabase
-          .from('vendors')
-          .select('*')
-          .order('name', { ascending: true });
-        
-        if (vendorsData) {
-          setVendorsList(vendorsData);
-        }
+        const vendorsData = await VendorRepository.list();
+        setVendorsList(vendorsData);
       } catch (err: any) {
         console.error('Error loading page data:', err);
         toast.error('Requirement Details Not Found or Expired');

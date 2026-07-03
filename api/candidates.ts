@@ -1,7 +1,6 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { getApps, initializeApp, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
@@ -43,11 +42,6 @@ if (!getApps()?.length) {
     db = getFirestore(adminApp);
   }
 }
-
-// Initialize Supabase Client
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 // Initialize Gemini Client
 const apiKey = (process.env.GEMINI_API_KEY || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
@@ -129,22 +123,6 @@ export default async function handler(req: any, res: any) {
         } catch (err) {
           console.error("Error fetching requirement from Firestore:", err);
         }
-
-        // Fallback to Supabase if General
-        if (jobTitle === "General Talent Pool" && supabase) {
-          try {
-            const { data: sj } = await supabase.from("jobs").select("*").eq("id", reqId).single();
-            if (sj) {
-              jobTitle = sj.title || "Sourced Role";
-              jobDescription = sj.description || "";
-              jobSkills = Array.isArray(sj.skills) ? sj.skills : (sj.skills ? sj.skills.split(",") : []);
-              clientName = sj.clientName || sj.client_name || "Enterprise Client";
-              jobLocation = sj.location || "Remote";
-            }
-          } catch (err) {
-            console.error("Error fetching requirement from Supabase:", err);
-          }
-        }
       }
 
       // 2. Perform BDM Routing
@@ -204,7 +182,7 @@ export default async function handler(req: any, res: any) {
           `;
 
           const result = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: "gemini-2.5-flash",
             contents: evaluationPrompt,
             config: {
               responseMimeType: "application/json",
@@ -315,53 +293,9 @@ export default async function handler(req: any, res: any) {
         }
       });
 
-      // 4. Sync directly to Supabase Candidates table to maintain Parity
-      let supabaseCandidateId = null;
-      if (supabase) {
-        try {
-          const { data: sCand, error: sCandErr } = await supabase
-            .from("candidates")
-            .insert({
-              name: candidateName,
-              email: identityData.email || null,
-              phone: identityData.phone || null,
-              skills: skillsList,
-              experience: identityData.experience || "0",
-              current_title: identityData.current_title || null,
-              stage: "submission",
-              vendor_company_id: vendorId,
-              resume_url: identityData.resume_url || null,
-              source: "vendor",
-              ai_match_score: aiMatchScore,
-              linkedin_url: identityData.linkedin || null,
-              summary: aiSummary,
-              status: fraudDetected ? "flagged" : "active"
-            })
-            .select()
-            .single();
-
-          if (sCandErr) {
-            console.error("Supabase sync error:", sCandErr.message);
-          } else if (sCand) {
-            supabaseCandidateId = sCand.id;
-            // Also link in job_submissions
-            if (reqId !== "UNKNOWN") {
-              await supabase.from("job_submissions").insert({
-                job_id: reqId,
-                candidate_id: sCand.id,
-                status: "pending"
-              });
-            }
-          }
-        } catch (sErr) {
-          console.error("Supabase write failure:", sErr);
-        }
-      }
-
       return res.status(200).json({ 
         success: true, 
         candidateId: candRef.id,
-        supabaseCandidateId,
         assignedBdm,
         aiMatchScore,
         fraudDetected,

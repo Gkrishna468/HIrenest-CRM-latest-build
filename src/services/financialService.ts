@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase";
+import { PricingRepository } from "../repositories/PricingRepository";
 
 export interface DashboardFinancials {
   totalRevenue: number;
@@ -12,25 +12,25 @@ export interface DashboardFinancials {
  * CFO Agent Logic: Real-time financial calculations
  */
 export async function getFinancialInsights(): Promise<DashboardFinancials> {
-  const { data: deals } = await supabase
-    .from('deals')
-    .select('revenue_amount, status, client_name');
+  const deals = await PricingRepository.listDeals();
 
-  if (!deals) return { totalRevenue: 0, projectedRevenue: 0, costPerHire: 0, bestPerformingClient: 'N/A', roi: 0 };
+  if (!deals || deals.length === 0) {
+    return { totalRevenue: 0, projectedRevenue: 0, costPerHire: 0, bestPerformingClient: 'N/A', roi: 0 };
+  }
 
   const total = deals
     .filter(d => d.status === 'placed')
-    .reduce((acc, d) => acc + (Number(d.revenue_amount) || 0), 0);
+    .reduce((acc, d) => acc + (Number(d.revenueAmount || d.revenue_amount) || 0), 0);
 
   const projected = deals
-    .filter(d => d.status === 'pipeline')
-    .reduce((acc, d) => acc + (Number(d.revenue_amount) || 0) * 0.15, 0); // 15% probability of closure
+    .filter(d => d.status === 'prospect' || d.status === 'submitted' || d.status === 'interview' || d.status === 'offered')
+    .reduce((acc, d) => acc + (Number(d.revenueAmount || d.revenue_amount) || 0) * 0.15, 0); // 15% probability of closure
 
   // Group by client
   const clientPerformance: Record<string, number> = {};
   deals.forEach(d => {
-    if (d.client_name) {
-      clientPerformance[d.client_name] = (clientPerformance[d.client_name] || 0) + (Number(d.revenue_amount) || 0);
+    if (d.clientName) {
+      clientPerformance[d.clientName] = (clientPerformance[d.clientName] || 0) + (Number(d.revenueAmount || d.revenue_amount) || 0);
     }
   });
 
@@ -40,9 +40,9 @@ export async function getFinancialInsights(): Promise<DashboardFinancials> {
   return {
     totalRevenue: total,
     projectedRevenue: total + projected,
-    costPerHire: total > 0 ? (total * 0.12) / (deals.filter(d => d.status === 'placed')?.length || 1) : 0, // Mock overhead
+    costPerHire: total > 0 ? (total * 0.12) / (deals.filter(d => d.status === 'placed')?.length || 1) : 0,
     bestPerformingClient: topClient,
-    roi: 420 // Expected ROI multiplier
+    roi: 420
   };
 }
 
@@ -50,17 +50,20 @@ export async function getFinancialInsights(): Promise<DashboardFinancials> {
  * Creates a revenue event (Deal)
  */
 export async function recordDeal(job: any, candidate: any, amount: number) {
-  const { error } = await supabase
-    .from('deals')
-    .insert({
-      job_id: job.id,
-      candidate_id: candidate.id,
-      client_name: job.clientName || 'Direct',
-      job_title: job.title,
-      candidate_name: candidate.name,
-      revenue_amount: amount,
-      status: 'pipeline'
-    });
-
-  if (error) throw error;
+  await PricingRepository.createDeal({
+    jobId: job.id,
+    candidateId: candidate.id,
+    clientId: job.clientId || job.company_id || '',
+    clientName: job.clientName || 'Direct',
+    jobTitle: job.title,
+    candidateName: candidate.name,
+    revenueAmount: amount,
+    status: 'prospect',
+    finalCtc: amount * 6.5, // estimate
+    commissionPercent: 15,
+    payoutAmount: amount * 0.7,
+    profitAmount: amount * 0.3,
+    vendorShare: amount * 0.3,
+    paymentReceived: false,
+  });
 }

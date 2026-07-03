@@ -1,44 +1,30 @@
-
-import { GoogleGenAI } from "@google/genai";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/services/firebase/config";
+import { addDoc, collection } from "firebase/firestore";
 import { recordDeal } from "./financialService";
 import { calculateAdjustedBudget } from "./marketplaceService";
 import { safeString, safeSkills, safeNumber, safeArray } from "@/utils/safe";
 import type { MatchResult } from "@/types";
-import { toast } from "sonner";
-
-let aiClient: GoogleGenAI | null = null;
-
-function getAI() {
-  if (!aiClient) {
-    const apiKey = ((typeof process !== "undefined" ? process.env.GEMINI_API_KEY : import.meta.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-    if (!apiKey || apiKey === 'undefined') {
-      throw new Error("GEMINI_API_KEY is not defined. Please set it in your environment variables.");
-    }
-    aiClient = new GoogleGenAI({ apiKey });
-  }
-  return aiClient;
-}
+import { RequirementRepository } from "../repositories/RequirementRepository";
+import { CandidateRepository } from "../repositories/CandidateRepository";
+import { executeAITask } from "@/utils/aiGateway";
 
 /**
  * JOB POSTING: Initial trigger for marketplace
  */
 export async function processNewJob(job: any) {
   // 1. Calculate Adjusted Budget (HireNest Margin)
-  const adjustedBudget = await calculateAdjustedBudget(job.company_id, job.budget);
+  const adjustedBudget = await calculateAdjustedBudget(job.companyId || job.company_id, job.budget);
   
   // 2. Update Job in DB
-  await supabase
-    .from('jobs')
-    .update({ adjusted_budget: adjustedBudget })
-    .eq('id', job.id);
+  await RequirementRepository.update(job.id, { adjustedBudget } as any);
 
   // 3. Log System Action
-  await supabase.from('agent_logs').insert({
+  await addDoc(collection(db, 'agent_logs'), {
     type: 'revenue',
     level: 'info',
     message: `[CFO AGENT] Budget adjusted for ${job.title}. Client Gross: ₹${job.budget} -> Vendor Net: ₹${adjustedBudget}`,
-    metadata: { jobId: job.id, gross: job.budget, net: adjustedBudget }
+    metadata: { jobId: job.id, gross: job.budget, net: adjustedBudget },
+    createdAt: new Date().toISOString()
   });
 }
 
@@ -54,7 +40,7 @@ export interface ParsedResume {
 }
 
 /**
- * Parses raw resume text into structured JSON using Gemini 3 Flash
+ * Parses raw resume text into structured JSON using Gemini via AI Gateway
  */
 export async function parseResumeWithAI(text: string): Promise<ParsedResume> {
   const prompt = `
@@ -76,16 +62,23 @@ export async function parseResumeWithAI(text: string): Promise<ParsedResume> {
   `;
 
   try {
-    const response = await getAI().models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
+    const cleanText = await executeAITask({
+      agentName: "Resume-Parser",
+      prompt,
+      metadata: { textLength: text.length }
     });
 
-    const cleanText = response.text || "{}";
-    return JSON.parse(cleanText);
+    const parsed = JSON.parse(cleanText || "{}");
+    return {
+      name: safeString(parsed.name || "Unknown"),
+      email: safeString(parsed.email || ""),
+      phone: safeString(parsed.phone || ""),
+      currentTitle: safeString(parsed.currentTitle || ""),
+      skills: safeSkills(parsed.skills),
+      experience: safeString(parsed.experience || ""),
+      education: safeString(parsed.education || ""),
+      summary: safeString(parsed.summary || "")
+    };
   } catch (error) {
     console.error("AI Parsing Error:", error);
     return {
@@ -146,16 +139,13 @@ export async function scoreCandidateForJob(job: any, candidate: any): Promise<Ma
   `;
 
   try {
-    const response = await getAI().models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
+    const rawResult = await executeAITask({
+      agentName: "Matching-Engine",
+      prompt,
+      metadata: { jobId: job?.id, candidateId: candidate?.id }
     });
 
-    const text = response.text?.trim() || "{}";
-    const result = JSON.parse(text);
+    const result = JSON.parse(rawResult || "{}");
     
     return {
       score: safeNumber(result.score),
@@ -181,35 +171,36 @@ export async function scoreCandidateForJob(job: any, candidate: any): Promise<Ma
  */
 export async function runDecisionAgent() {
   // 1. Log Start
-  await supabase.from('agent_logs').insert({
+  await addDoc(collection(db, 'agent_logs'), {
     type: 'decision',
     message: 'Autonomous Decision Agent cycle started.',
-    level: 'info'
+    level: 'info',
+    createdAt: new Date().toISOString()
   });
 
   // 2. Find Pending Candidates
-  const { data: candidates } = await supabase
-    .from('candidates')
-    .select('*')
-    .eq('stage', 'screening');
+  const candidates = await CandidateRepository.list();
+  const pendingCandidates = candidates.filter(c => c.stage === 'screening');
 
-  if (!candidates || candidates?.length === 0) return "No pending candidates in screening.";
+  if (!pendingCandidates || pendingCandidates.length === 0) {
+    return "No pending candidates in screening.";
+  }
 
   // 3. Find Open Jobs
-  const { data: jobs } = await supabase
-    .from('jobs')
-    .select('*')
-    .eq('status', 'open');
+  const jobs = await RequirementRepository.list();
+  const openJobs = jobs.filter(j => j.status === 'open');
 
-  if (!jobs || jobs?.length === 0) return "No open jobs found.";
+  if (!openJobs || openJobs.length === 0) {
+    return "No open jobs found.";
+  }
 
   let decisions = 0;
   let reviews = 0;
 
-  for (const candidate of candidates) {
+  for (const candidate of pendingCandidates) {
     let bestMatch: any = null;
     
-    for (const job of jobs) {
+    for (const job of openJobs) {
        const evaluation = await scoreCandidateForJob(job, candidate);
        
        // 3-TIER DECISIONING & GUARDRAILS
@@ -222,19 +213,19 @@ export async function runDecisionAgent() {
        // Tier 2: Human Review Priority
        else if (evaluation.score >= 70) {
          reviews++;
-         await supabase.from('candidates').update({
+         await CandidateRepository.update(candidate.id, {
            stage: 'review',
            notes: `[AI REVIEW QUEUE] High potential match (${evaluation.score}%). Reasoning: ${evaluation.reasoning}`
-         }).eq('id', candidate.id);
+         });
        }
     }
 
     if (bestMatch && bestMatch.tier === 'auto') {
       // AUTO-MOVE: This is the decision!
-      await supabase.from('candidates').update({
+      await CandidateRepository.update(candidate.id, {
         stage: 'interview',
         notes: `[AI AUTONOMOUS DECISION] Auto-Shortlisted for ${bestMatch.job.title}. Match: ${bestMatch.evaluation.score}%. Reasoning: ${bestMatch.evaluation.reasoning}`
-      }).eq('id', candidate.id);
+      });
       
       // CFO LAYER: Record potential revenue
       const estimatedValue = 150000; // Mock 15% of annual salary ₹10L
@@ -245,11 +236,12 @@ export async function runDecisionAgent() {
   }
 
   // 4. Log Completion
-  await supabase.from('agent_logs').insert({
+  await addDoc(collection(db, 'agent_logs'), {
     type: 'decision',
-    message: `Cycle complete. Processed ${candidates?.length} profiles. Auto-Shortlisted: ${decisions} | Flagged for Review: ${reviews}.`,
+    message: `Cycle complete. Processed ${pendingCandidates.length} profiles. Auto-Shortlisted: ${decisions} | Flagged for Review: ${reviews}.`,
     level: 'success',
-    status: 'finished'
+    status: 'finished',
+    createdAt: new Date().toISOString()
   });
 
   return `Cycle complete. Made ${decisions} decisions.`;

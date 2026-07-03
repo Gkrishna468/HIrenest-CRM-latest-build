@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BrainCircuit, Database, FileText, Target, Activity, CheckCircle2, Clock, AlertTriangle, X } from "lucide-react";
-import { collection, onSnapshot, query, orderBy, limit, getDocs, where } from "firebase/firestore";
-import { db } from "@/services/firebase/config";
+import { AgentRepository } from "@/repositories/AgentRepository";
 
 export default function Agents() {
   const { user } = useAuth();
@@ -13,18 +12,15 @@ export default function Agents() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   
   useEffect(() => {
-    const unsubTasks = onSnapshot(collection(db, "agent_tasks"), (snap) => {
-      const t: any[] = [];
-      snap.forEach(doc => t.push({id: doc.id, ...doc.data()}));
-      setTasks(t);
-    }, (err) => console.log("Tasks listener error:", err));
+    const unsubTasks = AgentRepository.subscribeToTasks(
+      (t) => setTasks(t),
+      (err) => console.log("Tasks listener error:", err)
+    );
 
-    const unsubExecs = onSnapshot(collection(db, "agent_executions"), (snap) => {
-      const e: any[] = [];
-      snap.forEach(doc => e.push({id: doc.id, ...doc.data()}));
-      e.sort((a,b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime());
-      setExecutions(e.slice(0, 50)); // keeps recent 50
-    }, (err) => console.log("Executions listener error:", err));
+    const unsubExecs = AgentRepository.subscribeToExecutions(
+      (e) => setExecutions(e.slice(0, 50)),
+      (err) => console.log("Executions listener error:", err)
+    );
 
     return () => {
       unsubTasks();
@@ -37,14 +33,7 @@ export default function Agents() {
     setLoadingLogs(true);
     setSelectedLogs([]);
     try {
-      const q = query(
-        collection(db, "agent_logs"),
-        where("taskId", "==", execution.taskId)
-      );
-      const snap = await getDocs(q);
-      const logs: any[] = [];
-      snap.forEach(d => logs.push({ id: d.id, ...d.data() }));
-      logs.sort((a,b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
+      const logs = await AgentRepository.getExecutionLogs(execution.taskId);
       setSelectedLogs(logs);
     } catch (e) {
       console.error(e);

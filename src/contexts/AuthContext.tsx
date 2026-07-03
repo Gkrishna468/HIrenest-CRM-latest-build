@@ -4,12 +4,17 @@
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { User, Role } from '@/types';
 import { toast } from 'sonner';
-import { signInWithCustomToken } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut as firebaseSignOut, 
+  onAuthStateChanged 
+} from 'firebase/auth';
 import { auth, db } from '@/services/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { UserRepository } from '@/repositories/UserRepository';
 
 interface AuthContextType {
   user: User | null;
@@ -26,34 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const authenticateFirebase = async (token: string) => {
-    try {
-      const response = await fetch('/api/firebase-token', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const { firebaseToken } = await response.json();
-        await signInWithCustomToken(auth, firebaseToken);
-      } else {
-        const errorText = await response.text();
-        console.error("Firebase token fetch failed:", response.status, errorText);
-      }
-    } catch (error) {
-      console.error('Firebase custom token auth failed:', error);
-    }
-  };
-
   const apiFetch = async (url: string, options?: RequestInit) => {
     let token = '';
     const execSession = localStorage.getItem('hirenest_exec_session');
     if (execSession) {
       token = 'executive-bypass-token';
-    } else {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) token = session.access_token;
+    } else if (auth.currentUser) {
+      token = await auth.currentUser.getIdToken();
     }
     
     const headers = {
@@ -76,110 +60,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              parsed.name = 'Gopal Krishna';
              localStorage.setItem('hirenest_exec_session', JSON.stringify(parsed));
           }
-          await authenticateFirebase('executive-bypass-token');
           setUser(parsed);
           setLoading(false);
           return;
         }
-
-        if (!isSupabaseConfigured()) {
-          setLoading(false);
-          return;
-        }
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          await authenticateFirebase(session.access_token);
-          await resolveUser(session.user);
-        }
       } catch (err) {
         console.error('Session check failed:', err);
-      } finally {
-        setLoading(false);
       }
     };
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Use setTimeout to avoid React state update during render (OAuth redirect fix)
-      setTimeout(async () => {
-        if (session) {
-          await authenticateFirebase(session.access_token);
-          await resolveUser(session.user);
-        } else {
-          setUser(null);
-          auth.signOut();
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const profile = await UserRepository.getById(firebaseUser.uid);
+          if (profile) {
+            setUser(profile);
+          } else {
+            // Fallback: create default user document in Firestore if not exists
+            const fallbackUser = await UserRepository.create(firebaseUser.uid, {
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+              role: 'viewer',
+              status: 'active',
+            });
+            setUser(fallbackUser);
+          }
+        } catch (err) {
+          console.error('Error resolving user profile:', err);
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.email?.split('@')[0] || 'User',
+            role: 'viewer',
+            status: 'active',
+          });
         }
-        setLoading(false);
-      }, 0);
+      } else {
+        // Only set null if there's no executive bypass active
+        const execSession = localStorage.getItem('hirenest_exec_session');
+        if (!execSession) {
+          setUser(null);
+        }
+      }
+      setLoading(false);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
-
-  const resolveUser = async (authUser: any) => {
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
-
-      let gmailConnected = false;
-      let gmailEmail = undefined;
-      let gmailConnectionId = undefined;
-
-      try {
-        const userDoc = await getDoc(doc(db, 'users', authUser.id));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          gmailConnected = !!data.gmailConnected;
-          gmailEmail = data.gmailEmail;
-          gmailConnectionId = data.gmailConnectionId;
-        }
-      } catch (err) {
-        console.warn('Could not fetch Firestore user sync record:', err);
-      }
-
-      if (profile) {
-        setUser({
-          id: authUser.id,
-          email: authUser.email!,
-          name: profile.name || authUser.user_metadata?.name || authUser.email!.split('@')[0],
-          role: profile.role || 'viewer',
-          companyId: profile.company_id,
-          status: profile.status || 'active',
-          gmailConnected,
-          gmailEmail,
-          gmailConnectionId
-        });
-      } else {
-        // Fallback to metadata
-        setUser({
-          id: authUser.id,
-          email: authUser.email!,
-          name: authUser.user_metadata?.name || authUser.email!.split('@')[0],
-          role: (authUser.user_metadata?.role as Role) || 'viewer',
-          status: 'active',
-          gmailConnected,
-          gmailEmail,
-          gmailConnectionId
-        });
-      }
-    } catch (err) {
-      console.error('User resolution failed:', err);
-      setUser({
-        id: authUser.id,
-        email: authUser.email!,
-        name: authUser.email!.split('@')[0],
-        role: 'viewer',
-        status: 'active',
-      });
-    }
-  };
 
   const signIn = async (email: string, password: string) => {
     // Executive Bypass for GOPAL and Demo Admin
@@ -195,35 +124,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'active' 
       };
       
-      await authenticateFirebase('executive-bypass-token');
-      
       setUser(execUser);
       localStorage.setItem('hirenest_exec_session', JSON.stringify(execUser));
       toast.success('Executive access granted');
       return;
     }
 
-    if (!isSupabaseConfigured()) {
-      throw new Error('Supabase is not configured. Please check your settings.');
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    // Direct Firebase Sign In
+    await signInWithEmailAndPassword(auth, email, password);
+    toast.success('Signed in successfully');
   };
 
   const signUp = async (email: string, password: string, name: string, role: Role) => {
-    const { error } = await supabase.auth.signUp({
+    // Direct Firebase Sign Up
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    // Create user profile in Firestore immediately
+    await UserRepository.create(cred.user.uid, {
       email,
-      password,
-      options: { data: { name, role } },
+      name,
+      role,
+      status: 'active',
     });
-    if (error) throw error;
+    toast.success('Account registered successfully');
   };
 
   const signOut = async () => {
     localStorage.removeItem('hirenest_exec_session');
-    await supabase.auth.signOut();
+    await firebaseSignOut(auth);
     setUser(null);
+    toast.success('Signed out successfully');
   };
 
   return (

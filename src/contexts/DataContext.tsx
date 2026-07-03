@@ -11,18 +11,15 @@ import React, {
   useCallback,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { getClients, createClient, updateClient } from "@/lib/api/clients";
-import { getVendors, createVendor, updateVendor } from "@/lib/api/vendors";
-import { getJobs, createJob, approveJob, updateJob } from "@/lib/api/jobs";
-import {
-  getAllCandidates,
-  createCandidate,
-  updateCandidate,
-  deleteCandidate,
-} from "@/lib/api/candidates";
+import { ClientRepository } from "@/repositories/ClientRepository";
+import { VendorRepository } from "@/repositories/VendorRepository";
+import { RequirementRepository } from "@/repositories/RequirementRepository";
+import { CandidateRepository } from "@/repositories/CandidateRepository";
+import { PricingRepository } from "@/repositories/PricingRepository";
+import { UserRepository } from "@/repositories/UserRepository";
+import { db } from "@/services/firebase/config";
+import { collection, query, orderBy, limit, onSnapshot, doc, setDoc } from "firebase/firestore";
 import type { Client, Vendor, Job, Candidate, AgentLog, Deal } from "@/types";
-import { supabase } from "@/lib/supabase";
-import { syncService } from "@/services/firebase/syncService";
 
 interface DataContextType {
   clients: Client[];
@@ -68,68 +65,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       // Fetch User Profile first for context
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
+      const profile = await UserRepository.getById(user.id);
       setUserProfile(profile);
 
       const [cData, vData, jData, candData, dealData] = await Promise.all([
-        getClients(),
-        getVendors(),
-        getJobs(),
-        getAllCandidates(),
-        supabase
-          .from("deals")
-          .select("*")
-          .order("created_at", { ascending: false }),
+        ClientRepository.list(),
+        VendorRepository.list(),
+        RequirementRepository.list(),
+        CandidateRepository.list(),
+        PricingRepository.listDeals(),
       ]);
+
       setClients(cData);
       setVendors(vData);
       setJobs(jData);
       setCandidates(candData);
-      setDeals(dealData.data || []);
-
-      // Fetch logs
-      const { data: logsData, error: logsError } = await supabase
-        .from("agent_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (logsError) {
-        console.error("Error fetching agent logs:", logsError);
-      }
-
-      if (logsData) {
-        setLogs(
-          logsData.map(
-            (l) =>
-              ({
-                id: l.id,
-                type: l.type,
-                level: l.level === "success" ? "success" : l.level || "info",
-                message: l.message,
-                metadata: l.metadata,
-                companyId: l.company_id,
-                createdAt: l.created_at,
-              }) as AgentLog,
-          ),
-        );
-      }
-
-      // Parity Check - Phase 4 dual-read simulation (Disabled for Production P1)
-      // import("@/services/firebase/migrationService").then(
-      //   ({ migrationService }) => {
-      //     migrationService.runParityCheck({
-      //       clients: cData,
-      //       vendors: vData,
-      //       jobs: jData,
-      //     });
-      //   },
-      // );
+      setDeals(dealData);
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {
@@ -141,28 +92,41 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     refreshAll();
   }, [refreshAll]);
 
-  // Realtime logs
+  // Realtime logs via Firestore onSnapshot
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel("agent_logs_realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "agent_logs" },
-        (payload) => {
-          setLogs((prev) => [payload.new as any, ...prev].slice(0, 50));
-        },
-      )
-      .subscribe();
+    const q = query(
+      collection(db, "agent_logs"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logsList: AgentLog[] = [];
+      snapshot.forEach((d) => {
+        const l = d.data();
+        logsList.push({
+          id: d.id,
+          type: l.type || "info",
+          level: l.level === "success" ? "success" : l.level || "info",
+          message: l.message || "",
+          metadata: l.metadata,
+          companyId: l.companyId || l.company_id,
+          createdAt: l.createdAt || l.created_at || new Date().toISOString(),
+        } as AgentLog);
+      });
+      setLogs(logsList);
+    }, (error) => {
+      // Index error might happen in firestore if index is not ready yet, fallback gracefully
+      console.warn("Firestore onSnapshot warning for agent_logs (likely missing index):", error);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const addClient = async (data: Partial<Client>) => {
-    // Auto-generate Client Code if not present: C-YYMM-RAND
+    // Auto-generate Client Code if not present: CL-YYMM-RAND
     if (!data.clientCode) {
       const year = new Date().getFullYear().toString().slice(-2);
       const rand = Math.floor(Math.random() * 1000)
@@ -170,23 +134,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .padStart(3, "0");
       data.clientCode = `CL-${year}${rand}`;
     }
-    const res = await createClient({ ...data, source: (data as any).source || "crm" } as any);
-    if (res && res[0]) {
-      await syncService.syncClient(res[0].id, res[0]);
-    }
+    
+    const clientPayload = {
+      ...data,
+      source: data.source || "crm",
+      userId: user?.id || "",
+      companyId: userProfile?.companyId || "",
+    };
+    
+    await ClientRepository.create(clientPayload);
+    
+    // Log event in Firestore Company Ledger
+    const logId = crypto.randomUUID();
+    await setDoc(doc(db, "agent_logs", logId), {
+      type: "client",
+      level: "info",
+      message: `Client "${data.company}" added to CRM ledger.`,
+      createdAt: new Date().toISOString(),
+      userId: user?.id || "system",
+    });
+
     await refreshAll();
   };
 
   const updateClientData = async (id: string, data: Partial<Client>) => {
-    const res = await updateClient(id, data);
-    if (res && res[0]) {
-      await syncService.syncClient(id, res[0]);
-    }
+    await ClientRepository.update(id, data);
     await refreshAll();
   };
 
   const addVendor = async (data: Partial<Vendor>) => {
-    // Auto-generate Vendor Code if not present: V-YYMM-RAND
+    // Auto-generate Vendor Code if not present: VN-YYMM-RAND
     if (!data.vendorCode) {
       const year = new Date().getFullYear().toString().slice(-2);
       const rand = Math.floor(Math.random() * 1000)
@@ -194,55 +171,89 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .padStart(3, "0");
       data.vendorCode = `VN-${year}${rand}`;
     }
-    // Mapping: ensure companyId matches user context if possible
-    if (!data.companyId && userProfile?.company_id) {
-      data.companyId = userProfile.company_id;
+    if (!data.companyId && userProfile?.companyId) {
+      data.companyId = userProfile.companyId;
     }
-    const res = await createVendor({ ...data, source: (data as any).source || "vendor" } as any);
-    if (res && res[0]) {
-      await syncService.syncVendor(res[0].id, res[0]);
-    }
+
+    const vendorPayload = {
+      ...data,
+      source: data.source || "vendor",
+      userId: user?.id || "",
+    };
+
+    await VendorRepository.create(vendorPayload);
+
+    // Log event in Firestore
+    const logId = crypto.randomUUID();
+    await setDoc(doc(db, "agent_logs", logId), {
+      type: "vendor",
+      level: "info",
+      message: `Vendor Partner "${data.name}" onboarded to system registry.`,
+      createdAt: new Date().toISOString(),
+      userId: user?.id || "system",
+    });
+
     await refreshAll();
   };
 
   const updateVendorData = async (id: string, data: Partial<Vendor>) => {
-    const res = await updateVendor(id, data);
-    if (res && res[0]) {
-      await syncService.syncVendor(id, res[0]);
-    }
+    await VendorRepository.update(id, data);
     await refreshAll();
   };
 
   const addJob = async (data: Partial<Job>) => {
-    // If job has clientId, we should ideally check client mapping
-    const res = await createJob({ ...data, source: (data as any).source || "os" } as any);
-    if (res && res[0]) {
-      await syncService.syncRequirement(res[0].id, res[0]);
-    }
+    const jobPayload = {
+      ...data,
+      source: data.source || "os",
+      userId: user?.id || "",
+      companyId: userProfile?.companyId || "",
+    };
+
+    await RequirementRepository.create(jobPayload);
+
+    // Log event in Firestore
+    const logId = crypto.randomUUID();
+    await setDoc(doc(db, "agent_logs", logId), {
+      type: "job",
+      level: "info",
+      message: `Requisition "${data.title}" drafted and pending approval.`,
+      createdAt: new Date().toISOString(),
+      userId: user?.id || "system",
+    });
+
     await refreshAll();
   };
 
   const updateJobData = async (id: string, data: Partial<Job>) => {
-    const res = await updateJob(id, data);
-    if (res && res[0]) {
-      await syncService.syncRequirement(id, res[0]);
-    }
+    await RequirementRepository.update(id, data);
     await refreshAll();
   };
 
   const addCandidate = async (data: Partial<Candidate>) => {
-    const res = await createCandidate({ ...data, source: data.source || "os" } as any);
-    if (res && res[0]) {
-      await syncService.syncCandidate(res[0].id, res[0]);
-    }
+    const candPayload = {
+      ...data,
+      source: data.source || "os",
+      userId: user?.id || "",
+      companyId: userProfile?.companyId || "",
+    };
+
+    await CandidateRepository.create(candPayload);
+
+    // Log event in Firestore
+    const logId = crypto.randomUUID();
+    await setDoc(doc(db, "agent_logs", logId), {
+      type: "candidate",
+      level: "info",
+      message: `Candidate profile "${data.name}" ingested into core pool.`,
+      createdAt: new Date().toISOString(),
+      userId: user?.id || "system",
+    });
+
     await refreshAll();
   };
 
   const updateCandidateData = async (id: string, data: Partial<Candidate>) => {
-    const res = await updateCandidate(id, data);
-    if (res && res[0]) {
-      await syncService.syncCandidate(id, res[0]);
-    }
+    await CandidateRepository.update(id, data);
     await refreshAll();
   };
 
@@ -251,18 +262,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     stage: Candidate["stage"],
     status?: string,
   ) => {
-    const res = await updateCandidate(id, { stage, status });
-    if (res && res[0]) {
-      await syncService.syncCandidate(id, res[0]);
-    }
+    await CandidateRepository.update(id, { stage, status });
     await refreshAll();
   };
 
   const approveJobWithBudget = async (id: string, budget: string) => {
-    const res = await approveJob(id, budget);
-    if (res && res[0]) {
-      await syncService.syncRequirement(id, res[0]);
-    }
+    await RequirementRepository.update(id, {
+      approvalStatus: "approved",
+      budget,
+      status: "open",
+    });
+
+    // Log event in Firestore
+    const logId = crypto.randomUUID();
+    await setDoc(doc(db, "agent_logs", logId), {
+      type: "revenue",
+      level: "success",
+      message: `CFO approved requisition ID ${id} with target budget ₹${budget}.`,
+      createdAt: new Date().toISOString(),
+      userId: user?.id || "system",
+    });
+
     await refreshAll();
   };
 

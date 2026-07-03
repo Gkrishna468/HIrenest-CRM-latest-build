@@ -1,43 +1,32 @@
-import { supabase } from '@/lib/supabase';
-import { GoogleGenAI } from "@google/genai";
-
-let aiClient: GoogleGenAI | null = null;
-
-function getAI() {
-  if (!aiClient) {
-    const apiKey = ((typeof process !== "undefined" ? process.env.GEMINI_API_KEY : import.meta.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-    if (!apiKey || apiKey === 'undefined') {
-      throw new Error("GEMINI_API_KEY is not defined.");
-    }
-    aiClient = new GoogleGenAI({ apiKey });
-  }
-  return aiClient;
-}
+import { db, auth } from '@/services/firebase/config';
+import { getDocs, collection, query, where, updateDoc, doc, addDoc } from 'firebase/firestore';
+import { CandidateRepository } from '@/repositories/CandidateRepository';
+import { executeAITask } from '@/utils/aiGateway';
 
 /**
- * Reply Agent: Detects responses and classifies intent using Gemini
+ * Reply Agent: Detects responses and classifies intent using Gemini via AI Gateway
  */
 export async function runReplyAgent() {
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log("REPLY AGENT SESSION:", session);
-  console.log("REPLY AGENT GMAIL TOKEN:", session?.provider_token);
+  // Direct Firebase Auth session or bypass
+  const execSession = localStorage.getItem('hirenest_exec_session');
+  const userObj = execSession ? JSON.parse(execSession) : auth.currentUser;
 
-  const token = session?.provider_token;
-
-  if (!token) {
-    console.error("NO TOKEN → Gmail not connected properly in Reply Agent");
-    return "Gmail not connected. Skipping reply detection.";
+  if (!userObj) {
+    console.error("NO USER SESSION → Skipping reply detection.");
+    return "No user session. Skipping reply detection.";
   }
 
-  // In a real app, we poll https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread
-  // For this OS, we simulate the "intelligence" of detection by fetching sent logs
-  
-  const { data: sentLogs } = await supabase
-    .from('outreach_logs')
-    .select('*')
-    .eq('status', 'sent');
+  // Fetch pending sent logs from outreach_logs in Firestore
+  let sentLogs: any[] = [];
+  try {
+    const q = query(collection(db, 'outreach_logs'), where('status', '==', 'sent'));
+    const snap = await getDocs(q);
+    sentLogs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.warn("Could not fetch outreach_logs from Firestore:", error);
+  }
 
-  if (!sentLogs) return "No pending replies to check.";
+  if (!sentLogs || sentLogs.length === 0) return "No pending replies to check.";
 
   let detections = 0;
 
@@ -54,29 +43,32 @@ export async function runReplyAgent() {
           Return ONLY the classification string.
         `;
 
-        const response = await getAI().models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt
-        });
-
-        const intent = response.text?.trim() || "NEUTRAL";
+        const intent = await executeAITask({
+          agentName: "Reply-Intent-Classifier",
+          prompt,
+          metadata: { outreachLogId: log.id, recipient: log.email }
+        }).then(res => res.trim() || "NEUTRAL");
 
         if (intent === 'INTERESTED') {
-          await supabase.from('outreach_logs').update({
+          await updateDoc(doc(db, 'outreach_logs', log.id), {
             status: 'replied',
             replied_at: new Date().toISOString()
-          }).eq('id', log.id);
+          });
 
           // Auto-move candidate to next stage based on AI detection
-          await supabase.from('candidates').update({
-            stage: 'interview',
-            notes: `[AI AUTONOMOUS] Reply detected: "${intent}". Moving to active interview path.`
-          }).eq('id', log.candidate_id);
+          const candidateId = log.candidateId || log.candidate_id;
+          if (candidateId) {
+            await CandidateRepository.update(candidateId, {
+              stage: 'interview',
+              notes: `[AI AUTONOMOUS] Reply detected: "${intent}". Moving to active interview path.`
+            });
+          }
 
-          await supabase.from('agent_logs').insert({
+          await addDoc(collection(db, 'agent_logs'), {
             type: 'reply',
             message: `AI detected INTERESTED intent from ${log.email}. Auto-updated candidate stage.`,
-            level: 'success'
+            level: 'success',
+            createdAt: new Date().toISOString()
           });
           
           detections++;

@@ -1,7 +1,6 @@
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from './config';
 import { eventService } from './eventService';
-import { supabase } from '@/lib/supabase';
 
 export const syncService = {
   // Appends to immutable Company Ledger

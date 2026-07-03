@@ -2,7 +2,8 @@ import { runDecisionAgent } from '@/services/intelligenceService';
 import { runOutreachAgent } from './outreachAgent';
 import { runReplyAgent } from './replyAgent';
 import { runLearningAgent } from './learningAgent';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/services/firebase/config';
+import { addDoc, collection } from 'firebase/firestore';
 
 /**
  * Crew: The multi-agent orchestrator
@@ -10,15 +11,12 @@ import { supabase } from '@/lib/supabase';
 export async function runCrew() {
   const startTime = Date.now();
   
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log("CREW SESSION:", session);
-  console.log("CREW GMAIL TOKEN:", session?.provider_token);
-
-  await supabase.from('agent_logs').insert({
+  await addDoc(collection(db, 'agent_logs'), {
     type: 'crew',
     message: 'Autonomous Crew mission initiated.',
     level: 'info',
-    status: 'running'
+    status: 'running',
+    createdAt: new Date().toISOString()
   });
 
   try {
@@ -36,22 +34,24 @@ export async function runCrew() {
 
     const duration = Date.now() - startTime;
     
-    await supabase.from('agent_logs').insert({
+    await addDoc(collection(db, 'agent_logs'), {
       type: 'crew',
       message: `Mission Complete. Decisions: ${decisionRes} | Responses: ${replyRes} | Knowledge: ${learningRes}`,
       level: 'success',
       status: 'finished',
-      metadata: { duration_ms: duration }
+      metadata: { duration_ms: duration },
+      createdAt: new Date().toISOString()
     });
 
     return "All agents successfully completed their cycles.";
   } catch (err: any) {
     console.error('Crew Failure:', err);
-    await supabase.from('agent_logs').insert({
+    await addDoc(collection(db, 'agent_logs'), {
       type: 'crew',
       message: `Mission aborted: ${err.message}`,
       level: 'error',
-      status: 'failed'
+      status: 'failed',
+      createdAt: new Date().toISOString()
     });
     throw err;
   }

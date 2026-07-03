@@ -9,8 +9,7 @@ import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "@/services/firebase/config";
+import { SystemRepository } from "@/repositories/SystemRepository";
 import {
   Briefcase,
   Users,
@@ -52,35 +51,41 @@ export default function Dashboard() {
     });
 
     // 1. Listen to requirements_private
-    const unsubReqs = onSnapshot(collection(db, "requirements_private"), (snap) => {
-      setFirestoreCounts(p => ({ ...p, requirements: snap.size }));
-    }, (err) => console.log("requirements_private listener skipped:", err.message));
+    const unsubReqs = SystemRepository.subscribeToCollectionSize(
+      "requirements_private",
+      (size) => setFirestoreCounts((p) => ({ ...p, requirements: size })),
+      (err) => console.log("requirements_private listener skipped:", err.message)
+    );
 
     // 2. Listen to candidatePool
-    const unsubCands = onSnapshot(collection(db, "candidatePool"), (snap) => {
-      setFirestoreCounts(p => ({ ...p, candidates: snap.size }));
-    }, (err) => console.log("candidatePool listener skipped:", err.message));
+    const unsubCands = SystemRepository.subscribeToCollectionSize(
+      "candidatePool",
+      (size) => setFirestoreCounts((p) => ({ ...p, candidates: size })),
+      (err) => console.log("candidatePool listener skipped:", err.message)
+    );
 
     // 3. Listen to submissions
-    const unsubSubs = onSnapshot(collection(db, "submissions"), (snap) => {
-      setFirestoreCounts(p => ({ ...p, submissions: snap.size }));
-    }, (err) => console.log("submissions listener skipped:", err.message));
+    const unsubSubs = SystemRepository.subscribeToCollectionSize(
+      "submissions",
+      (size) => setFirestoreCounts((p) => ({ ...p, submissions: size })),
+      (err) => console.log("submissions listener skipped:", err.message)
+    );
 
-    // 4. Listen to interviews (or from fallback collection)
-    const unsubInterviews = onSnapshot(collection(db, "interviews"), (snap) => {
-      setFirestoreCounts(p => ({ ...p, interviews: snap.size }));
-    }, (err) => console.log("interviews listener skipped:", err.message));
+    // 4. Listen to interviews
+    const unsubInterviews = SystemRepository.subscribeToCollectionSize(
+      "interviews",
+      (size) => setFirestoreCounts((p) => ({ ...p, interviews: size })),
+      (err) => console.log("interviews listener skipped:", err.message)
+    );
 
     // 5. Listen to system_events (immutable Company Ledger)
-    const unsubEvents = onSnapshot(collection(db, "system_events"), (snap) => {
-      setFirestoreCounts(p => ({ ...p, systemEvents: snap.size }));
-      const events: any[] = [];
-      snap.forEach(doc => {
-        events.push({ id: doc.id, ...doc.data() });
-      });
-      events.sort((a, b) => new Date(b.timestamp || b.createdAt || 0).getTime() - new Date(a.timestamp || a.createdAt || 0).getTime());
-      setSystemEvents(events.slice(0, 5));
-    }, (err) => console.log("system_events listener skipped:", err.message));
+    const unsubEvents = SystemRepository.subscribeToSystemEvents(
+      (events) => {
+        setFirestoreCounts((p) => ({ ...p, systemEvents: events.length }));
+        setSystemEvents(events.slice(0, 5));
+      },
+      (err) => console.log("system_events listener skipped:", err.message)
+    );
 
     return () => {
       unsubscribe();

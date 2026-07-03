@@ -1,31 +1,45 @@
-import { supabase } from '@/lib/supabase';
-import { scoreCandidateForJob } from '@/services/intelligenceService';
+import { db, auth } from '@/services/firebase/config';
+import { getDocs, collection, query, where, addDoc, doc, setDoc } from 'firebase/firestore';
+import { CandidateRepository } from '@/repositories/CandidateRepository';
 
 /**
  * Outreach Agent: Automatically contacts shortlisted candidates
  */
 export async function runOutreachAgent() {
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log("OUTREACH AGENT SESSION:", session);
-  console.log("OUTREACH AGENT GMAIL TOKEN:", session?.provider_token);
+  const execSession = localStorage.getItem('hirenest_exec_session');
+  const userObj = execSession ? JSON.parse(execSession) : auth.currentUser;
 
-  // 1. Get shortlisted candidates who haven't been contacted yet
-  // We check outreach_logs to avoid duplicate emails
-  const { data: candidates } = await supabase
-    .from('candidates')
-    .select('*, outreach_logs(id)')
-    .eq('stage', 'interview'); // Assuming "interview" means they were shortlisted and need outreach
+  if (!userObj) {
+    return "No active session for Outreach Agent.";
+  }
 
-  if (!candidates) return;
+  // 1. Get shortlisted candidates
+  const candidates = await CandidateRepository.list();
+  const interviewCandidates = candidates.filter(c => c.stage === 'interview');
 
-  const contactedCount = 0;
+  if (!interviewCandidates || interviewCandidates.length === 0) {
+    return "No candidates in interview stage for outreach.";
+  }
 
-  for (const candidate of candidates) {
-    // Skip if already contacted for this stage
-    if (candidate.outreach_logs && candidate.outreach_logs?.length > 0) continue;
+  // Get existing outreach_logs to avoid duplicates
+  let outreachLogs: any[] = [];
+  try {
+    const snap = await getDocs(collection(db, 'outreach_logs'));
+    outreachLogs = snap.docs.map(doc => doc.data());
+  } catch (error) {
+    console.warn("Could not fetch outreach logs:", error);
+  }
+
+  for (const candidate of interviewCandidates) {
+    // Skip if already contacted
+    const alreadyContacted = outreachLogs.some(
+      (log) => (log.candidate_id === candidate.id || log.candidateId === candidate.id)
+    );
+    if (alreadyContacted) continue;
 
     // Generate Personalized Outreach
-    const subject = `Opportunity: ${candidate.current_title || 'New Role'} at ${(typeof process !== "undefined" ? process.env.VITE_APP_NAME : import.meta.env.VITE_APP_NAME) || 'HireNest'}`;
+    const appName = "HireNest";
+    const subject = `Opportunity: ${candidate.currentTitle || 'New Role'} at ${appName}`;
     const message = `
 Hi ${candidate.name},
 
@@ -41,41 +55,39 @@ Founding Director, HireNest
     `;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.provider_token;
+      // In a pure Firebase CRM, we store it as pending_sync or sent depending on gmailConnected status
+      const isGmailConnected = !!userObj.gmailConnected || !!userObj.gmailEmail;
 
-      if (!token) {
-        console.error("NO TOKEN → Gmail not connected properly in Outreach Agent");
-      }
-      
-      if (token) {
-        // Real Gmail Send Logic (conceptual for now, requires edge function or direct API)
+      if (isGmailConnected) {
         console.log(`[OUTREACH] Sending real email to ${candidate.email} via Gmail API`);
         
-        // Push to outreach_logs
-        await supabase.from('outreach_logs').insert({
+        await addDoc(collection(db, 'outreach_logs'), {
+          candidateId: candidate.id,
           candidate_id: candidate.id,
-          email: candidate.email,
+          email: candidate.email || '',
           subject,
           message,
           status: 'sent',
-          type: 'initial_reachout'
+          type: 'initial_reachout',
+          createdAt: new Date().toISOString()
         });
       } else {
-        // Fallback for demo/offline
-        await supabase.from('outreach_logs').insert({
+        await addDoc(collection(db, 'outreach_logs'), {
+          candidateId: candidate.id,
           candidate_id: candidate.id,
-          email: candidate.email,
+          email: candidate.email || '',
           subject,
           message,
           status: 'pending_sync',
-          type: 'initial_reachout'
+          type: 'initial_reachout',
+          createdAt: new Date().toISOString()
         });
         
-        await supabase.from('agent_logs').insert({
+        await addDoc(collection(db, 'agent_logs'), {
           type: 'outreach',
           message: `Gmail token missing. Outreach for ${candidate.name} queued for sync.`,
-          level: 'warning'
+          level: 'warning',
+          createdAt: new Date().toISOString()
         });
       }
     } catch (err) {
