@@ -97,6 +97,10 @@ export default async function handler(req: Request, res: Response) {
     res.status(200).json({ firebaseToken });
   } catch (error: any) {
     console.error("[FIREBASE TOKEN ERRROR] Failed creating Firebase custom token:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
+    let errorMsg = error.message || "Internal Server Error";
+    if (errorMsg.includes("iam.googleapis.com")) {
+      errorMsg = "Firebase Admin missing 'Service Account Token Creator' role, or FIREBASE_PRIVATE_KEY is not configured properly in .env.";
+    }
+    res.status(500).json({ error: errorMsg });
   }
 }

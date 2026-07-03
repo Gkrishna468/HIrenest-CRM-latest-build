@@ -37,6 +37,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         const { firebaseToken } = await response.json();
         await signInWithCustomToken(auth, firebaseToken);
+      } else {
+        const errorText = await response.text();
+        console.error("Firebase token fetch failed:", response.status, errorText);
       }
     } catch (error) {
       console.error('Firebase custom token auth failed:', error);

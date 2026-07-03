@@ -19,7 +19,15 @@ export async function calculateAdjustedBudget(companyId: string, budget: number)
  * BROADCAST JOB: Makes job visible to vendors
  */
 export async function broadcastJob(jobId: string) {
-  const { data: job } = await supabase.from('jobs').select('*, company:companies(name)').eq('id', jobId).single();
+  if (!jobId) {
+    console.error("broadcastJob called with empty jobId");
+    return;
+  }
+  const { data: job, error: jobError } = await supabase.from('jobs').select('*, company:companies(name)').eq('id', jobId).single();
+  if (jobError) {
+    console.error("broadcastJob: Error fetching job:", jobError);
+    return;
+  }
 
   const { error } = await supabase
     .from('jobs')

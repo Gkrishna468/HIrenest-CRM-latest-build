@@ -76,7 +76,9 @@ export async function processInteraction(text: string, context?: any, emailId?: 
     });
 
     if (!response.ok) {
-      throw new Error('Failed to reach AI classification service');
+      const errorText = await response.text();
+      console.error("AI service error:", response.status, errorText);
+      throw new Error(`Failed to reach AI classification service: ${response.status} ${errorText}`);
     }
 
     const insight = await response.json();

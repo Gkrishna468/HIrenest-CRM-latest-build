@@ -132,6 +132,8 @@ export interface Candidate {
   resumeUrl?: string;
   notes?: string;
   aiMatchScore?: number;
+  assignedBdm?: string;
+  fraudDetected?: boolean;
   userId?: string;
   companyId?: string;
   createdAt: string;

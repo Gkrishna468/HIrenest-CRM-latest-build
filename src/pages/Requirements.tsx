@@ -655,10 +655,78 @@ export default function Jobs() {
                     >
                       <Zap className="w-4 h-4 fill-emerald-100" /> Trigger AI Broadcast Agent
                     </button>
-                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2.5 px-5 rounded-xl border border-emerald-200 flex items-center gap-2 transition-colors">
+                    <button 
+                      onClick={() => {
+                        const sList = Array.isArray(selectedJob.skills) ? selectedJob.skills : (selectedJob.skills ? selectedJob.skills.split(',') : []);
+                        const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
+                        const text = `🚀 Immediate Hiring | ${selectedJob.title}
+📍 Location: ${selectedJob.location || 'Remote'}
+💼 Employment: ${selectedJob.type || 'Full-time'}
+💰 Salary: ${selectedJob.budget || '₹12–15 LPA'}
+👥 Openings: 5
+
+Skills Required:
+${fSkills || '• Core developer competencies'}
+
+Experience:
+${selectedJob.experienceRequired || '3-5 Years'}
+
+Responsibilities:
+• Design modular interfaces and maintain clean technical standards
+• Collaborate closely with client business coordinators
+
+🎯 Candidates can be on your payroll or HireNest Workforce payroll.
+
+📄 Full Job Description:
+${window.location.origin}/#/apply/${selectedJob.id}?src=li
+
+📤 Vendors:
+Submit your candidate here:
+${window.location.origin}/#/apply/${selectedJob.id}?type=vendor
+
+Powered by HireNestOS AI`;
+                        navigator.clipboard.writeText(text);
+                        toast.success('Generated LinkedIn formatted post copied to clipboard!');
+                      }}
+                      className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2.5 px-5 rounded-xl border border-emerald-200 flex items-center gap-2 transition-colors"
+                    >
                       <Globe className="w-4 h-4" /> Generate LinkedIn Post
                     </button>
-                    <button className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2.5 px-5 rounded-xl border border-emerald-200 flex items-center gap-2 transition-colors">
+                    <button 
+                      onClick={() => {
+                        const sList = Array.isArray(selectedJob.skills) ? selectedJob.skills : (selectedJob.skills ? selectedJob.skills.split(',') : []);
+                        const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
+                        const text = `🚀 Immediate Hiring | ${selectedJob.title}
+📍 Location: ${selectedJob.location || 'Remote'}
+💼 Employment: ${selectedJob.type || 'Full-time'}
+💰 Salary: ${selectedJob.budget || '₹12–15 LPA'}
+👥 Openings: 5
+
+Skills Required:
+${fSkills || '• Core developer competencies'}
+
+Experience:
+${selectedJob.experienceRequired || '3-5 Years'}
+
+Responsibilities:
+• Design modular interfaces and maintain clean technical standards
+• Collaborate closely with client business coordinators
+
+🎯 Candidates can be on your payroll or HireNest Workforce payroll.
+
+📄 Full Job Description:
+${window.location.origin}/#/apply/${selectedJob.id}?src=wa
+
+📤 Vendors:
+Submit your candidate here:
+${window.location.origin}/#/apply/${selectedJob.id}?type=vendor
+
+Powered by HireNestOS AI`;
+                        navigator.clipboard.writeText(text);
+                        toast.success('Formatted vendor broadcast text copied!');
+                      }}
+                      className="bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2.5 px-5 rounded-xl border border-emerald-200 flex items-center gap-2 transition-colors"
+                    >
                       <FileText className="w-4 h-4" /> Copy Text Form
                     </button>
                   </div>
@@ -801,26 +869,42 @@ export default function Jobs() {
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                       Vendor Broadcast Engine
                     </h3>
-                    <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-600 mb-2 border border-slate-200">
-                      Requirement: {selectedJob.title}
+                    <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-600 mb-2 border border-slate-200 max-h-48 overflow-y-auto">
+                      🚀 Immediate Hiring | {selectedJob.title}
                       <br />
-                      Location: {selectedJob.location}
+                      📍 Location: {selectedJob.location}
+                      <br />
+                      💼 Employment: {selectedJob.type}
+                      <br />
+                      💰 Salary: {selectedJob.budget || '₹12–15 LPA'}
                       <br />
                       Experience: {selectedJob.experienceRequired || '3-5 Years'}
-                      <br />
-                      Employment Type: {selectedJob.type}
-                      <br />
-                      <br />
-                      Interested vendors may share immediate joiners and active candidates.
-                      <br />
-                      HireNest Workforce Pvt Ltd
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          const text = encodeURIComponent(
-                            `Requirement: ${selectedJob.title}\nLocation: ${selectedJob.location}\nExperience: ${selectedJob.experienceRequired || '3-5 Years'}\nEmployment Type: ${selectedJob.type}\n\nInterested vendors may share immediate joiners and active candidates.\nHireNest Workforce Pvt Ltd\nDetails: ${window.location.origin}/#/apply/${selectedJob.id}?src=wa`,
-                          );
+                          const sList = Array.isArray(selectedJob.skills) ? selectedJob.skills : (selectedJob.skills ? selectedJob.skills.split(',') : []);
+                          const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
+                          const text = encodeURIComponent(`🚀 Immediate Hiring | ${selectedJob.title}
+📍 Location: ${selectedJob.location || 'Remote'}
+💼 Employment: ${selectedJob.type || 'Full-time'}
+💰 Salary: ${selectedJob.budget || '₹12–15 LPA'}
+👥 Openings: 5
+
+Skills Required:
+${fSkills || '• Core developer competencies'}
+
+Experience:
+${selectedJob.experienceRequired || '3-5 Years'}
+
+🎯 Candidates can be on your payroll or HireNest Workforce payroll.
+
+📄 Full Job Description:
+${window.location.origin}/#/apply/${selectedJob.id}?src=wa
+
+📤 Vendors:
+Submit your candidate here:
+${window.location.origin}/#/apply/${selectedJob.id}?type=vendor`);
                           window.open(`https://wa.me/?text=${text}`, "_blank");
                         }}
                         className="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition-all font-bold text-sm flex justify-center items-center gap-2"
@@ -844,13 +928,34 @@ export default function Jobs() {
                     </div>
                     <button
                       onClick={() => {
-                        const url = `${window.location.origin}/#/apply/${selectedJob.id}`;
-                        navigator.clipboard.writeText(url);
-                        toast.success("Apply link copied to clipboard");
+                        const sList = Array.isArray(selectedJob.skills) ? selectedJob.skills : (selectedJob.skills ? selectedJob.skills.split(',') : []);
+                        const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
+                        const text = `🚀 Immediate Hiring | ${selectedJob.title}
+📍 Location: ${selectedJob.location || 'Remote'}
+💼 Employment: ${selectedJob.type || 'Full-time'}
+💰 Salary: ${selectedJob.budget || '₹12–15 LPA'}
+👥 Openings: 5
+
+Skills Required:
+${fSkills || '• Core developer competencies'}
+
+Experience:
+${selectedJob.experienceRequired || '3-5 Years'}
+
+🎯 Candidates can be on your payroll or HireNest Workforce payroll.
+
+📄 Full Job Description:
+${window.location.origin}/#/apply/${selectedJob.id}?src=copy
+
+📤 Vendors:
+Submit your candidate here:
+${window.location.origin}/#/apply/${selectedJob.id}?type=vendor`;
+                        navigator.clipboard.writeText(text);
+                        toast.success("Complete formatted post copied to clipboard!");
                       }}
                       className="w-full py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-100 transition-all font-bold text-sm flex justify-center items-center gap-2"
                     >
-                      <Share2 className="w-4 h-4" /> Copy Apply Link
+                      <Share2 className="w-4 h-4" /> Copy Complete Post
                     </button>
                   </div>
                 </div>
