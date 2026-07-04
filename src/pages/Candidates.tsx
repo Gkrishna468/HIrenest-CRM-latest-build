@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { safeArray } from "@/utils/safe";
 
 export default function Candidates() {
-  const { candidates, jobs } = useData();
+  const { candidates, jobs, vendors, clients } = useData();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStage, setFilterStage] = useState<string>("all");
@@ -140,7 +140,7 @@ export default function Candidates() {
                             className="scale-90 origin-left"
                           />
                           <span className="text-xs text-slate-500">
-                            {cand.vendorName || "Direct Applicant"}
+                            {cand.vendorName || (cand.vendorId ? vendors.find(v => v.id === cand.vendorId)?.name : null) || "Direct Applicant"}
                           </span>
                         </div>
                       </div>

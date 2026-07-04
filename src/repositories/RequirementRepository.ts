@@ -106,80 +106,10 @@ export const RequirementRepository = {
         } as any;
       });
 
-      const supabaseJobs: Job[] = [
-        {
-          id: 'supa-req-1',
-          title: 'Senior Frontend Engineer',
-          description: 'React, TypeScript, Tailwind',
-          location: 'Remote',
-          type: 'FTE',
-          budget: 2500000,
-          status: 'open',
-          approvalStatus: 'approved',
-          clientName: 'Legacy Tech Corp',
-          skills: ['React', 'TypeScript'],
-          createdAt: new Date().toISOString(),
-          source: 'crm'
-        } as any,
-        {
-          id: 'supa-req-2',
-          title: 'Backend Node Developer',
-          description: 'Node.js, Express, Postgres',
-          location: 'Bangalore',
-          type: 'FTE',
-          budget: 1800000,
-          status: 'open',
-          approvalStatus: 'approved',
-          clientName: 'Fintech Solutions',
-          skills: ['Node.js', 'PostgreSQL'],
-          createdAt: new Date().toISOString(),
-          source: 'crm'
-        } as any,
-        {
-          id: 'supa-req-3',
-          title: 'Product Manager',
-          description: 'B2B SaaS Experience',
-          location: 'Mumbai',
-          type: 'FTE',
-          budget: 3500000,
-          status: 'open',
-          approvalStatus: 'approved',
-          clientName: 'Global SaaS Inc',
-          skills: ['Product Strategy', 'Agile'],
-          createdAt: new Date().toISOString(),
-          source: 'crm'
-        } as any,
-        {
-          id: 'supa-req-4',
-          title: 'DevOps Engineer',
-          description: 'AWS, Kubernetes, CI/CD',
-          location: 'Pune',
-          type: 'C2H',
-          budget: 2000000,
-          status: 'open',
-          approvalStatus: 'approved',
-          clientName: 'Cloud Native LLC',
-          skills: ['AWS', 'Kubernetes'],
-          createdAt: new Date().toISOString(),
-          source: 'crm'
-        } as any,
-        {
-          id: 'supa-req-5',
-          title: 'UI/UX Designer',
-          description: 'Figma, Design Systems',
-          location: 'Delhi',
-          type: 'FTE',
-          budget: 1500000,
-          status: 'open',
-          approvalStatus: 'approved',
-          clientName: 'Creative Agency',
-          skills: ['Figma', 'Prototyping'],
-          createdAt: new Date().toISOString(),
-          source: 'crm'
-        } as any
-      ];
+      const existingIds = new Set(firebaseJobs.map((j: any) => j.id));
+      const newPublicJobs = publicJobs.filter((j: any) => !existingIds.has(j.id));
 
-      return [...supabaseJobs, ...publicJobs, ...firebaseJobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return [...newPublicJobs, ...firebaseJobs].sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'requirements');
       return [];

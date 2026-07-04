@@ -1,22 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Plus, Search, Building2, Mail, Phone, MapPin, MoreVertical } from 'lucide-react';
 import { SourceBadge } from '@/components/SourceBadge';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/services/firebase/config';
 
-const MOCK_CONTACTS = [
-  { id: 1, name: 'Jane Doe', title: 'Director of Engineering', company: 'Legacy Tech Corp', email: 'jane.doe@legacytech.com', phone: '+91 9876543210', location: 'Remote', source: 'crm' },
-  { id: 2, name: 'John Smith', title: 'VP of Talent', company: 'Fintech Solutions', email: 'john.smith@fintechsols.in', phone: '+91 9876543211', location: 'Bangalore', source: 'crm' },
-  { id: 3, name: 'Alice Johnson', title: 'HR Manager', company: 'Global SaaS Inc', email: 'alice.j@globalsaas.io', phone: '+91 9123456781', location: 'Mumbai', source: 'crm' },
-  { id: 4, name: 'Bob Williams', title: 'CTO', company: 'Cloud Native LLC', email: 'bob.w@cloudnative.dev', phone: '+91 9123456782', location: 'Pune', source: 'crm' },
-  { id: 5, name: 'Charlie Brown', title: 'Lead Designer', company: 'Creative Agency', email: 'charlie.b@creativeagency.co', phone: '+91 9123456783', location: 'Delhi', source: 'crm' },
-  { id: 6, name: 'Diana Prince', title: 'Head of Recruitment', company: 'Global Tech Staffing', email: 'diana.p@globaltech.com', phone: '+91 9123456789', location: 'Pune', source: 'crm' },
-  { id: 7, name: 'Evan Davis', title: 'Vendor Manager', company: 'Cloud Experts Recruitment', email: 'evan.d@cloudexperts.io', phone: '+91 9123456780', location: 'Hyderabad', source: 'crm' },
-  { id: 8, name: 'Fiona Garcia', title: 'Talent Acquisition Specialist', company: 'Cloud Native LLC', email: 'fiona.g@cloudnative.dev', phone: '+91 9123456784', location: 'Pune', source: 'crm' },
-];
+interface Contact {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  email: string;
+  phone: string;
+  location: string;
+  source: 'crm' | 'os';
+}
 
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredContacts = MOCK_CONTACTS.filter(c => 
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const fetchedContacts: Contact[] = snap.docs.map(d => {
+          const data = d.data();
+          let name = data.name || data.email?.split('@')[0] || 'Unknown';
+          return {
+            id: d.id,
+            name,
+            title: data.role || 'User',
+            company: data.companyName || data.organizationId || 'N/A',
+            email: data.email || '',
+            phone: data.phone || '',
+            location: 'Remote',
+            source: 'os'
+          };
+        });
+        setContacts(fetchedContacts);
+      } catch (error) {
+        console.error('Error fetching contacts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchContacts();
+  }, []);
+
+  const filteredContacts = contacts.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -49,7 +81,11 @@ export default function Contacts() {
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 pb-8">
-        {filteredContacts.length > 0 ? (
+        {loading ? (
+           <div className="flex justify-center items-center h-32">
+             <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+           </div>
+        ) : filteredContacts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredContacts.map(contact => (
               <div key={contact.id} className="skeuo-card p-6 shadow-sm hover:shadow-md transition-all group">
@@ -58,6 +94,7 @@ export default function Contacts() {
                     {contact.name.substring(0, 2)}
                   </div>
                   <button className="text-slate-300 hover:text-slate-600 transition-colors">
+
                     <MoreVertical className="w-5 h-5" />
                   </button>
                 </div>

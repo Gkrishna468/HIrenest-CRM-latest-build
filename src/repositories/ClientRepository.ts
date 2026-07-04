@@ -60,18 +60,39 @@ export const ClientRepository = {
         };
       });
 
+      // Extract organization names from users
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const orgNames = new Map<string, string>();
+      usersSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data.organizationId) {
+          let name = data.companyName;
+          if (!name && data.email) {
+             const domain = data.email.split('@')[1];
+             if (domain && domain !== 'gmail.com' && domain !== 'yahoo.com' && domain !== 'outlook.com') {
+               name = domain.split('.')[0];
+               name = name.charAt(0).toUpperCase() + name.slice(1);
+             }
+          }
+          if (name) orgNames.set(data.organizationId, name);
+        }
+      });
+
       // Extract unique clients from requirements (OS data)
       const reqsSnap = await getDocs(collection(db, 'requirements'));
       const reqsClientsMap = new Map<string, Client>();
       reqsSnap.docs.forEach(d => {
         const data = d.data();
         const clientId = data.clientId || data.client_id;
-        const clientName = data.clientName || data.client_name;
+        let clientName = data.clientName || data.client_name;
+        if (!clientName && clientId) {
+          clientName = orgNames.get(clientId) || `Client ${clientId.slice(-5)}`;
+        }
         if (clientId && !reqsClientsMap.has(clientId)) {
           reqsClientsMap.set(clientId, {
             id: clientId,
-            company: clientName || clientId,
-            name: clientName || clientId,
+            company: clientName,
+            name: clientName,
             email: '',
             phone: '',
             location: '',
@@ -102,12 +123,15 @@ export const ClientRepository = {
       pubReqsSnap.docs.forEach(d => {
         const data = d.data();
         const clientId = data.clientId || data.client_id;
-        const clientName = data.clientName || data.client_name;
+        let clientName = data.clientName || data.client_name;
+        if (!clientName && clientId) {
+          clientName = orgNames.get(clientId) || `Client ${clientId.slice(-5)}`;
+        }
         if (clientId && !pubClientsMap.has(clientId)) {
           pubClientsMap.set(clientId, {
             id: clientId,
-            company: clientName || clientId,
-            name: clientName || clientId,
+            company: clientName,
+            name: clientName,
             email: '',
             phone: '',
             location: '',
@@ -126,50 +150,12 @@ export const ClientRepository = {
         }
       });
 
-      const extractedPubClients = Array.from(pubClientsMap.values());
+      const extractedPubClients = Array.from(pubClientsMap.values()) as Client[];
 
-      const supabaseClients: Client[] = [
-        {
-          id: 'supa-cli-1',
-          company: 'Legacy Tech Corp',
-          name: 'Legacy Tech Corp',
-          email: 'hello@legacytech.com',
-          phone: '+91 9876543210',
-          location: 'Remote',
-          industry: 'Technology',
-          budget: 'High',
-          contactPerson: 'Jane Doe',
-          website: 'https://legacytech.com',
-          clientCode: 'LTC-001',
-          notes: 'Migrated from Supabase',
-          userId: '',
-          companyId: 'supa-comp-1',
-          createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-          source: 'crm'
-        } as any,
-        {
-          id: 'supa-cli-2',
-          company: 'Fintech Solutions',
-          name: 'Fintech Solutions',
-          email: 'contact@fintechsols.in',
-          phone: '+91 9876543211',
-          location: 'Bangalore',
-          industry: 'Finance',
-          budget: 'Medium',
-          contactPerson: 'John Smith',
-          website: 'https://fintechsols.in',
-          clientCode: 'FTS-002',
-          notes: 'Migrated from Supabase',
-          userId: '',
-          companyId: 'supa-comp-2',
-          createdAt: new Date(Date.now() - 86400000 * 20).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000 * 20).toISOString(),
-          source: 'crm'
-        } as any,
-      ];
+      const finalExistingIds = new Set(firebaseClients.map(c => c.id));
+      const newPubExtracted = extractedPubClients.filter(c => !finalExistingIds.has(c.id));
 
-      return [...supabaseClients, ...extractedPubClients, ...firebaseClients].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return [...newPubExtracted, ...firebaseClients].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'clients');
       return [];

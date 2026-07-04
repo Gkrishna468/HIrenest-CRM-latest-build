@@ -58,6 +58,24 @@ export const VendorRepository = {
         };
       });
 
+      // Extract organization names from users
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const orgNames = new Map<string, string>();
+      usersSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data.organizationId) {
+          let name = data.companyName;
+          if (!name && data.email) {
+             const domain = data.email.split('@')[1];
+             if (domain && domain !== 'gmail.com' && domain !== 'yahoo.com' && domain !== 'outlook.com') {
+               name = domain.split('.')[0];
+               name = name.charAt(0).toUpperCase() + name.slice(1);
+             }
+          }
+          if (name) orgNames.set(data.organizationId, name);
+        }
+      });
+
       // Extract unique vendors from candidates (OS data)
       const candsSnap = await getDocs(collection(db, 'candidates'));
       const reqsVendorsMap = new Map<string, Vendor>();
@@ -65,11 +83,12 @@ export const VendorRepository = {
         const data = d.data();
         const vendorId = data.vendorId || data.vendor_id;
         if (vendorId && !reqsVendorsMap.has(vendorId)) {
+          const vendorName = orgNames.get(vendorId) || `Vendor ${vendorId.slice(-6)}`;
           reqsVendorsMap.set(vendorId, {
             id: vendorId,
-            name: `Vendor ${vendorId.slice(-6)}`,
+            name: vendorName,
             type: 'vendor',
-            company: `Vendor ${vendorId.slice(-6)} Inc`,
+            company: vendorName,
             email: '',
             phone: '',
             location: '',
@@ -91,46 +110,7 @@ export const VendorRepository = {
       const newExtracted = extractedVendors.filter(c => !existingIds.has(c.id));
       firebaseVendors = [...firebaseVendors, ...newExtracted];
 
-      const supabaseVendors: Vendor[] = [
-        {
-          id: 'supa-ven-1',
-          name: 'Global Tech Staffing',
-          type: 'vendor',
-          company: 'Global Tech Staffing',
-          email: 'hello@globaltech.com',
-          phone: '+91 9123456789',
-          location: 'Pune',
-          specialization: ['IT', 'Engineering'],
-          isRecruiter: false,
-          recruiterCompany: '',
-          vendorCode: 'GTS-001',
-          userId: '',
-          companyId: 'supa-comp-3',
-          createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-          source: 'crm'
-        } as any,
-        {
-          id: 'supa-ven-2',
-          name: 'Cloud Experts Recruitment',
-          type: 'vendor',
-          company: 'Cloud Experts Recruitment',
-          email: 'partners@cloudexperts.io',
-          phone: '+91 9123456780',
-          location: 'Hyderabad',
-          specialization: ['Cloud', 'DevOps'],
-          isRecruiter: true,
-          recruiterCompany: '',
-          vendorCode: 'CER-002',
-          userId: '',
-          companyId: 'supa-comp-4',
-          createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000 * 15).toISOString(),
-          source: 'crm'
-        } as any,
-      ];
-
-      return [...supabaseVendors, ...firebaseVendors].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return firebaseVendors.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'vendors');
       return [];

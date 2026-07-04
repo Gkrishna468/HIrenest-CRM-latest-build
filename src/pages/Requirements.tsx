@@ -41,7 +41,7 @@ import { broadcastJob } from "@/services/marketplaceService";
 import { SourceBadge } from "@/components/SourceBadge";
 
 export default function Jobs() {
-  const { jobs, loading, approveJobWithBudget, addJob, updateJob, candidates, deals } =
+  const { jobs, loading, approveJobWithBudget, addJob, updateJob, candidates, deals, clients } =
     useData();
   const { user, apiFetch } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
@@ -346,7 +346,7 @@ export default function Jobs() {
                   <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
                     <Building2 className="w-4 h-4" />
                     <span className="font-medium text-slate-700">
-                      {job.clientName || "Direct Hire"}
+                      {job.clientName || (job.clientId ? clients.find(c => c.id === job.clientId)?.name : null) || "Direct Hire"}
                     </span>
                     <span className="text-slate-300">•</span>
                     <MapPin className="w-4 h-4" />
@@ -901,7 +901,7 @@ export default function Jobs() {
                   </div>
                   <div>
                     <span className="text-[9px] text-slate-500 font-bold uppercase block">Client Name</span>
-                    <span className="text-sm font-bold text-slate-800">{selectedJob.clientName}</span>
+                    <span className="text-sm font-bold text-slate-800">{selectedJob.clientName || (selectedJob.clientId ? clients.find(c => c.id === selectedJob.clientId)?.name : null)}</span>
                   </div>
                   <div>
                     <span className="text-[9px] text-slate-500 font-bold uppercase block">Commercial Route</span>
@@ -1049,7 +1049,7 @@ export default function Jobs() {
                   One-Click Broadcast & Sourcing Center
                 </h2>
                 <p className="text-slate-400 text-xs mt-1">
-                  Requisition: {broadcastTargetJob.title} ({broadcastTargetJob.clientName})
+                  Requisition: {broadcastTargetJob.title} ({broadcastTargetJob.clientName || (broadcastTargetJob.clientId ? clients.find(c => c.id === broadcastTargetJob.clientId)?.name : null)})
                 </p>
               </div>
               <button
@@ -1254,7 +1254,7 @@ Powered by HireNestOS AI`;
                   </div>
                   <div className="flex flex-wrap items-center gap-3 mt-1 text-sm font-medium text-slate-500">
                     <span className="flex items-center gap-1">
-                      <Building2 className="w-4 h-4" /> {selectedJob.clientName}
+                      <Building2 className="w-4 h-4" /> {selectedJob.clientName || (selectedJob.clientId ? clients.find(c => c.id === selectedJob.clientId)?.name : null)}
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
