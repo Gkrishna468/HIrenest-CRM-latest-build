@@ -163,34 +163,62 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addVendor = async (data: Partial<Vendor>) => {
-    // Auto-generate Vendor Code if not present: VN-YYMM-RAND
+    // Auto-generate Vendor Code: HN-VND-XXXXXX sequentially
     if (!data.vendorCode) {
-      const year = new Date().getFullYear().toString().slice(-2);
-      const rand = Math.floor(Math.random() * 1000)
-        .toString()
-        .padStart(3, "0");
-      data.vendorCode = `VN-${year}${rand}`;
+      let nextNum = 1;
+      const hnCodes = vendors
+        .map(v => v.vendorCode || '')
+        .filter(code => code.startsWith('HN-VND-'));
+      if (hnCodes.length > 0) {
+        const numbers = hnCodes.map(code => parseInt(code.replace('HN-VND-', ''), 10)).filter(num => !isNaN(num));
+        if (numbers.length > 0) {
+          nextNum = Math.max(...numbers) + 1;
+        }
+      } else {
+        nextNum = vendors.length + 1;
+      }
+      const formattedNum = nextNum.toString().padStart(6, "0");
+      data.vendorCode = `HN-VND-${formattedNum}`;
     }
     if (!data.companyId && userProfile?.companyId) {
       data.companyId = userProfile.companyId;
     }
 
-    const vendorPayload = {
+    const vendorPayload: Partial<Vendor> = {
       ...data,
       source: data.source || "vendor",
       userId: user?.id || "",
+      organizationId: data.companyId || userProfile?.companyId || "ORG-y0kbdp8a0h",
+      status: "active",
+      createdBy: user?.id || "system",
     };
 
-    await VendorRepository.create(vendorPayload);
+    const createdVendor = await VendorRepository.create(vendorPayload);
 
     // Log event in Firestore
     const logId = crypto.randomUUID();
     await setDoc(doc(db, "agent_logs", logId), {
       type: "vendor",
       level: "info",
-      message: `Vendor Partner "${data.name}" onboarded to system registry.`,
+      message: `Vendor Partner "${data.name}" onboarded under permanent code ${vendorPayload.vendorCode}.`,
       createdAt: new Date().toISOString(),
       userId: user?.id || "system",
+    });
+
+    // Law 1 Ledger Event
+    await setDoc(doc(db, "system_events", crypto.randomUUID()), {
+      type: "VENDOR_CREATED",
+      message: `Vendor Partner "${data.name}" onboarded under permanent code ${vendorPayload.vendorCode}.`,
+      timestamp: new Date().toISOString(),
+      entityType: "vendor",
+      entityId: createdVendor.id,
+      role: "system",
+      data: {
+        vendorName: data.name,
+        vendorCode: vendorPayload.vendorCode,
+        organizationId: vendorPayload.organizationId,
+        status: "active"
+      }
     });
 
     await refreshAll();

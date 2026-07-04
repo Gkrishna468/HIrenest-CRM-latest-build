@@ -75,6 +75,9 @@ export interface Vendor {
   responseRate?: string;
   userId?: string;
   companyId?: string;
+  organizationId?: string;
+  status?: 'active' | 'inactive';
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,6 +195,11 @@ export interface Candidate {
   fraudDetected?: boolean;
   userId?: string;
   companyId?: string;
+  organizationId?: string;
+  ownerType?: 'Vendor' | 'Client' | 'Staffing';
+  ownerUserId?: string;
+  submittedVia?: string;
+  ownershipLocked?: boolean;
   createdAt: string;
   updatedAt: string;
 }

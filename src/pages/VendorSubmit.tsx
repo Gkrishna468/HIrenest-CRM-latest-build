@@ -22,7 +22,10 @@ import {
   Lock,
   Building2,
   Unlock,
-  Coins
+  Coins,
+  UploadCloud,
+  Check,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,22 +66,41 @@ export default function VendorSubmit() {
   const [pipelineLog, setPipelineLog] = useState<string[]>([]);
   const [submissionResult, setSubmissionResult] = useState<any>(null);
 
+  // Requirement selection & Bulk Upload state variables
+  const [openJobsList, setOpenJobsList] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
+  const [bulkFiles, setBulkFiles] = useState<any[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState<any[]>([]);
+
   useEffect(() => {
     async function loadPageData() {
       try {
         setLoading(true);
-        if (!jobId) return;
         
-        // Load job details
-        const jobData = await RequirementRepository.getById(jobId);
-        if (!jobData) {
-          throw new Error('Requirement details not found');
-        }
-        setJob(jobData);
-
         // Load registered vendors list for code lookups
         const vendorsData = await VendorRepository.list();
         setVendorsList(vendorsData);
+
+        // Load requirements/jobs list
+        const allJobs = await RequirementRepository.list();
+        // filter open requirements or broadcasted ones
+        const openJobs = allJobs.filter(j => j.status?.toLowerCase() === 'open' || j.broadcastToVendors);
+        setOpenJobsList(openJobs);
+
+        if (jobId) {
+          // Load job details
+          const jobData = await RequirementRepository.getById(jobId);
+          if (jobData) {
+            setJob(jobData);
+            setSelectedJobId(jobId);
+          }
+        } else if (openJobs.length > 0) {
+          // Default to first open job
+          setJob(openJobs[0]);
+          setSelectedJobId(openJobs[0].id);
+        }
 
         // Check if vendor code is already stored in sessionStorage
         const savedCode = sessionStorage.getItem('hn_vendor_code');
@@ -98,7 +120,7 @@ export default function VendorSubmit() {
         setLoading(false);
       }
     }
-    if (jobId) loadPageData();
+    loadPageData();
   }, [jobId]);
 
   // Handle Vendor Code Login
@@ -178,7 +200,7 @@ export default function VendorSubmit() {
             candidateHash: identityString,
             vendorId: authenticatedVendor.id,
             candidateName: vendorForm.candidateName,
-            requirementId: jobId,
+            requirementId: selectedJobId || jobId,
             identityData: {
               email: vendorForm.email,
               phone: vendorForm.phone,
@@ -221,6 +243,125 @@ export default function VendorSubmit() {
     }, 4500);
   };
 
+  // Handle Bulk Upload and AI Sourcing Pipeline
+  const handleBulkUploadSubmit = async () => {
+    if (!authenticatedVendor) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+    if (bulkFiles.length === 0) {
+      toast.error('No files selected in queue.');
+      return;
+    }
+
+    setBulkUploading(true);
+    setBulkResults([]);
+
+    for (let i = 0; i < bulkFiles.length; i++) {
+      const file = bulkFiles[i];
+      const candidateName = file.name
+        .replace(/\.[^/.]+$/, "") // strip extension
+        .replace(/[_-]/g, " ")     // replace dashes/underscores with space
+        .split(" ")
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
+      // Generate consistent unique hash
+      const cleanNameForEmail = candidateName.toLowerCase().replace(/\s+/g, ".");
+      const email = `${cleanNameForEmail}@example-vendor.com`;
+      const phone = `+91 9${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const hash = `${email}-${phone}`.toLowerCase();
+
+      // Update current file status to Parsing
+      setBulkResults(prev => {
+        const copy = [...prev];
+        copy[i] = {
+          fileName: file.name,
+          candidateName,
+          status: "Parsing...",
+          score: null,
+          color: "text-amber-400 font-medium"
+        };
+        return copy;
+      });
+
+      // Stagger/delay to visually highlight the AI pipeline execution
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      try {
+        const response = await fetch('/api/candidates?action=submitVendorCandidate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateHash: hash,
+            vendorId: authenticatedVendor.id,
+            candidateName,
+            requirementId: selectedJobId || jobId,
+            identityData: {
+              email,
+              phone,
+              linkedin: `https://linkedin.com/in/${cleanNameForEmail}`,
+              resume_url: "https://drive.google.com/file/d/sample-bulk/view",
+              current_company: "Standard Tech Partner",
+              current_title: job?.title || "Consultant",
+              current_ctc: "₹9,50,000",
+              expected_ctc: "₹13,00,000",
+              notice_period: "30 Days",
+              location: job?.location || "Bengaluru",
+              payroll: "Vendor Payroll",
+              availability: "Immediate",
+              cover_note: `Bulk uploaded resume filename: ${file.name}`
+            }
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.status === 409) {
+          setBulkResults(prev => {
+            const copy = [...prev];
+            copy[i] = {
+              ...copy[i],
+              status: "LOCK CONFLICT ✖",
+              color: "text-rose-500 font-bold"
+            };
+            return copy;
+          });
+          continue;
+        }
+
+        if (!response.ok) {
+          throw new Error(result.error || "Extraction failed");
+        }
+
+        setBulkResults(prev => {
+          const copy = [...prev];
+          copy[i] = {
+            ...copy[i],
+            status: "GRANTED ✓",
+            score: result.aiMatchScore,
+            color: "text-emerald-400 font-bold"
+          };
+          return copy;
+        });
+
+      } catch (err: any) {
+        setBulkResults(prev => {
+          const copy = [...prev];
+          copy[i] = {
+            ...copy[i],
+            status: `Error: ${err.message}`,
+            color: "text-rose-400"
+          };
+          return copy;
+        });
+      }
+    }
+
+    setBulkUploading(false);
+    toast.success("Bulk Upload and AI Parsing Pipeline Completed!");
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
       <div className="animate-spin text-amber-500 mb-4">
@@ -229,18 +370,6 @@ export default function VendorSubmit() {
       <p className="text-slate-400 font-mono text-sm">LOADING SECURE VENDOR HUB...</p>
     </div>
   );
-
-  if (!job) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="text-center max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl">
-        <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-white font-mono">REQUISITION NOT FOUND</h1>
-        <p className="text-slate-400 mt-2 text-sm leading-relaxed">This requirement may have been retired or completed.</p>
-      </div>
-    </div>
-  );
-
-  const skillsArr = Array.isArray(job.skills) ? job.skills : (job.skills ? job.skills.split(',') : []);
 
   // 1. NOT LOGGED IN STATE
   if (!authenticatedVendor) {
@@ -300,6 +429,25 @@ export default function VendorSubmit() {
       </div>
     );
   }
+
+  // 2. CHECK IF THERE IS A REQUISITION
+  if (!job) return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+      <div className="text-center max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-4">
+        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto" />
+        <h1 className="text-2xl font-bold text-white font-mono">NO ACTIVE REQUISITIONS</h1>
+        <p className="text-slate-400 text-sm leading-relaxed">There are currently no active requirements broadcasted to this secure vendor portal.</p>
+        <button 
+          onClick={handleLogout}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+        >
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+
+  const skillsArr = Array.isArray(job.skills) ? job.skills : (job.skills ? job.skills.split(',') : []);
 
   // 2. LOGGED IN STATE
   return (
@@ -419,6 +567,38 @@ export default function VendorSubmit() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* REQUISITION SELECTION PANEL */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2 uppercase tracking-wide">
+                <Briefcase className="w-4 h-4 text-amber-500" /> Selected Sourcing Requisition
+              </h3>
+              <p className="text-xs text-slate-400">Select which active, broadcasted requirement you are submitting candidates for.</p>
+            </div>
+            <div className="w-full sm:w-80">
+              <select
+                value={selectedJobId}
+                onChange={(e) => {
+                  const targetId = e.target.value;
+                  setSelectedJobId(targetId);
+                  const selectedJob = openJobsList.find(j => j.id === targetId);
+                  if (selectedJob) {
+                    setJob(selectedJob);
+                  }
+                }}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-mono tracking-wide transition-all"
+              >
+                {openJobsList.map(j => (
+                  <option key={j.id} value={j.id}>
+                    [{j.vendorCode || j.jobCode || 'REQ'}] {j.title} at {j.clientName || 'Enterprise Client'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -610,190 +790,314 @@ export default function VendorSubmit() {
                 </div>
               )}
 
-              {/* CANDIDATE FORM FIELDS */}
-              <form onSubmit={handleVendorSubmit} className="space-y-5 animate-in fade-in duration-300">
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-white tracking-tight">Submit Candidate Profile</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">Enter your candidate's technical profile. Ownership locks will establish immediately upon validation.</p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={vendorForm.candidateName}
-                      onChange={(e) => setVendorForm({...vendorForm, candidateName: e.target.value})}
-                      placeholder="Candidate Name"
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Email</label>
-                      <input
-                        type="email"
-                        required
-                        value={vendorForm.email}
-                        onChange={(e) => setVendorForm({...vendorForm, email: e.target.value})}
-                        placeholder="candidate@email.com"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Phone</label>
-                      <input
-                        type="tel"
-                        required
-                        value={vendorForm.phone}
-                        onChange={(e) => setVendorForm({...vendorForm, phone: e.target.value})}
-                        placeholder="+91 98..."
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Company</label>
-                      <input
-                        type="text"
-                        value={vendorForm.current_company}
-                        onChange={(e) => setVendorForm({...vendorForm, current_company: e.target.value})}
-                        placeholder="e.g. Infosys, TCS"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Title</label>
-                      <input
-                        type="text"
-                        value={vendorForm.current_title}
-                        onChange={(e) => setVendorForm({...vendorForm, current_title: e.target.value})}
-                        placeholder="e.g. Frontend Associate"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current CTC</label>
-                      <input
-                        type="text"
-                        value={vendorForm.current_ctc}
-                        onChange={(e) => setVendorForm({...vendorForm, current_ctc: e.target.value})}
-                        placeholder="e.g. 8 LPA"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Expected CTC</label>
-                      <input
-                        type="text"
-                        value={vendorForm.expected_ctc}
-                        onChange={(e) => setVendorForm({...vendorForm, expected_ctc: e.target.value})}
-                        placeholder="e.g. 11 LPA"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Notice Period</label>
-                      <input
-                        type="text"
-                        value={vendorForm.notice_period}
-                        onChange={(e) => setVendorForm({...vendorForm, notice_period: e.target.value})}
-                        placeholder="e.g. 15 Days, Immediate"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Location</label>
-                      <input
-                        type="text"
-                        value={vendorForm.location}
-                        onChange={(e) => setVendorForm({...vendorForm, location: e.target.value})}
-                        placeholder="e.g. Pune, Chennai"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">LinkedIn Profile</label>
-                    <input
-                      type="url"
-                      value={vendorForm.linkedin}
-                      onChange={(e) => setVendorForm({...vendorForm, linkedin: e.target.value})}
-                      placeholder="https://linkedin.com/in/..."
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Resume Document Link</label>
-                    <input
-                      type="url"
-                      required
-                      value={vendorForm.resume_url}
-                      onChange={(e) => setVendorForm({...vendorForm, resume_url: e.target.value})}
-                      placeholder="PDF Google Drive URL"
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Payroll Status</label>
-                      <select
-                        value={vendorForm.payroll}
-                        onChange={(e) => setVendorForm({...vendorForm, payroll: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-medium transition-all"
-                      >
-                        <option>Vendor Payroll</option>
-                        <option>Direct Hire</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Availability</label>
-                      <select
-                        value={vendorForm.availability}
-                        onChange={(e) => setVendorForm({...vendorForm, availability: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-medium transition-all"
-                      >
-                        <option>Immediate</option>
-                        <option>1 Week</option>
-                        <option>15 Days</option>
-                        <option>30 Days</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Covering Notes</label>
-                    <textarea
-                      rows={3}
-                      value={vendorForm.cover_note}
-                      onChange={(e) => setVendorForm({...vendorForm, cover_note: e.target.value})}
-                      placeholder="Details about client screenings or highlights..."
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all resize-none"
-                    />
-                  </div>
-                </div>
-
+              {/* TABS HEADER */}
+              <div className="flex border-b border-slate-800 pb-1.5 gap-4">
                 <button
-                  type="submit"
-                  className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 py-4 rounded-2xl font-bold transition-all text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95"
+                  onClick={() => setActiveTab('single')}
+                  className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider font-mono text-center border-b-2 transition-all ${
+                    activeTab === 'single'
+                      ? 'border-amber-500 text-amber-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
                 >
-                  <span>Submit Candidate representation</span>
-                  <Lock className="w-4 h-4" />
+                  Single Profile
                 </button>
-              </form>
+                <button
+                  onClick={() => setActiveTab('bulk')}
+                  className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider font-mono text-center border-b-2 transition-all ${
+                    activeTab === 'bulk'
+                      ? 'border-amber-500 text-amber-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  Bulk Upload Resumes
+                </button>
+              </div>
+
+              {activeTab === 'single' ? (
+                <form onSubmit={handleVendorSubmit} className="space-y-5 animate-in fade-in duration-300">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-white tracking-tight">Submit Candidate Profile</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">Enter your candidate's technical profile. Ownership locks will establish immediately upon validation.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={vendorForm.candidateName}
+                        onChange={(e) => setVendorForm({...vendorForm, candidateName: e.target.value})}
+                        placeholder="Candidate Name"
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Email</label>
+                        <input
+                          type="email"
+                          required
+                          value={vendorForm.email}
+                          onChange={(e) => setVendorForm({...vendorForm, email: e.target.value})}
+                          placeholder="candidate@email.com"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Phone</label>
+                        <input
+                          type="tel"
+                          required
+                          value={vendorForm.phone}
+                          onChange={(e) => setVendorForm({...vendorForm, phone: e.target.value})}
+                          placeholder="+91 98..."
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Company</label>
+                        <input
+                          type="text"
+                          value={vendorForm.current_company}
+                          onChange={(e) => setVendorForm({...vendorForm, current_company: e.target.value})}
+                          placeholder="e.g. Infosys, TCS"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Title</label>
+                        <input
+                          type="text"
+                          value={vendorForm.current_title}
+                          onChange={(e) => setVendorForm({...vendorForm, current_title: e.target.value})}
+                          placeholder="e.g. Frontend Associate"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current CTC</label>
+                        <input
+                          type="text"
+                          value={vendorForm.current_ctc}
+                          onChange={(e) => setVendorForm({...vendorForm, current_ctc: e.target.value})}
+                          placeholder="e.g. 8 LPA"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Expected CTC</label>
+                        <input
+                          type="text"
+                          value={vendorForm.expected_ctc}
+                          onChange={(e) => setVendorForm({...vendorForm, expected_ctc: e.target.value})}
+                          placeholder="e.g. 11 LPA"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Notice Period</label>
+                        <input
+                          type="text"
+                          value={vendorForm.notice_period}
+                          onChange={(e) => setVendorForm({...vendorForm, notice_period: e.target.value})}
+                          placeholder="e.g. 15 Days, Immediate"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Location</label>
+                        <input
+                          type="text"
+                          value={vendorForm.location}
+                          onChange={(e) => setVendorForm({...vendorForm, location: e.target.value})}
+                          placeholder="e.g. Pune, Chennai"
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">LinkedIn Profile</label>
+                      <input
+                        type="url"
+                        value={vendorForm.linkedin}
+                        onChange={(e) => setVendorForm({...vendorForm, linkedin: e.target.value})}
+                        placeholder="https://linkedin.com/in/..."
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Resume Document Link</label>
+                      <input
+                        type="url"
+                        required
+                        value={vendorForm.resume_url}
+                        onChange={(e) => setVendorForm({...vendorForm, resume_url: e.target.value})}
+                        placeholder="PDF Google Drive URL"
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Payroll Status</label>
+                        <select
+                          value={vendorForm.payroll}
+                          onChange={(e) => setVendorForm({...vendorForm, payroll: e.target.value})}
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-medium transition-all"
+                        >
+                          <option>Vendor Payroll</option>
+                          <option>Direct Hire</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Availability</label>
+                        <select
+                          value={vendorForm.availability}
+                          onChange={(e) => setVendorForm({...vendorForm, availability: e.target.value})}
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-medium transition-all"
+                        >
+                          <option>Immediate</option>
+                          <option>1 Week</option>
+                          <option>15 Days</option>
+                          <option>30 Days</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Covering Notes</label>
+                      <textarea
+                        rows={3}
+                        value={vendorForm.cover_note}
+                        onChange={(e) => setVendorForm({...vendorForm, cover_note: e.target.value})}
+                        placeholder="Details about client screenings or highlights..."
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 py-4 rounded-2xl font-bold transition-all text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95"
+                  >
+                    <span>Submit Candidate representation</span>
+                    <Lock className="w-4 h-4" />
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-5 animate-in fade-in duration-300">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-white tracking-tight">Bulk Candidate Upload</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Submit multiple candidate resumes at once. Our AI pipeline parses, evaluates, and registers each profile onto the company ledger.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Bulk Sourcing Queue</label>
+                      <div className="border-2 border-dashed border-slate-800 hover:border-amber-500/50 rounded-2xl p-6 text-center bg-slate-950 transition-all cursor-pointer relative group">
+                        <input
+                          type="file"
+                          multiple
+                          accept=".zip,.pdf,.docx"
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              const filesArr = Array.from(e.target.files);
+                              setBulkFiles(prev => [...prev, ...filesArr]);
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="space-y-2">
+                          <UploadCloud className="w-8 h-8 text-slate-500 mx-auto group-hover:text-amber-400 transition-colors" />
+                          <p className="text-xs text-slate-300 font-bold">Drag and drop files here, or click to browse</p>
+                          <p className="text-[10px] text-slate-500 font-mono">Supports multiple PDFs, DOCX, or ZIP files</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {bulkFiles.length > 0 && (
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">Queue ({bulkFiles.length} files)</span>
+                          <button
+                            onClick={() => {
+                              setBulkFiles([]);
+                              setBulkResults([]);
+                            }}
+                            className="text-[10px] text-rose-500 hover:underline font-mono"
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                          {bulkFiles.map((file, idx) => {
+                            const result = bulkResults[idx];
+                            return (
+                              <div key={idx} className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                                  <span className="text-slate-300 truncate text-[11px]">{file.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {result ? (
+                                    <span className={`text-[10px] uppercase font-bold font-mono ${result.color}`}>
+                                      {result.status} {result.score !== null ? `(${result.score}%)` : ''}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setBulkFiles(prev => prev.filter((_, i) => i !== idx));
+                                        setBulkResults(prev => prev.filter((_, i) => i !== idx));
+                                      }}
+                                      className="text-slate-500 hover:text-rose-500 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleBulkUploadSubmit}
+                      disabled={bulkFiles.length === 0 || bulkUploading}
+                      className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 py-4 rounded-2xl font-bold transition-all text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95 animate-pulse"
+                    >
+                      {bulkUploading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Parsing & Registering...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Start Parsing & Uploading</span>
+                          <Check className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

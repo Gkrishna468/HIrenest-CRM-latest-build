@@ -229,6 +229,11 @@ export default async function handler(req: any, res: any) {
         fraudDetected,
         notes: aiSummary,
         skills: skillsList,
+        organizationId: vendorId,
+        ownerType: "Vendor",
+        ownerUserId: vendorId,
+        submittedVia: "Vendor Portal",
+        ownershipLocked: true,
         ...identityData
       });
 
@@ -244,6 +249,11 @@ export default async function handler(req: any, res: any) {
         fraudDetected,
         notes: aiSummary,
         skills: skillsList,
+        organizationId: vendorId,
+        ownerType: "Vendor",
+        ownerUserId: vendorId,
+        submittedVia: "Vendor Portal",
+        ownershipLocked: true,
         ...identityData
       });
 

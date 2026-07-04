@@ -63,6 +63,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/apply/:jobId" element={<PublicApply />} />
             <Route path="/vendor-submit/:jobId" element={<VendorSubmit />} />
+            <Route path="/vendor-submit" element={<VendorSubmit />} />
             <Route
               path="/"
               element={
