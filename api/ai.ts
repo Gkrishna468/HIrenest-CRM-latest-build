@@ -387,6 +387,66 @@ if (apiKey.includes("\"")) {
     });
   }
 })();
+    case 'candidate-summary':
+      return await (async () => {
+        if (req.method !== "POST") {
+          return res.status(405).json({ error: "Method Not Allowed" });
+        }
+
+        const { name, skills, experience, currentCompany, currentTitle, notes } = req.body;
+
+        try {
+          const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
+          if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
+
+          const aiClient = new GoogleGenAI({ apiKey });
+
+          const prompt = `
+          Act as the "Unified Intelligence Brain" for HireNest Enterprise IT Staffing OS.
+          Analyze the candidate details provided and generate a complete Candidate 360 Workspace analysis.
+
+          CANDIDATE DETAILS:
+          Name: ${name || "Unknown Candidate"}
+          Skills: ${JSON.stringify(skills || [])}
+          Experience: ${experience || "0"} Years
+          Current Company: ${currentCompany || "Not Specified"}
+          Current Title/Designation: ${currentTitle || "Not Specified"}
+          Notes: ${notes || "None"}
+
+          TASKS:
+          1. Generate an elegant, professional narrative AI Summary (2-3 sentences) describing the candidate's core strengths, experience level, domain specialization, and suitability.
+          2. List exactly 5 key AI Strengths.
+          3. Determine an Overall Match recommendation rating (e.g. Strongly Recommend, Recommend, or Reserve).
+          4. Write a concise recommendation Reason.
+
+          RETURN ONLY VALID JSON MATCHING THIS EXACT SCHEMA:
+          {
+            "summary": "narrative summary here",
+            "strengths": ["strength 1", "strength 2", "strength 3", "strength 4", "strength 5"],
+            "recommendation": "Strongly Recommend" | "Recommend" | "Reserve",
+            "reason": "concise recommendation reason here"
+          }
+          `;
+
+          const result = await aiClient.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+
+          const cleanText = (result.text || "")
+            .replace(/\`\`\`json|\`\`\`/g, "")
+            .trim();
+          const data = JSON.parse(cleanText);
+
+          return res.status(200).json(data);
+        } catch (error: any) {
+          console.error("Candidate summary generation failed:", error);
+          return res.status(500).json({ error: error.message });
+        }
+      })();
     case 'audit':
       return await (async () => {
   if (req.method !== 'GET') {

@@ -15,12 +15,14 @@ import {
 import { SourceBadge } from "@/components/SourceBadge";
 import { cn } from "@/lib/utils";
 import { safeArray } from "@/utils/safe";
+import Candidate360 from "@/components/Candidate360";
 
 export default function Candidates() {
   const { candidates, jobs, vendors, clients } = useData();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStage, setFilterStage] = useState<string>("all");
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
 
   useEffect(() => {
     const path = location.pathname;
@@ -127,7 +129,8 @@ export default function Candidates() {
                 return (
                   <tr
                     key={cand.id}
-                    className="hover:bg-slate-50 transition-colors group"
+                    className="hover:bg-indigo-50/20 cursor-pointer transition-colors group"
+                    onClick={() => setSelectedCandidateId(cand.id)}
                   >
                     <td className="p-4">
                       <div className="flex flex-col">
@@ -200,6 +203,12 @@ export default function Candidates() {
           </table>
         </div>
       </div>
+      {selectedCandidateId && (
+        <Candidate360
+          candidateId={selectedCandidateId}
+          onClose={() => setSelectedCandidateId(null)}
+        />
+      )}
     </div>
   );
 }
