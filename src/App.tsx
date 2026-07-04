@@ -27,6 +27,7 @@ import CommunicationCenter from "./pages/CommunicationCenter";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import PublicApply from "./pages/PublicApply";
+import VendorSubmit from "./pages/VendorSubmit";
 import MigrationDashboard from "./pages/MigrationDashboard";
 import AIAccuracy from "./pages/AIAccuracy";
 import Agents from "./pages/Agents";
@@ -61,6 +62,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/apply/:jobId" element={<PublicApply />} />
+            <Route path="/vendor-submit/:jobId" element={<VendorSubmit />} />
             <Route
               path="/"
               element={

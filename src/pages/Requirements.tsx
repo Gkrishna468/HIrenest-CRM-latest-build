@@ -202,7 +202,7 @@ export default function Jobs() {
     let salaryStr = formatSalaryRange(job);
   
     const applyUrl = `${window.location.origin}/#/apply/${job.id}?src=${sourceChannel}`;
-    const vendorUrl = `${window.location.origin}/#/apply/${job.id}?type=vendor`;
+    const vendorUrl = `${window.location.origin}/#/vendor-submit/${job.id}`;
   
     return `🚀 Immediate Hiring | ${job.title}
   
@@ -2474,11 +2474,11 @@ Powered by HireNestOS AI`;
                       Secure Vendor Submission Link
                     </span>
                     <p className="text-xs text-slate-600 break-all font-mono">
-                      {window.location.origin}/#/apply/{broadcastTargetJob.id}?type=vendor
+                      {window.location.origin}/#/vendor-submit/{broadcastTargetJob.id}
                     </p>
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor`);
+                        navigator.clipboard.writeText(`${window.location.origin}/#/vendor-submit/${broadcastTargetJob.id}`);
                         toast.success("Vendor Submission Link copied!");
                       }}
                       className="py-1.5 px-3 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all"
@@ -2509,25 +2509,27 @@ Powered by HireNestOS AI`;
                       onClick={() => {
                         const sList = Array.isArray(broadcastTargetJob.skills) ? broadcastTargetJob.skills : (broadcastTargetJob.skills ? broadcastTargetJob.skills.split(',') : []);
                         const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
-                        const text = encodeURIComponent(`🚀 Immediate Hiring | ${broadcastTargetJob.title}
-📍 Location: ${broadcastTargetJob.location || 'Remote'}
-💼 Employment: ${broadcastTargetJob.type || 'Full-time'}
-💰 Salary: ${broadcastTargetJob.budget || '₹12–15 LPA'}
-👥 Openings: ${broadcastTargetJob.openings || 1}
+                        const text = encodeURIComponent(`🚀 *Immediate Hiring | ${broadcastTargetJob.title}*
 
-Skills Required:
+📍 *Location:* ${broadcastTargetJob.location || 'Remote'}
+💼 *Employment:* ${broadcastTargetJob.type || 'Full-time'}
+💰 *Salary:* ${broadcastTargetJob.budget || '₹12–15 LPA'}
+👥 *Openings:* ${broadcastTargetJob.openings || 1}
+⚡ *Experience Required:* ${broadcastTargetJob.experienceRequired || '3-5 Years'}
+
+🛠️ *Skills Required:*
 ${fSkills || '• Core developer competencies'}
 
-Experience:
-${broadcastTargetJob.experienceRequired || '3-5 Years'}
+🎯 *Workforce Option:*
+Candidates can be on your payroll or HireNest Workforce payroll.
 
-🎯 Candidates can be on your payroll or HireNest Workforce payroll.
-
-📄 Full Job Description & Apply:
+📄 *Full Job Description & Apply:*
 ${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=wa
 
-📤 Vendors Submit Candidate:
-${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor`);
+📤 *Vendors Submit Candidate:*
+${window.location.origin}/#/vendor-submit/${broadcastTargetJob.id}
+
+🤖 *Powered by HireNestOS AI*`);
                         window.open(`https://wa.me/?text=${text}`, "_blank");
                         toast.success("WhatsApp template prepared & dispatched!");
                       }}
@@ -2550,27 +2552,27 @@ ${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor`);
                       onClick={() => {
                         const sList = Array.isArray(broadcastTargetJob.skills) ? broadcastTargetJob.skills : (broadcastTargetJob.skills ? broadcastTargetJob.skills.split(',') : []);
                         const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
-                        const text = `🚀 Immediate Hiring | ${broadcastTargetJob.title}
-📍 Location: ${broadcastTargetJob.location || 'Remote'}
-💼 Employment: ${broadcastTargetJob.type || 'Full-time'}
-💰 Salary: ${broadcastTargetJob.budget || '₹12–15 LPA'}
-👥 Openings: ${broadcastTargetJob.openings || 1}
+                        const text = `🚀 *Immediate Hiring | ${broadcastTargetJob.title}*
 
-Skills Required:
+📍 *Location:* ${broadcastTargetJob.location || 'Remote'}
+💼 *Employment:* ${broadcastTargetJob.type || 'Full-time'}
+💰 *Salary:* ${broadcastTargetJob.budget || '₹12–15 LPA'}
+👥 *Openings:* ${broadcastTargetJob.openings || 1}
+⚡ *Experience Required:* ${broadcastTargetJob.experienceRequired || '3-5 Years'}
+
+🛠️ *Skills Required:*
 ${fSkills || '• Core developer competencies'}
 
-Experience:
-${broadcastTargetJob.experienceRequired || '3-5 Years'}
+🎯 *Workforce Option:*
+Candidates can be on your payroll or HireNest Workforce payroll.
 
-🎯 Candidates can be on your payroll or HireNest Workforce payroll.
-
-📄 Full Job Description & Apply:
+📄 *Full Job Description & Apply:*
 ${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=li
 
-📤 Vendors Submit Candidate:
-${window.location.origin}/#/apply/${broadcastTargetJob.id}?type=vendor
+📤 *Vendors Submit Candidate:*
+${window.location.origin}/#/vendor-submit/${broadcastTargetJob.id}
 
-Powered by HireNestOS AI`;
+🤖 *Powered by HireNestOS AI*`;
                         navigator.clipboard.writeText(text);
                         const url = encodeURIComponent(`${window.location.origin}/#/apply/${broadcastTargetJob.id}?src=li`);
                         window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, "_blank");
@@ -2764,32 +2766,27 @@ Powered by HireNestOS AI`;
                       onClick={() => {
                         const sList = Array.isArray(selectedJob.skills) ? selectedJob.skills : (selectedJob.skills ? selectedJob.skills.split(',') : []);
                         const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
-                        const text = `🚀 Immediate Hiring | ${selectedJob.title}
-📍 Location: ${selectedJob.location || 'Remote'}
-💼 Employment: ${selectedJob.type || 'Full-time'}
-💰 Salary: ${selectedJob.budget || '₹12–15 LPA'}
-👥 Openings: 5
+                        const text = `🚀 *Immediate Hiring | ${selectedJob.title}*
 
-Skills Required:
+📍 *Location:* ${selectedJob.location || 'Remote'}
+💼 *Employment:* ${selectedJob.type || 'Full-time'}
+💰 *Salary:* ${selectedJob.budget || '₹12–15 LPA'}
+👥 *Openings:* 5
+⚡ *Experience Required:* ${selectedJob.experienceRequired || '3-5 Years'}
+
+🛠️ *Skills Required:*
 ${fSkills || '• Core developer competencies'}
 
-Experience:
-${selectedJob.experienceRequired || '3-5 Years'}
+🎯 *Workforce Option:*
+Candidates can be on your payroll or HireNest Workforce payroll.
 
-Responsibilities:
-• Design modular interfaces and maintain clean technical standards
-• Collaborate closely with client business coordinators
-
-🎯 Candidates can be on your payroll or HireNest Workforce payroll.
-
-📄 Full Job Description:
+📄 *Full Job Description & Apply:*
 ${window.location.origin}/#/apply/${selectedJob.id}?src=li
 
-📤 Vendors:
-Submit your candidate here:
-${window.location.origin}/#/apply/${selectedJob.id}?type=vendor
+📤 *Vendors Submit Candidate:*
+${window.location.origin}/#/vendor-submit/${selectedJob.id}
 
-Powered by HireNestOS AI`;
+🤖 *Powered by HireNestOS AI*`;
                         navigator.clipboard.writeText(text);
                         toast.success('Generated LinkedIn formatted post copied to clipboard!');
                       }}
@@ -2801,32 +2798,27 @@ Powered by HireNestOS AI`;
                       onClick={() => {
                         const sList = Array.isArray(selectedJob.skills) ? selectedJob.skills : (selectedJob.skills ? selectedJob.skills.split(',') : []);
                         const fSkills = sList.map((s: any) => `• ${s.trim()}`).join('\n');
-                        const text = `🚀 Immediate Hiring | ${selectedJob.title}
-📍 Location: ${selectedJob.location || 'Remote'}
-💼 Employment: ${selectedJob.type || 'Full-time'}
-💰 Salary: ${selectedJob.budget || '₹12–15 LPA'}
-👥 Openings: 5
+                        const text = `🚀 *Immediate Hiring | ${selectedJob.title}*
 
-Skills Required:
+📍 *Location:* ${selectedJob.location || 'Remote'}
+💼 *Employment:* ${selectedJob.type || 'Full-time'}
+💰 *Salary:* ${selectedJob.budget || '₹12–15 LPA'}
+👥 *Openings:* 5
+⚡ *Experience Required:* ${selectedJob.experienceRequired || '3-5 Years'}
+
+🛠️ *Skills Required:*
 ${fSkills || '• Core developer competencies'}
 
-Experience:
-${selectedJob.experienceRequired || '3-5 Years'}
+🎯 *Workforce Option:*
+Candidates can be on your payroll or HireNest Workforce payroll.
 
-Responsibilities:
-• Design modular interfaces and maintain clean technical standards
-• Collaborate closely with client business coordinators
-
-🎯 Candidates can be on your payroll or HireNest Workforce payroll.
-
-📄 Full Job Description:
+📄 *Full Job Description & Apply:*
 ${window.location.origin}/#/apply/${selectedJob.id}?src=wa
 
-📤 Vendors:
-Submit your candidate here:
-${window.location.origin}/#/apply/${selectedJob.id}?type=vendor
+📤 *Vendors Submit Candidate:*
+${window.location.origin}/#/vendor-submit/${selectedJob.id}
 
-Powered by HireNestOS AI`;
+🤖 *Powered by HireNestOS AI*`;
                         navigator.clipboard.writeText(text);
                         toast.success('Formatted vendor broadcast text copied!');
                       }}
@@ -3173,7 +3165,7 @@ ${window.location.origin}/#/apply/${selectedJob.id}?src=wa
 
 📤 Vendors:
 Submit your candidate here:
-${window.location.origin}/#/apply/${selectedJob.id}?type=vendor`);
+${window.location.origin}/#/vendor-submit/${selectedJob.id}`);
                           window.open(`https://wa.me/?text=${text}`, "_blank");
                         }}
                         className="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition-all font-bold text-sm flex justify-center items-center gap-2"
@@ -3218,7 +3210,7 @@ ${window.location.origin}/#/apply/${selectedJob.id}?src=copy
 
 📤 Vendors:
 Submit your candidate here:
-${window.location.origin}/#/apply/${selectedJob.id}?type=vendor`;
+${window.location.origin}/#/vendor-submit/${selectedJob.id}`;
                         navigator.clipboard.writeText(text);
                         toast.success("Complete formatted post copied to clipboard!");
                       }}
