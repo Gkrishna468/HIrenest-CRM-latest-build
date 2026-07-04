@@ -27,6 +27,34 @@ export const safeDate = (val: any): string => {
   }
 };
 
+export const safeISOString = (val: any): string => {
+  if (!val) return new Date().toISOString();
+  // Handle Firestore Timestamp
+  if (val && typeof val.toDate === 'function') {
+    try {
+      return val.toDate().toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }
+  // Handle Timestamp representation as object with seconds/nanoseconds
+  if (val && typeof val === 'object' && ('seconds' in val || '_seconds' in val)) {
+    try {
+      const s = val.seconds ?? val._seconds ?? 0;
+      const n = val.nanoseconds ?? val._nanoseconds ?? 0;
+      return new Date(s * 1000 + n / 1000000).toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }
+  try {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+};
+
 export const safeDateShort = (val: any): string => {
   if (!val) return '';
   try {

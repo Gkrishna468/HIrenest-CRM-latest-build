@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from '
 import { db } from '@/services/firebase/config';
 import type { Client } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const ClientRepository = {
   async getById(id: string): Promise<Client | null> {
@@ -24,8 +25,8 @@ export const ClientRepository = {
         notes: data.notes || '',
         userId: data.userId || data.user_id || '',
         companyId: data.companyId || data.company_id || '',
-        createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-        updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+        createdAt: safeISOString(data.createdAt || data.created_at),
+        updatedAt: safeISOString(data.updatedAt || data.updated_at),
       };
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `clients/${id}`);
@@ -53,8 +54,8 @@ export const ClientRepository = {
           notes: data.notes || '',
           userId: data.userId || data.user_id || '',
           companyId: data.companyId || data.company_id || '',
-          createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-          updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+          createdAt: safeISOString(data.createdAt || data.created_at),
+          updatedAt: safeISOString(data.updatedAt || data.updated_at),
         };
       }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {

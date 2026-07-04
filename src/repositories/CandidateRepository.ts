@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, runTran
 import { db } from '@/services/firebase/config';
 import type { Candidate } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const CandidateRepository = {
   async getById(id: string): Promise<Candidate | null> {
@@ -38,8 +39,8 @@ export const CandidateRepository = {
         fraudDetected: data.fraudDetected || data.fraud_detected || false,
         userId: data.userId || data.user_id || '',
         companyId: data.companyId || data.company_id || '',
-        createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-        updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+        createdAt: safeISOString(data.createdAt || data.created_at),
+        updatedAt: safeISOString(data.updatedAt || data.updated_at),
       };
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `candidates/${id}`);
@@ -84,8 +85,8 @@ export const CandidateRepository = {
           fraudDetected: data.fraudDetected || data.fraud_detected || false,
           userId: data.userId || data.user_id || '',
           companyId: data.companyId || data.company_id || '',
-          createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-          updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+          createdAt: safeISOString(data.createdAt || data.created_at),
+          updatedAt: safeISOString(data.updatedAt || data.updated_at),
         };
       });
     } catch (error) {
@@ -110,8 +111,8 @@ export const CandidateRepository = {
           resumeUrl: r.url || '',
           notes: `From resume: ${r.file_name || r.fileName || 'Document'}`,
           source: 'resume',
-          createdAt: r.created_at || r.createdAt || new Date().toISOString(),
-          updatedAt: r.created_at || r.createdAt || new Date().toISOString(),
+          createdAt: safeISOString(r.created_at || r.createdAt),
+          updatedAt: safeISOString(r.created_at || r.createdAt),
         };
       });
     } catch (error) {

@@ -3,6 +3,7 @@ import { db } from '@/services/firebase/config';
 import type { Job } from '@/types';
 import { syncOrchestrator } from '@/services/firebase/syncOrchestrator';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const RequirementRepository = {
   async getById(id: string): Promise<Job | null> {
@@ -30,8 +31,8 @@ export const RequirementRepository = {
         clientName: data.clientName || data.client_name || '',
         userId: data.userId || data.user_id || '',
         closedDate: data.closedDate || data.closed_date || '',
-        createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-        updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+        createdAt: safeISOString(data.createdAt || data.created_at),
+        updatedAt: safeISOString(data.updatedAt || data.updated_at),
         pricing_data: data.pricing_data || null,
         broadcast_to_vendors: data.broadcast_to_vendors || false,
       } as any;
@@ -66,8 +67,8 @@ export const RequirementRepository = {
           clientName: data.clientName || data.client_name || '',
           userId: data.userId || data.user_id || '',
           closedDate: data.closedDate || data.closed_date || '',
-          createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-          updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+          createdAt: safeISOString(data.createdAt || data.created_at),
+          updatedAt: safeISOString(data.updatedAt || data.updated_at),
           pricing_data: data.pricing_data || null,
           broadcast_to_vendors: data.broadcast_to_vendors || false,
         } as any;

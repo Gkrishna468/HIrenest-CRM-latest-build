@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, runTran
 import { db } from '@/services/firebase/config';
 import type { Submission } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const SubmissionRepository = {
   async getById(id: string): Promise<Submission | null> {
@@ -19,7 +20,7 @@ export const SubmissionRepository = {
         status: data.status || 'submitted',
         notes: data.notes || '',
         userId: data.userId || data.user_id || '',
-        createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+        createdAt: safeISOString(data.createdAt || data.created_at),
       };
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `submissions/${id}`);
@@ -42,7 +43,7 @@ export const SubmissionRepository = {
           status: data.status || 'submitted',
           notes: data.notes || '',
           userId: data.userId || data.user_id || '',
-          createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+          createdAt: safeISOString(data.createdAt || data.created_at),
         };
       }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {

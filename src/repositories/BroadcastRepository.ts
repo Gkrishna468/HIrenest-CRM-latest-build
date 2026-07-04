@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from '
 import { db } from '@/services/firebase/config';
 import type { VendorBroadcast } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const BroadcastRepository = {
   async getById(id: string): Promise<VendorBroadcast | null> {
@@ -17,7 +18,7 @@ export const BroadcastRepository = {
         channel: data.channel || '',
         vendorId: data.vendorId || data.vendor_id || '',
         vendorName: data.vendorName || data.vendor_name || '',
-        sentAt: data.sentAt || data.sent_at || new Date().toISOString(),
+        sentAt: safeISOString(data.sentAt || data.sent_at),
         status: data.status || 'sent',
         source: data.source || '',
       };
@@ -40,7 +41,7 @@ export const BroadcastRepository = {
           channel: data.channel || '',
           vendorId: data.vendorId || data.vendor_id || '',
           vendorName: data.vendorName || data.vendor_name || '',
-          sentAt: data.sentAt || data.sent_at || new Date().toISOString(),
+          sentAt: safeISOString(data.sentAt || data.sent_at),
           status: data.status || 'sent',
           source: data.source || '',
         };

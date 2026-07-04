@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from '
 import { db } from '@/services/firebase/config';
 import type { Deal } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const PricingRepository = {
   async getDealById(id: string): Promise<Deal | null> {
@@ -29,7 +30,7 @@ export const PricingRepository = {
         paymentReceived: data.paymentReceived || data.payment_received || false,
         joinedDate: data.joinedDate || data.joined_date || '',
         userId: data.userId || data.user_id || '',
-        createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+        createdAt: safeISOString(data.createdAt || data.created_at),
         revenue_amount: data.revenueAmount || data.revenue_amount || 0, // compatibility
       };
     } catch (error) {
@@ -63,7 +64,7 @@ export const PricingRepository = {
           paymentReceived: data.paymentReceived || data.payment_received || false,
           joinedDate: data.joinedDate || data.joined_date || '',
           userId: data.userId || data.user_id || '',
-          createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+          createdAt: safeISOString(data.createdAt || data.created_at),
           revenue_amount: data.revenueAmount || data.revenue_amount || 0, // compatibility
         };
       }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));

@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from '
 import { db } from '@/services/firebase/config';
 import type { Vendor } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export const VendorRepository = {
   async getById(id: string): Promise<Vendor | null> {
@@ -23,8 +24,8 @@ export const VendorRepository = {
         vendorCode: data.vendorCode || '',
         userId: data.userId || '',
         companyId: data.companyId || '',
-        createdAt: data.createdAt || new Date().toISOString(),
-        updatedAt: data.updatedAt || new Date().toISOString(),
+        createdAt: safeISOString(data.createdAt || data.created_at),
+        updatedAt: safeISOString(data.updatedAt || data.updated_at),
       };
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `vendors/${id}`);
@@ -51,8 +52,8 @@ export const VendorRepository = {
           vendorCode: data.vendorCode || '',
           userId: data.userId || '',
           companyId: data.companyId || '',
-          createdAt: data.createdAt || new Date().toISOString(),
-          updatedAt: data.updatedAt || new Date().toISOString(),
+          createdAt: safeISOString(data.createdAt || data.created_at),
+          updatedAt: safeISOString(data.updatedAt || data.updated_at),
         };
       }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {

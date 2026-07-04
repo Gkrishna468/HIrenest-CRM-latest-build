@@ -2,6 +2,7 @@ import { collection, query, orderBy, limit, onSnapshot, getDocs, doc, setDoc } f
 import { db } from '@/services/firebase/config';
 import { syncOrchestrator } from '@/services/firebase/syncOrchestrator';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
+import { safeISOString } from '@/utils/safe';
 
 export interface SystemEvent {
   id: string;
@@ -47,7 +48,14 @@ export const SystemRepository = {
       (snap) => {
         const events: SystemEvent[] = [];
         snap.forEach((doc) => {
-          events.push({ id: doc.id, ...doc.data() } as SystemEvent);
+          const data = doc.data();
+          events.push({
+            id: doc.id,
+            type: data.type || '',
+            performedBy: data.performedBy || '',
+            timestamp: safeISOString(data.timestamp),
+            metadata: data.metadata || null,
+          } as SystemEvent);
         });
         callback(events);
       },
@@ -74,7 +82,16 @@ export const SystemRepository = {
   async listSystemEvents(): Promise<SystemEvent[]> {
     try {
       const snap = await getDocs(collection(db, 'system_events'));
-      const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemEvent));
+      const events = snap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          type: data.type || '',
+          performedBy: data.performedBy || '',
+          timestamp: safeISOString(data.timestamp),
+          metadata: data.metadata || null,
+        } as SystemEvent;
+      });
       return events.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'system_events');
