@@ -92,6 +92,11 @@ export interface Job {
   adjustedBudget?: number;
   skills: string[];
   experienceRequired?: string;
+  experienceMin?: number;
+  experienceMax?: number;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryType?: 'Annual CTC' | 'Monthly CTC' | 'Hourly' | 'Daily' | 'Fixed' | 'Negotiable';
   openings?: number;
   submissionsCount?: number;
   status: 'open' | 'closed' | 'filled' | 'pending';
@@ -105,6 +110,57 @@ export interface Job {
   closedDate?: string;
   createdAt: string;
   updatedAt: string;
+
+  // Nice-to-have fields:
+  workMode?: 'Remote' | 'Hybrid' | 'Onsite';
+  noticePeriod?: string;
+  shiftTiming?: string;
+  interviewMode?: string;
+  interviewRounds?: number;
+  joiningTimeline?: string;
+  education?: string;
+  certifications?: string;
+  visaAuthorization?: string;
+  replacementPeriod?: string;
+  priority?: 'Low' | 'Medium' | 'High' | 'Critical';
+
+  // Publish settings:
+  publishTo?: {
+    vendorPortal?: boolean;
+    clientPortal?: boolean;
+    whatsApp?: boolean;
+    linkedIn?: boolean;
+    internalRecruiters?: boolean;
+    emailCampaign?: boolean;
+  };
+
+  // Versioning and Audit Log
+  versions?: Array<{
+    version: number;
+    updatedAt: string;
+    updatedBy: string;
+    title: string;
+    description: string;
+    location: string;
+    skills: string[];
+    experienceMin?: number;
+    experienceMax?: number;
+    salaryMin?: number;
+    salaryMax?: number;
+    salaryType?: string;
+    budget?: any;
+    priority?: string;
+  }>;
+
+  changeLog?: Array<{
+    timestamp: string;
+    actor: string;
+    action: string;
+    details: string;
+    changes?: Record<string, { from: any; to: any }>;
+  }>;
+
+  pendingUpdates?: Partial<Job>;
 }
 
 export interface Candidate {

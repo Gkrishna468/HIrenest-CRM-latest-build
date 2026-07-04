@@ -155,7 +155,15 @@ export const ClientRepository = {
       const finalExistingIds = new Set(firebaseClients.map(c => c.id));
       const newPubExtracted = extractedPubClients.filter(c => !finalExistingIds.has(c.id));
 
-      return [...newPubExtracted, ...firebaseClients].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const combined = [...newPubExtracted, ...firebaseClients];
+      const seen = new Set<string>();
+      const unique = combined.filter(c => {
+        if (!c.id || seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+
+      return unique.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'clients');
       return [];

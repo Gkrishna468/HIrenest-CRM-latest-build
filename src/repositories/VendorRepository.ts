@@ -110,7 +110,14 @@ export const VendorRepository = {
       const newExtracted = extractedVendors.filter(c => !existingIds.has(c.id));
       firebaseVendors = [...firebaseVendors, ...newExtracted];
 
-      return firebaseVendors.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const seen = new Set<string>();
+      const unique = firebaseVendors.filter(v => {
+        if (!v.id || seen.has(v.id)) return false;
+        seen.add(v.id);
+        return true;
+      });
+
+      return unique.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'vendors');
       return [];

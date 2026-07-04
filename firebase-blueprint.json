@@ -49,9 +49,28 @@
         "accountId": { "type": "string" },
         "title": { "type": "string" },
         "status": { "type": "string" },
-        "priority": { "type": "string" }
+        "priority": { "type": "string" },
+        "experienceMin": { "type": "number" },
+        "experienceMax": { "type": "number" },
+        "salaryMin": { "type": "number" },
+        "salaryMax": { "type": "number" },
+        "salaryType": { "type": "string" },
+        "workMode": { "type": "string" },
+        "noticePeriod": { "type": "string" },
+        "shiftTiming": { "type": "string" },
+        "interviewMode": { "type": "string" },
+        "interviewRounds": { "type": "number" },
+        "joiningTimeline": { "type": "string" },
+        "education": { "type": "string" },
+        "certifications": { "type": "string" },
+        "visaAuthorization": { "type": "string" },
+        "replacementPeriod": { "type": "string" },
+        "publishTo": { "type": "object" },
+        "versions": { "type": "array" },
+        "changeLog": { "type": "array" },
+        "pendingUpdates": { "type": "object" }
       },
-      "required": ["id", "accountId", "title"]
+      "required": ["id", "title"]
     },
     "systemEvent": {
       "title": "System Event",
