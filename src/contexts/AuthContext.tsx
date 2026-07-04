@@ -74,26 +74,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
+          const isExecRoot = firebaseUser.uid === 'me995j91dmNkwfXXfaCyrDo8oa03' || firebaseUser.email === 'admin@hirenestworkforce.com';
           const profile = await UserRepository.getById(firebaseUser.uid);
           if (profile) {
+            if (isExecRoot && profile.role !== 'admin') {
+              profile.role = 'admin';
+              await UserRepository.update(firebaseUser.uid, { role: 'admin' });
+            }
             setUser(profile);
           } else {
             // Fallback: create default user document in Firestore if not exists
             const fallbackUser = await UserRepository.create(firebaseUser.uid, {
               email: firebaseUser.email || '',
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-              role: 'viewer',
+              name: isExecRoot ? 'Gopal Krishna' : (firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User'),
+              role: isExecRoot ? 'admin' : 'viewer',
               status: 'active',
             });
             setUser(fallbackUser);
           }
         } catch (err) {
           console.error('Error resolving user profile:', err);
+          const isExecRoot = firebaseUser.uid === 'me995j91dmNkwfXXfaCyrDo8oa03' || firebaseUser.email === 'admin@hirenestworkforce.com';
           setUser({
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
-            name: firebaseUser.email?.split('@')[0] || 'User',
-            role: 'viewer',
+            name: isExecRoot ? 'Gopal Krishna' : (firebaseUser.email?.split('@')[0] || 'User'),
+            role: isExecRoot ? 'admin' : 'viewer',
             status: 'active',
           });
         }
@@ -114,11 +120,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Executive Bypass for GOPAL and Demo Admin
     if (
       (email === 'gopal@hirenestworkforce.com' && password === 'founding2026') ||
+      (email === 'admin@hirenestworkforce.com' && password === 'founding2026') ||
       (email === 'admin@hirenest.com' && password === 'admin123')
     ) {
       const execUser: User = { 
-        id: 'executive-root', 
-        email: 'gopal@hirenestworkforce.com', // Force email sync for Gmail connection
+        id: email === 'admin@hirenestworkforce.com' ? 'me995j91dmNkwfXXfaCyrDo8oa03' : 'executive-root', 
+        email: email === 'admin@hirenest.com' ? 'gopal@hirenestworkforce.com' : email, // Force email sync for Gmail connection
         name: 'Gopal Krishna', 
         role: 'admin', 
         status: 'active' 

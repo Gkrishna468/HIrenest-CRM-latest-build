@@ -84,6 +84,30 @@ export const safeSkills = (val: any): string[] => {
   return [];
 };
 
+export const safeBudget = (val: any): string => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') {
+    const amount = val.amount ?? '';
+    const currency = val.currency ?? '';
+    const period = val.period ?? '';
+    const currencyStr = currency ? String(currency) : '';
+    const amountStr = amount !== undefined && amount !== null ? String(amount) : '';
+    const periodStr = period ? String(period) : '';
+    
+    let result = '';
+    if (currencyStr && amountStr) {
+      result = `${currencyStr}${amountStr}`;
+    } else {
+      result = amountStr || currencyStr;
+    }
+    if (periodStr) {
+      result = `${result} ${periodStr}`;
+    }
+    return result.trim();
+  }
+  return String(val);
+};
+
 export async function retry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   try {
     return await fn();

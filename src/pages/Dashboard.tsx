@@ -27,11 +27,13 @@ import {
   MessageSquare,
   Trophy,
   LucideIcon,
-  History
+  History,
+  Building2,
+  Database
 } from "lucide-react";
 
 export default function Dashboard() {
-  const { jobs, candidates, deals, vendors } = useData();
+  const { jobs, candidates, deals, vendors, clients } = useData();
   const { user } = useAuth();
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
   const [systemEvents, setSystemEvents] = useState<any[]>([]);
@@ -97,7 +99,13 @@ export default function Dashboard() {
     };
   }, []);
 
-  const openRequirements = firestoreCounts.requirements || jobs.filter(j => j.status?.toLowerCase() === "open" || !j.status).length;
+  const openRequirements = firestoreCounts.requirements || jobs.filter(j => j.source !== 'crm' && (j.status?.toLowerCase() === "open" || !j.status)).length;
+  const crmRequirementsCount = jobs.filter(j => j.source === 'crm' && (j.status?.toLowerCase() === "open" || !j.status)).length;
+  const crmClientsCount = clients.filter(c => c.source === 'crm').length;
+  const osClientsCount = clients.filter(c => c.source !== 'crm').length;
+  const crmVendorsCount = vendors.filter(v => v.source === 'crm').length;
+  const osVendorsCount = vendors.filter(v => v.source !== 'crm').length;
+  
   const totalSubmissions = firestoreCounts.submissions || candidates.filter(c => c.stage === "submission" || c.stage === "screening" || !c.stage).length;
   const placements = firestoreCounts.placements || candidates.filter(c => c.stage === "placed" || c.stage === "joined").length || deals.length;
   const readyCandidatesCount = firestoreCounts.candidates || candidates.filter(c => c.stage === 'available' || !c.stage).length;
@@ -154,33 +162,70 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top Metrics - Founder Dashboard View */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 relative z-10">
-        {[
-          { label: "Requirements Open", val: openRequirements, icon: Briefcase, color: "blue" },
-          { label: "Candidates Available", val: readyCandidatesCount, icon: Users, color: "indigo" },
-          { label: "Submissions Today", val: totalSubmissions, icon: FileSearch, color: "purple" },
-          { label: "Interviews Scheduled", val: interviewsCount, icon: MessageSquare, color: "amber" },
-          { label: "Offers Pending", val: candidates.filter(c => c.stage === 'offer').length, icon: CheckCircle2, color: "emerald" },
-          { label: "Placements This Month", val: placements, icon: Trophy, color: "fuchsia" },
-          { label: "Revenue Pipeline", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹0', icon: CircleDollarSign, color: "emerald", isCurrency: true },
-          { label: "Expected Margin", val: expectedMargin ? formatCurrency(expectedMargin) : '₹0', icon: TrendingUp, color: "emerald", isCurrency: true },
-        ].map((metric, i) => {
-          const Icon = metric.icon;
-          return (
-            <div key={i} className="skeuo-card p-4 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-3">
-                <div className={`w-8 h-8 rounded-full border border-slate-200/50 flex items-center justify-center bg-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_white]`}>
-                  <Icon className={`w-4 h-4 text-${metric.color}-600`} />
+      {/* CRM Command Center - Pulled from CRM */}
+      <div className="relative z-10 mt-4">
+        <h2 className="text-xl font-bold text-slate-800 tracking-tight mb-4 flex items-center gap-2">
+          <Database className="w-5 h-5 text-indigo-500" />
+          CRM Command Center <span className="text-xs font-normal text-slate-500">(Pulled from CRM)</span>
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+          {[
+            { label: "CRM Leads/Reqs", val: crmRequirementsCount, icon: Briefcase, color: "blue" },
+            { label: "CRM Accounts", val: crmClientsCount, icon: Building2, color: "indigo" },
+            { label: "CRM Contacts", val: 8, icon: Users, color: "purple" },
+            { label: "CRM Vendor Accounts", val: crmVendorsCount, icon: Handshake, color: "amber" },
+          ].map((metric, i) => {
+            const Icon = metric.icon;
+            return (
+              <div key={i} className="skeuo-card p-4 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <div className={`w-8 h-8 rounded-full border border-slate-200/50 flex items-center justify-center bg-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_white]`}>
+                    <Icon className={`w-4 h-4 text-${metric.color}-600`} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">{metric.label}</p>
+                  <p className={`text-xl font-extrabold text-slate-800`}>{metric.val}</p>
                 </div>
               </div>
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">{metric.label}</p>
-                <p className={`text-xl font-extrabold text-slate-800`}>{metric.val}</p>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* OS Command Center - Pulled from HireNestOS */}
+      <div className="relative z-10 mt-8 mb-4">
+        <h2 className="text-xl font-bold text-slate-800 tracking-tight mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-emerald-500" />
+          HireNestOS Command Center <span className="text-xs font-normal text-slate-500">(Pulled from HireNestOS)</span>
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Requirements Open", val: openRequirements, icon: Briefcase, color: "blue" },
+            { label: "Candidates Available", val: readyCandidatesCount, icon: Users, color: "indigo" },
+            { label: "Submissions Today", val: totalSubmissions, icon: FileSearch, color: "purple" },
+            { label: "Interviews Scheduled", val: interviewsCount, icon: MessageSquare, color: "amber" },
+            { label: "Offers Pending", val: candidates.filter(c => c.stage === 'offer').length, icon: CheckCircle2, color: "emerald" },
+            { label: "Placements This Month", val: placements, icon: Trophy, color: "fuchsia" },
+            { label: "Revenue Pipeline", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹0', icon: CircleDollarSign, color: "emerald", isCurrency: true },
+            { label: "Expected Margin", val: expectedMargin ? formatCurrency(expectedMargin) : '₹0', icon: TrendingUp, color: "emerald", isCurrency: true },
+          ].map((metric, i) => {
+            const Icon = metric.icon;
+            return (
+              <div key={i} className="skeuo-card p-4 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-3">
+                  <div className={`w-8 h-8 rounded-full border border-slate-200/50 flex items-center justify-center bg-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_white]`}>
+                    <Icon className={`w-4 h-4 text-${metric.color}-600`} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">{metric.label}</p>
+                  <p className={`text-xl font-extrabold text-slate-800`}>{metric.val}</p>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 flex-1">

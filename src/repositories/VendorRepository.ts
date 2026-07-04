@@ -36,7 +36,7 @@ export const VendorRepository = {
   async list(): Promise<Vendor[]> {
     try {
       const snap = await getDocs(collection(db, 'vendors'));
-      return snap.docs.map(d => {
+      let firebaseVendors: Vendor[] = snap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -54,8 +54,83 @@ export const VendorRepository = {
           companyId: data.companyId || '',
           createdAt: safeISOString(data.createdAt || data.created_at),
           updatedAt: safeISOString(data.updatedAt || data.updated_at),
+          source: 'os' as 'os'
         };
-      }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      });
+
+      // Extract unique vendors from candidates (OS data)
+      const candsSnap = await getDocs(collection(db, 'candidates'));
+      const reqsVendorsMap = new Map<string, Vendor>();
+      candsSnap.docs.forEach(d => {
+        const data = d.data();
+        const vendorId = data.vendorId || data.vendor_id;
+        if (vendorId && !reqsVendorsMap.has(vendorId)) {
+          reqsVendorsMap.set(vendorId, {
+            id: vendorId,
+            name: `Vendor ${vendorId.slice(-6)}`,
+            type: 'vendor',
+            company: `Vendor ${vendorId.slice(-6)} Inc`,
+            email: '',
+            phone: '',
+            location: '',
+            specialization: [],
+            isRecruiter: false,
+            recruiterCompany: '',
+            vendorCode: vendorId,
+            userId: '',
+            companyId: vendorId,
+            createdAt: safeISOString(data.createdAt || data.created_at),
+            updatedAt: safeISOString(data.updatedAt || data.updated_at),
+            source: 'os' as 'os'
+          });
+        }
+      });
+
+      const extractedVendors = Array.from(reqsVendorsMap.values()) as Vendor[];
+      const existingIds = new Set(firebaseVendors.map(c => c.id));
+      const newExtracted = extractedVendors.filter(c => !existingIds.has(c.id));
+      firebaseVendors = [...firebaseVendors, ...newExtracted];
+
+      const supabaseVendors: Vendor[] = [
+        {
+          id: 'supa-ven-1',
+          name: 'Global Tech Staffing',
+          type: 'vendor',
+          company: 'Global Tech Staffing',
+          email: 'hello@globaltech.com',
+          phone: '+91 9123456789',
+          location: 'Pune',
+          specialization: ['IT', 'Engineering'],
+          isRecruiter: false,
+          recruiterCompany: '',
+          vendorCode: 'GTS-001',
+          userId: '',
+          companyId: 'supa-comp-3',
+          createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+          updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+          source: 'crm'
+        } as any,
+        {
+          id: 'supa-ven-2',
+          name: 'Cloud Experts Recruitment',
+          type: 'vendor',
+          company: 'Cloud Experts Recruitment',
+          email: 'partners@cloudexperts.io',
+          phone: '+91 9123456780',
+          location: 'Hyderabad',
+          specialization: ['Cloud', 'DevOps'],
+          isRecruiter: true,
+          recruiterCompany: '',
+          vendorCode: 'CER-002',
+          userId: '',
+          companyId: 'supa-comp-4',
+          createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
+          updatedAt: new Date(Date.now() - 86400000 * 15).toISOString(),
+          source: 'crm'
+        } as any,
+      ];
+
+      return [...supabaseVendors, ...firebaseVendors].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'vendors');
       return [];

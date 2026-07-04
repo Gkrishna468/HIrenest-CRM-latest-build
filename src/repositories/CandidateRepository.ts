@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, runTran
 import { db } from '@/services/firebase/config';
 import type { Candidate } from '@/types';
 import { handleFirestoreError, OperationType } from '@/services/firebase/error';
-import { safeISOString } from '@/utils/safe';
+import { safeISOString, safeBudget } from '@/utils/safe';
 
 export const CandidateRepository = {
   async getById(id: string): Promise<Candidate | null> {
@@ -22,7 +22,7 @@ export const CandidateRepository = {
         yearsExperience: data.yearsExperience || data.years_experience || 0,
         currentCompany: data.currentCompany || data.current_company || '',
         currentTitle: data.currentTitle || data.current_title || '',
-        expectedSalary: data.expectedSalary || data.expected_salary || '',
+        expectedSalary: safeBudget(data.expectedSalary || data.expected_salary),
         location: data.location || '',
         status: data.status || 'active',
         stage: data.stage || 'sourced',
@@ -68,7 +68,7 @@ export const CandidateRepository = {
           yearsExperience: data.yearsExperience || data.years_experience || 0,
           currentCompany: data.currentCompany || data.current_company || '',
           currentTitle: data.currentTitle || data.current_title || '',
-          expectedSalary: data.expectedSalary || data.expected_salary || '',
+          expectedSalary: safeBudget(data.expectedSalary || data.expected_salary),
           location: data.location || '',
           status: data.status || 'active',
           stage: data.stage || 'sourced',
