@@ -34,6 +34,9 @@ export interface User {
   gmailConnected?: boolean;
   gmailEmail?: string;
   gmailConnectionId?: string;
+  loginCount?: number;
+  mustChangePassword?: boolean;
+  temporaryPassword?: string;
 }
 
 export interface Client {

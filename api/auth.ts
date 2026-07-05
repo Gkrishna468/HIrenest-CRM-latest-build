@@ -3,6 +3,7 @@ import { google } from "googleapis";
 import * as crypto from "crypto";
 import { initializeApp, getApps, applicationDefault, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import * as dotenv from "dotenv";
 dotenv.config();
 
@@ -311,6 +312,170 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.redirect('/settings?gmail_error=failed_to_connect');
   }
 })();
+    case 'admin-reset-password':
+      return await (async () => {
+        if (req.method !== 'POST') {
+          return res.status(405).json({ error: 'Method Not Allowed' });
+        }
+        
+        // Ensure the requester is an admin or founder
+        const requesterId = (req as any).user?.id;
+        const requesterEmail = (req as any).user?.email;
+        
+        if (!requesterId) {
+          return res.status(401).json({ error: 'Unauthorized: No requester credentials' });
+        }
+        
+        if (!db) {
+          return res.status(500).json({ error: 'Firestore db is not initialized.' });
+        }
+        
+        // Fetch requester role from Firestore just to be 100% sure and secure
+        const requesterDoc = await db.collection('users').doc(requesterId).get();
+        const requesterData = requesterDoc.data();
+        const requesterRole = requesterData?.role || (req as any).user?.role;
+        
+        if (requesterRole !== 'admin' && requesterRole !== 'founder' && requesterEmail !== 'admin@hirenestworkforce.com' && requesterId !== 'executive-root') {
+          return res.status(403).json({ error: 'Forbidden: Admin or Founder privileges required' });
+        }
+        
+        const { targetUserId, newPassword } = req.body;
+        if (!targetUserId || !newPassword) {
+          return res.status(400).json({ error: 'Bad Request: Missing targetUserId or newPassword' });
+        }
+        
+        try {
+          // Get target user info
+          const targetUserDoc = await db.collection('users').doc(targetUserId).get();
+          if (!targetUserDoc.exists) {
+            return res.status(404).json({ error: 'Target user profile not found' });
+          }
+          
+          const targetUserData = targetUserDoc.data();
+          const targetEmail = targetUserData?.email || '';
+          
+          // Reset password in Firebase Auth using Admin Auth
+          const adminAuth = getAdminAuth(adminApp);
+          await adminAuth.updateUser(targetUserId, {
+            password: newPassword
+          });
+          
+          // Update Firestore user document
+          await db.collection('users').doc(targetUserId).set({
+            loginCount: 0,
+            mustChangePassword: true,
+            temporaryPassword: newPassword,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+          
+          // Emit Event
+          await db.collection('system_events').add({
+            eventType: 'PASSWORD_RESET',
+            entityCollection: 'users',
+            entityId: targetUserId,
+            metadata: {
+              email: targetEmail || '',
+              resetBy: requesterEmail || requesterData?.name || 'Admin',
+            },
+            createdAt: new Date().toISOString()
+          });
+          
+          return res.status(200).json({ 
+            success: true, 
+            message: `Password successfully updated/reset for ${targetEmail}.` 
+          });
+        } catch (error: any) {
+          console.error('[Admin Reset Password Error]', error);
+          return res.status(500).json({ error: error.message || 'Internal Server Error' });
+        }
+      })();
+    case 'admin-delete-user':
+      return await (async () => {
+        if (req.method !== 'POST') {
+          return res.status(405).json({ error: 'Method Not Allowed' });
+        }
+        
+        // Ensure the requester is an admin or founder
+        const requesterId = (req as any).user?.id;
+        const requesterEmail = (req as any).user?.email;
+        
+        if (!requesterId) {
+          return res.status(401).json({ error: 'Unauthorized: No requester credentials' });
+        }
+        
+        if (!db) {
+          return res.status(500).json({ error: 'Firestore db is not initialized.' });
+        }
+        
+        // Fetch requester role from Firestore just to be 100% sure and secure
+        const requesterDoc = await db.collection('users').doc(requesterId).get();
+        const requesterData = requesterDoc.data();
+        const requesterRole = requesterData?.role || (req as any).user?.role;
+        
+        if (requesterRole !== 'admin' && requesterRole !== 'founder' && requesterEmail !== 'admin@hirenestworkforce.com' && requesterId !== 'executive-root') {
+          return res.status(403).json({ error: 'Forbidden: Admin or Founder privileges required' });
+        }
+        
+        const { targetUserId } = req.body;
+        if (!targetUserId) {
+          return res.status(400).json({ error: 'Bad Request: Missing targetUserId' });
+        }
+
+        if (targetUserId === requesterId) {
+          return res.status(400).json({ error: 'Bad Request: Admins cannot delete their own profile from this panel.' });
+        }
+        
+        try {
+          // Get target user info
+          const targetUserDoc = await db.collection('users').doc(targetUserId).get();
+          const targetUserData = targetUserDoc.exists ? targetUserDoc.data() : null;
+          const targetEmail = targetUserData?.email || '';
+          const targetName = targetUserData?.name || '';
+          
+          // Delete from Firebase Auth using Admin Auth
+          const adminAuth = getAdminAuth(adminApp);
+          let authDeleted = false;
+          try {
+            await adminAuth.deleteUser(targetUserId);
+            authDeleted = true;
+          } catch (authError: any) {
+            // If the user doesn't exist in Auth anymore, we can still proceed to clean up Firestore
+            console.warn('[Admin Delete User] Auth deletion warning, user may not exist in auth:', authError.message);
+          }
+          
+          // Delete from Firestore
+          let firestoreDeleted = false;
+          if (targetUserDoc.exists) {
+            await db.collection('users').doc(targetUserId).delete();
+            firestoreDeleted = true;
+          }
+          
+          if (!authDeleted && !firestoreDeleted) {
+            return res.status(404).json({ error: 'Target user profile not found in Firebase Authentication or Firestore.' });
+          }
+          
+          // Emit Event to Ledger
+          await db.collection('system_events').add({
+            eventType: 'USER_DELETED',
+            entityCollection: 'users',
+            entityId: targetUserId,
+            metadata: {
+              email: targetEmail || '',
+              name: targetName || '',
+              deletedBy: requesterEmail || requesterData?.name || 'Admin',
+            },
+            createdAt: new Date().toISOString()
+          });
+          
+          return res.status(200).json({ 
+            success: true, 
+            message: `User profile has been permanently deleted from both Authentication and Firestore.` 
+          });
+        } catch (error: any) {
+          console.error('[Admin Delete User Error]', error);
+          return res.status(500).json({ error: error.message || 'Internal Server Error' });
+        }
+      })();
     default:
       return res.status(400).json({ error: "Invalid action: " + action });
   }

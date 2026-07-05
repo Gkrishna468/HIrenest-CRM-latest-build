@@ -6,14 +6,16 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Zap, Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Zap, Eye, EyeOff, Mail, Lock, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Login() {
-  const { signIn, user } = useAuth();
+  const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [isRegister, setIsRegister] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -27,13 +29,24 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (typeof signIn === "function") {
-        await signIn(email, password);
+      if (isRegister) {
+        if (!name.trim()) {
+          throw new Error("Full Name is required");
+        }
+        if (typeof signUp === "function") {
+          await signUp(email, password, name, 'viewer');
+        } else {
+          throw new Error("Auth registration not initialized");
+        }
       } else {
-        throw new Error("Auth system not initialized");
+        if (typeof signIn === "function") {
+          await signIn(email, password);
+        } else {
+          throw new Error("Auth system not initialized");
+        }
       }
     } catch (err: any) {
-      toast.error(err.message || "Login failed");
+      toast.error(err.message || "Authentication failed");
     } finally {
       setLoading(false);
     }
@@ -58,6 +71,25 @@ export default function Login() {
 
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {isRegister && (
+              <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                <label className="text-sm font-medium text-slate-700 ml-1">
+                  Full Name
+                </label>
+                <div className="relative group">
+                  <UserIcon className="absolute left-3 top-3 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Gopal Krishna"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700 ml-1">
                 Email
@@ -80,17 +112,19 @@ export default function Login() {
                 <label className="text-sm font-medium text-slate-700">
                   Password
                 </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    toast.info(
-                      "Please contact your administrator to reset password",
-                    )
-                  }
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                  Forgot password?
-                </button>
+                {!isRegister && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toast.info(
+                        "Please contact your administrator to reset password",
+                      )
+                    }
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    Forgot password?
+                  </button>
+                )}
               </div>
               <div className="relative group">
                 <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -124,10 +158,20 @@ export default function Login() {
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                "Sign In"
+                isRegister ? "Register Account" : "Sign In"
               )}
             </button>
           </form>
+
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => setIsRegister(!isRegister)}
+              className="text-xs text-indigo-600 hover:text-indigo-700 font-bold uppercase tracking-wider"
+            >
+              {isRegister ? "Already registered? Sign In" : "Need credentials? Register here"}
+            </button>
+          </div>
 
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
             <p className="text-xs text-slate-400">

@@ -83,14 +83,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             setUser(profile);
           } else {
-            // Fallback: create default user document in Firestore if not exists
-            const fallbackUser = await UserRepository.create(firebaseUser.uid, {
-              email: firebaseUser.email || '',
-              name: isExecRoot ? 'Gopal Krishna' : (firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User'),
-              role: isExecRoot ? 'admin' : 'viewer',
-              status: 'active',
-            });
-            setUser(fallbackUser);
+            // Check if there is an unlinked pre-created profile by email
+            const preCreatedProfile = firebaseUser.email ? await UserRepository.getByEmail(firebaseUser.email) : null;
+            if (preCreatedProfile) {
+              const claimedUser = await UserRepository.create(firebaseUser.uid, {
+                email: firebaseUser.email || '',
+                name: preCreatedProfile.name,
+                role: preCreatedProfile.role,
+                phone: preCreatedProfile.phone,
+                status: preCreatedProfile.status,
+                companyId: preCreatedProfile.companyId,
+              });
+              
+              if (preCreatedProfile.id !== firebaseUser.uid) {
+                await UserRepository.delete(preCreatedProfile.id);
+              }
+              setUser(claimedUser);
+            } else {
+              // Fallback: create default user document in Firestore if not exists
+              const fallbackUser = await UserRepository.create(firebaseUser.uid, {
+                email: firebaseUser.email || '',
+                name: isExecRoot ? 'Gopal Krishna' : (firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User'),
+                role: isExecRoot ? 'admin' : 'viewer',
+                status: 'active',
+              });
+              setUser(fallbackUser);
+            }
           }
         } catch (err) {
           console.error('Error resolving user profile:', err);
@@ -128,7 +146,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email === 'admin@hirenest.com' ? 'gopal@hirenestworkforce.com' : email, // Force email sync for Gmail connection
         name: 'Gopal Krishna', 
         role: 'admin', 
-        status: 'active' 
+        status: 'active',
+        loginCount: 3, // Bypasses constraint
       };
       
       setUser(execUser);
@@ -138,20 +157,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Direct Firebase Sign In
-    await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const profile = await UserRepository.getById(cred.user.uid);
+    if (profile) {
+      const newCount = (profile.loginCount || 0) + 1;
+      await UserRepository.update(cred.user.uid, { loginCount: newCount });
+      setUser({ ...profile, loginCount: newCount });
+    }
     toast.success('Signed in successfully');
   };
 
   const signUp = async (email: string, password: string, name: string, role: Role) => {
     // Direct Firebase Sign Up
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    // Create user profile in Firestore immediately
-    await UserRepository.create(cred.user.uid, {
-      email,
-      name,
-      role,
-      status: 'active',
-    });
+    
+    // Check if there is an unlinked pre-created profile by email
+    const preCreatedProfile = await UserRepository.getByEmail(email);
+    if (preCreatedProfile) {
+      const claimedUser = await UserRepository.create(cred.user.uid, {
+        email,
+        name: preCreatedProfile.name || name,
+        role: preCreatedProfile.role || role,
+        phone: preCreatedProfile.phone,
+        status: preCreatedProfile.status || 'active',
+        companyId: preCreatedProfile.companyId,
+        loginCount: 1,
+        mustChangePassword: false,
+      });
+      if (preCreatedProfile.id !== cred.user.uid) {
+        await UserRepository.delete(preCreatedProfile.id);
+      }
+      setUser(claimedUser);
+    } else {
+      // Create user profile in Firestore immediately
+      await UserRepository.create(cred.user.uid, {
+        email,
+        name,
+        role,
+        status: 'active',
+        loginCount: 1,
+        mustChangePassword: false,
+      });
+    }
     toast.success('Account registered successfully');
   };
 
