@@ -184,6 +184,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       data.companyId = userProfile.companyId;
     }
 
+    if (!data.secretKey) {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Clear alphanumeric chars to avoid 1/I and 0/O confusion
+      const part1 = Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const part2 = Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const part3 = Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      data.secretKey = `${part1}-${part2}-${part3}`;
+    }
+
     const vendorPayload: Partial<Vendor> = {
       ...data,
       source: data.source || "vendor",

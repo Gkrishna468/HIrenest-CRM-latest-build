@@ -24,6 +24,8 @@ export const VendorRepository = {
         vendorCode: data.vendorCode || '',
         userId: data.userId || '',
         companyId: data.companyId || '',
+        status: data.status || 'active',
+        secretKey: data.secretKey || '',
         createdAt: safeISOString(data.createdAt || data.created_at),
         updatedAt: safeISOString(data.updatedAt || data.updated_at),
       };
@@ -52,6 +54,8 @@ export const VendorRepository = {
           vendorCode: data.vendorCode || '',
           userId: data.userId || '',
           companyId: data.companyId || '',
+          status: data.status || 'active',
+          secretKey: data.secretKey || '',
           createdAt: safeISOString(data.createdAt || data.created_at),
           updatedAt: safeISOString(data.updatedAt || data.updated_at),
           source: 'os' as 'os'
@@ -140,6 +144,8 @@ export const VendorRepository = {
       vendorCode: data.vendorCode || '',
       userId: data.userId || '',
       companyId: data.companyId || '',
+      status: data.status || 'active',
+      secretKey: data.secretKey || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

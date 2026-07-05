@@ -77,6 +77,7 @@ export interface Vendor {
   companyId?: string;
   organizationId?: string;
   status?: 'active' | 'inactive';
+  secretKey?: string;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
