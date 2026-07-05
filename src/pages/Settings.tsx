@@ -29,16 +29,46 @@ import { UserRepository } from '@/repositories/UserRepository';
 import { RequirementRepository } from '@/repositories/RequirementRepository';
 import { CandidateRepository } from '@/repositories/CandidateRepository';
 import { AgentRepository } from '@/repositories/AgentRepository';
-import { auth } from '@/services/firebase/config';
+import { auth, db } from '@/services/firebase/config';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { updatePassword } from 'firebase/auth';
 
 export default function Settings() {
   const { user, apiFetch } = useAuth();
-  const [activeTab, setActiveTab] = useState('gmail');
+  const [activeTab, setActiveTab] = useState('workflows');
   const [loading, setLoading] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailData, setGmailData] = useState<any>(null);
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
+  const [workflowConfigs, setWorkflowConfigs] = useState({
+    gmailActive: true,
+    gmailFrequency: 30,
+    vendorParserActive: true,
+    vendorParserAutoCreate: true,
+    slaActive: true,
+    slaReminderLimit: 3,
+    slaEscalationLimit: 7,
+    slaAlertLimit: 10,
+    redeploymentActive: true,
+    redeploymentMatchThreshold: 85,
+    redeploymentIdleThreshold: 5
+  });
+
+  useEffect(() => {
+    const fetchWorkflows = async () => {
+      try {
+        const snap = await getDoc(doc(db, "configs", "workflows"));
+        if (snap.exists()) {
+          setWorkflowConfigs(prev => ({ ...prev, ...snap.data() }));
+        }
+      } catch (err) {
+        console.warn("Could not load workflows config from Firestore:", err);
+      }
+    };
+    if (user) {
+      fetchWorkflows();
+    }
+  }, [user]);
 
   const [firebaseStats, setFirebaseStats] = useState<any>({
     users: 0,
@@ -146,6 +176,7 @@ export default function Settings() {
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="w-full lg:w-64 flex flex-col gap-1 shrink-0 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm self-start">
           {[
+            { id: 'workflows', label: 'Workflow & Engines', icon: Activity },
             { id: 'firebase', label: 'Firebase Ledger', icon: Database },
             { id: 'gmail', label: 'Gmail Logic', icon: Mail },
             { id: 'security', label: 'Security & RLS', icon: Shield },
@@ -169,6 +200,233 @@ export default function Settings() {
         </div>
 
         <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-8 min-h-[500px]">
+          {activeTab === 'workflows' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-lg text-slate-900 tracking-tight">Workflow & Engine Configuration</h2>
+                    <p className="text-slate-500 text-xs mt-0.5">Deploy, tune, and configure the core deterministic engines of HireNest OS.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      await setDoc(doc(db, "configs", "workflows"), workflowConfigs);
+                      toast.success("Workflow engine rules stored in Firestore ledger.");
+                    } catch (err) {
+                      toast.error("Failed to update workflow configs in database.");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-4 py-2 skeuo-btn text-xs font-black uppercase font-mono"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {loading ? "Saving..." : "Save Configs"}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. GMAIL INGESTION ENGINE */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                      <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider font-mono">Sprint 1: Gmail Ingestion</h3>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={workflowConfigs.gmailActive}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, gmailActive: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-sans font-medium">
+                    Automated background harvesting of incoming candidate applications via official Google Workspace Pub/Sub.
+                  </p>
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                      <span>Sync Check Frequency</span>
+                      <span className="font-black text-slate-800">{workflowConfigs.gmailFrequency} minutes</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="120"
+                      step="5"
+                      value={workflowConfigs.gmailFrequency}
+                      onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, gmailFrequency: Number(e.target.value) })}
+                      className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. VENDOR EXCEL PARSER */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider font-mono">Sprint 2: Vendor Excel Parser</h3>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={workflowConfigs.vendorParserActive}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, vendorParserActive: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-sans font-medium">
+                    Automatically intercepts and extracts structured candidate batch submissions from vendor Excel/CSV attachment payloads.
+                  </p>
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-[10px] font-mono uppercase text-slate-400">
+                    <span>Auto-create Submissions Batches</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={workflowConfigs.vendorParserAutoCreate}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, vendorParserAutoCreate: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 3. FEEDBACK SLA ENGINE */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                      <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider font-mono">Sprint 3: Feedback SLA Engine</h3>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={workflowConfigs.slaActive}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, slaActive: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-sans font-medium">
+                    Calculates re-engagement loops and enforces candidate feedback response latency SLA boundaries. Triggers notifications dynamically.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                        <span>Reminder (Days)</span>
+                        <span className="font-black text-slate-800">{workflowConfigs.slaReminderLimit} d</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="1"
+                        max="14"
+                        value={workflowConfigs.slaReminderLimit}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, slaReminderLimit: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl outline-none text-xs text-center font-bold"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                        <span>Escalation (Days)</span>
+                        <span className="font-black text-slate-800">{workflowConfigs.slaEscalationLimit} d</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="2"
+                        max="30"
+                        value={workflowConfigs.slaEscalationLimit}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, slaEscalationLimit: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl outline-none text-xs text-center font-bold"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                        <span>Founder Alert (Days)</span>
+                        <span className="font-black text-slate-800">{workflowConfigs.slaAlertLimit} d</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="5"
+                        max="60"
+                        value={workflowConfigs.slaAlertLimit}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, slaAlertLimit: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl outline-none text-xs text-center font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. CANDIDATE REDEPLOYMENT ENGINE */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                      <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider font-mono">Sprint 4: Candidate Redeployment</h3>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={workflowConfigs.redeploymentActive}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, redeploymentActive: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-sans font-medium">
+                    Automatically maps inactive high-probability candidates matching secondary requisitions back to the BDM for resubmission.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-slate-100">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                        <span>Match Score Threshold</span>
+                        <span className="font-black text-slate-800">{workflowConfigs.redeploymentMatchThreshold}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="95"
+                        step="5"
+                        value={workflowConfigs.redeploymentMatchThreshold}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, redeploymentMatchThreshold: Number(e.target.value) })}
+                        className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                        <span>Max Sourcing Idle Time</span>
+                        <span className="font-black text-slate-800">{workflowConfigs.redeploymentIdleThreshold} Days</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="2"
+                        max="30"
+                        step="1"
+                        value={workflowConfigs.redeploymentIdleThreshold}
+                        onChange={(e) => setWorkflowConfigs({ ...workflowConfigs, redeploymentIdleThreshold: Number(e.target.value) })}
+                        className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'firebase' && (
             <div className="space-y-8 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">

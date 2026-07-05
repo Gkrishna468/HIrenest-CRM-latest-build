@@ -237,7 +237,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-4 relative z-10 shrink-0 font-mono">
               <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
                 <span className="text-[9px] text-slate-400 uppercase tracking-wider block">Expected Revenue</span>
-                <span className="text-xl font-black text-emerald-400 block mt-1">₹52 L</span>
+                <span className="text-xl font-black text-emerald-400 block mt-1">{formatCurrency(forecast.expectedRevenue || expectedRevenue)}</span>
                 <span className="text-[9px] text-emerald-500 font-bold uppercase mt-1 inline-block">Probability: {forecast.probability}%</span>
               </div>
               <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
@@ -251,10 +251,10 @@ export default function Dashboard() {
           {/* Core Founder Financial & Executive Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Pipeline Value", val: expectedRevenue ? formatCurrency(expectedRevenue) : '₹1.8 Cr', icon: CircleDollarSign, color: "text-indigo-600" },
+              { label: "Pipeline Value", val: formatCurrency(expectedRevenue), icon: CircleDollarSign, color: "text-indigo-600" },
               { label: "Active Clients", val: crmClientsCount || clients.length, icon: Building2, color: "text-blue-600" },
-              { label: "Direct Placements", val: placements || 24, icon: Trophy, color: "text-yellow-600" },
-              { label: "Pending Collections", val: "₹12,00,000", icon: AlertCircle, color: "text-rose-600" },
+              { label: "Direct Placements", val: placements, icon: Trophy, color: "text-yellow-600" },
+              { label: "Pending Collections", val: formatCurrency(deals.filter(d => !d.paymentReceived).reduce((sum, d) => sum + (Number(d.revenueAmount || d.revenue_amount) || 0), 0)), icon: AlertCircle, color: "text-rose-600" },
             ].map((metric, i) => {
               const Icon = metric.icon;
               return (
@@ -283,26 +283,29 @@ export default function Dashboard() {
               
               {/* Bills pending tracker */}
               <div className="space-y-3 font-sans text-xs">
-                {[
-                  { invoice: "INV-2026-042", client: "ABC Technologies", amount: "₹4,50,000", due: "Yesterday", status: "Overdue" },
-                  { invoice: "INV-2026-048", client: "Infosys Technologies", amount: "₹7,50,000", due: "In 3 Days", status: "Pending" }
-                ].map((item, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-slate-950">{item.client}</h4>
-                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">{item.invoice} • Due: {item.due}</p>
+                {deals.filter(d => !d.paymentReceived).length > 0 ? (
+                  deals.filter(d => !d.paymentReceived).slice(0, 3).map((deal, idx) => (
+                    <div key={idx} className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-slate-950">{deal.clientName || deal.client_name || "Enterprise Client"}</h4>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">INV-2026-{deal.id?.slice(-3).toUpperCase() || "001"} • Role: {deal.jobTitle || "Requisition"}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-slate-900 block">{formatCurrency(deal.revenueAmount || deal.revenue_amount || 0)}</span>
+                        <span className={cn(
+                          "text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border inline-block mt-1 font-mono",
+                          deal.status === "disputed" ? "bg-rose-50 text-rose-600 border-rose-200" : "bg-amber-50 text-amber-600 border-amber-200"
+                        )}>
+                          {deal.status || "Pending"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-black text-slate-900 block">{item.amount}</span>
-                      <span className={cn(
-                        "text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border inline-block mt-1 font-mono",
-                        item.status === "Overdue" ? "bg-rose-50 text-rose-600 border-rose-200" : "bg-amber-50 text-amber-600 border-amber-200"
-                      )}>
-                        {item.status}
-                      </span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-slate-400 font-medium border border-dashed border-slate-200 rounded-xl">
+                    No uncollected client invoices found in the current cycle.
                   </div>
-                ))}
+                )}
               </div>
             </div>
 

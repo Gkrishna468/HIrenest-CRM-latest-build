@@ -23,7 +23,8 @@ import {
   Mail,
   Database,
   Trophy,
-  CheckCircle2
+  CheckCircle2,
+  Layers
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ const navGroups = [
     title: "Intelligence",
     items: [
        { icon: LayoutDashboard, label: 'Command Center', path: '/' },
+       { icon: Layers, label: 'Workspaces', path: '/workspaces' },
        { icon: BrainCircuit, label: 'AI Agents', path: '/agents' },
        { icon: Database, label: 'Knowledge Vault', path: '/knowledge-vault' },
     ]

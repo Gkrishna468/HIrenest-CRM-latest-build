@@ -13,10 +13,12 @@ import {
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider } from "./contexts/DataContext";
 import { Sidebar } from "./components/Sidebar";
+import { MobileNavBar } from "./components/MobileNavBar";
 import { Toaster } from "sonner";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
+import Workspaces from "./pages/Workspaces";
 import Accounts from "./pages/Accounts";
 import Contacts from "./pages/Contacts";
 import Requirements from "./pages/Requirements";
@@ -45,11 +47,14 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (!user) return <Navigate to="/login" />;
 
   return (
-    <div className="flex min-h-screen skeuo-container">
-      <Sidebar />
+    <div className="flex min-h-screen skeuo-container flex-col md:flex-row pb-16 md:pb-0">
+      <div className="hidden md:block shrink-0">
+        <Sidebar />
+      </div>
       <main className="flex-1 overflow-y-auto">
-        <div className="w-full h-full p-8">{children}</div>
+        <div className="w-full h-full p-4 md:p-8">{children}</div>
       </main>
+      <MobileNavBar />
     </div>
   );
 }
@@ -69,6 +74,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <Dashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/workspaces"
+              element={
+                <PrivateRoute>
+                  <Workspaces />
                 </PrivateRoute>
               }
             />

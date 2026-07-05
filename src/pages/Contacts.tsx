@@ -27,7 +27,7 @@ import {
   Check
 } from 'lucide-react';
 import { SourceBadge } from '@/components/SourceBadge';
-import { collection, getDocs, addDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -74,101 +74,107 @@ export default function Contacts() {
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
-        const fetchedContacts: Contact[] = snap.docs.map(d => {
+        let snap = await getDocs(collection(db, 'contacts'));
+        let fetchedContacts: Contact[] = snap.docs.map(d => {
           const data = d.data();
-          let name = data.name || data.email?.split('@')[0] || 'Unknown';
           return {
             id: d.id,
-            name,
-            title: data.role || 'HR Head',
-            company: data.companyName || data.organizationId || 'ABC Technologies',
+            name: data.name || 'Unknown',
+            title: data.title || 'HR Head',
+            company: data.company || 'ABC Technologies',
             email: data.email || '',
             phone: data.phone || '+91 98860 12345',
-            location: 'Bangalore',
-            source: 'os',
-            rating: 4,
-            lastMeeting: '4 days ago',
-            birthday: 'September 14',
-            linkedin: 'https://linkedin.com/in/recruiter-profile',
-            callsCount: 8,
-            emailsCount: 22,
-            whatsappCount: 4,
-            requirementsGiven: 6,
-            placementsCount: 2,
-            personalNotes: 'Focuses heavily on candidate screening compliance and rapid SLA response loops.',
-            aiSummary: 'A crucial stakeholder for technology requisitions. Highly responsive on WhatsApp; prefers afternoon scheduling updates.'
+            location: data.location || 'Bangalore',
+            source: (data.source || 'crm') as 'crm' | 'os',
+            rating: data.rating || 4,
+            lastMeeting: data.lastMeeting || '4 days ago',
+            birthday: data.birthday || 'September 14',
+            linkedin: data.linkedin || '',
+            callsCount: data.callsCount || 0,
+            emailsCount: data.emailsCount || 0,
+            whatsappCount: data.whatsappCount || 0,
+            requirementsGiven: data.requirementsGiven || 0,
+            placementsCount: data.placementsCount || 0,
+            personalNotes: data.personalNotes || 'Focuses on team alignment SLA loops.',
+            aiSummary: data.aiSummary || 'A crucial technology recruitment stakeholder.'
           };
         });
 
-        // Seed comprehensive, high-profile contacts as relationship-centric demos
-        const demoContacts: Contact[] = [
-          {
-            id: 'demo-john',
-            name: 'John Smith',
-            title: 'Delivery Manager',
-            company: 'ABC Technologies',
-            email: 'john.smith@abctech.com',
-            phone: '+91 99000 88221',
-            location: 'Hyderabad, India',
-            source: 'crm',
-            rating: 5,
-            lastMeeting: '2 days ago',
-            birthday: 'October 24',
-            linkedin: 'https://linkedin.com/in/johnsmith-delivery',
-            callsCount: 18,
-            emailsCount: 42,
-            whatsappCount: 8,
-            requirementsGiven: 15,
-            placementsCount: 6,
-            personalNotes: 'Always looks for candidates with strong architectural and communication skills. Dislikes generic submissions.',
-            aiSummary: 'Main key contact in ABC Technologies. Drives 70% of tech requisitions. Maintain regular weekly touchpoints.'
-          },
-          {
-            id: 'demo-priya',
-            name: 'Priyanka Sen',
-            title: 'Talent Acquisition Head',
-            company: 'Infosys',
-            email: 'priyanka.s@infosys.com',
-            phone: '+91 98801 77334',
-            location: 'Pune, India',
-            source: 'crm',
-            rating: 4,
-            lastMeeting: 'Yesterday',
-            birthday: 'January 12',
-            linkedin: 'https://linkedin.com/in/priyankasen-ta',
-            callsCount: 12,
-            emailsCount: 31,
-            whatsappCount: 15,
-            requirementsGiven: 19,
-            placementsCount: 8,
-            personalNotes: 'Prefers batch resume submissions with custom screening scores attached.',
-            aiSummary: 'Strategic HR partner. Coordinates core vendor billing frameworks.'
-          },
-          {
-            id: 'demo-rahul',
-            name: 'Rahul Nair',
-            title: 'Engineering Director',
-            company: 'Cloud Assure',
-            email: 'rahul.nair@cloudassure.com',
-            phone: '+91 99805 11002',
-            location: 'Bangalore, India',
-            source: 'crm',
-            rating: 4,
-            lastMeeting: 'Last week',
-            birthday: 'December 05',
-            linkedin: 'https://linkedin.com/in/rahulnair-cloud',
-            callsCount: 6,
-            emailsCount: 14,
-            whatsappCount: 2,
-            requirementsGiven: 4,
-            placementsCount: 1,
-            personalNotes: 'Requires deep backend experience (Golang, Kubernetes). Prioritizes quality over speed.',
-            aiSummary: 'Direct hiring manager. Prefers receiving short profiles via WhatsApp first.'
-          }
-        ];
+        if (fetchedContacts.length === 0) {
+          // Dynamic Firebase Seeding
+          const demoContacts: Omit<Contact, 'id'>[] = [
+            {
+              name: 'John Smith',
+              title: 'Delivery Manager',
+              company: 'ABC Technologies',
+              email: 'john.smith@abctech.com',
+              phone: '+91 99000 88221',
+              location: 'Hyderabad, India',
+              source: 'crm',
+              rating: 5,
+              lastMeeting: '2 days ago',
+              birthday: 'October 24',
+              linkedin: 'https://linkedin.com/in/johnsmith-delivery',
+              callsCount: 18,
+              emailsCount: 42,
+              whatsappCount: 8,
+              requirementsGiven: 15,
+              placementsCount: 6,
+              personalNotes: 'Always looks for candidates with strong architectural and communication skills. Dislikes generic submissions.',
+              aiSummary: 'Main key contact in ABC Technologies. Drives 70% of tech requisitions. Maintain regular weekly touchpoints.'
+            },
+            {
+              name: 'Priyanka Sen',
+              title: 'Talent Acquisition Head',
+              company: 'Infosys',
+              email: 'priyanka.s@infosys.com',
+              phone: '+91 98801 77334',
+              location: 'Pune, India',
+              source: 'crm',
+              rating: 4,
+              lastMeeting: 'Yesterday',
+              birthday: 'January 12',
+              linkedin: 'https://linkedin.com/in/priyankasen-ta',
+              callsCount: 12,
+              emailsCount: 31,
+              whatsappCount: 15,
+              requirementsGiven: 19,
+              placementsCount: 8,
+              personalNotes: 'Prefers batch resume submissions with custom screening scores attached.',
+              aiSummary: 'Strategic HR partner. Coordinates core vendor billing frameworks.'
+            },
+            {
+              name: 'Rahul Nair',
+              title: 'Engineering Director',
+              company: 'Cloud Assure',
+              email: 'rahul.nair@cloudassure.com',
+              phone: '+91 99805 11002',
+              location: 'Bangalore, India',
+              source: 'crm',
+              rating: 4,
+              lastMeeting: 'Last week',
+              birthday: 'December 05',
+              linkedin: 'https://linkedin.com/in/rahulnair-cloud',
+              callsCount: 6,
+              emailsCount: 14,
+              whatsappCount: 2,
+              requirementsGiven: 4,
+              placementsCount: 1,
+              personalNotes: 'Requires deep backend experience (Golang, Kubernetes). Prioritizes quality over speed.',
+              aiSummary: 'Direct hiring manager. Prefers receiving short profiles via WhatsApp first.'
+            }
+          ];
 
-        setContacts([...demoContacts, ...fetchedContacts]);
+          for (const item of demoContacts) {
+            await addDoc(collection(db, 'contacts'), item);
+          }
+
+          // Refetch to populate correctly with Firestore-assigned IDs
+          snap = await getDocs(collection(db, 'contacts'));
+          fetchedContacts = snap.docs.map(d => ({ id: d.id, ...d.data() } as Contact));
+        }
+
+        setContacts(fetchedContacts);
       } catch (error) {
         console.error('Error fetching contacts:', error);
       } finally {
@@ -184,12 +190,18 @@ export default function Contacts() {
     c.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleUpdateRating = (contactId: string, newRating: number) => {
-    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, rating: newRating } : c));
-    if (selectedContact && selectedContact.id === contactId) {
-      setSelectedContact(prev => prev ? { ...prev, rating: newRating } : null);
+  const handleUpdateRating = async (contactId: string, newRating: number) => {
+    try {
+      await updateDoc(doc(db, 'contacts', contactId), { rating: newRating });
+      setContacts(prev => prev.map(c => c.id === contactId ? { ...c, rating: newRating } : c));
+      if (selectedContact && selectedContact.id === contactId) {
+        setSelectedContact(prev => prev ? { ...prev, rating: newRating } : null);
+      }
+      toast.success('Relationship strength updated in Firestore!');
+    } catch (err) {
+      console.error('Failed to update rating:', err);
+      toast.error('Failed to save rating changes in database.');
     }
-    toast.success('Relationship strength updated successfully!');
   };
 
   const handleCreateContact = async (e: React.FormEvent) => {
@@ -200,15 +212,14 @@ export default function Contacts() {
     }
 
     try {
-      const added: Contact = {
-        id: `custom-${Date.now()}`,
+      const payload = {
         name: newContactForm.name,
         title: newContactForm.title || 'Hiring Manager',
         company: newContactForm.company,
         email: newContactForm.email,
         phone: newContactForm.phone || '+91 90000 11111',
         location: newContactForm.location,
-        source: 'crm',
+        source: 'crm' as const,
         rating: 3,
         lastMeeting: 'Today',
         birthday: 'Unknown',
@@ -222,12 +233,16 @@ export default function Contacts() {
         aiSummary: 'Awaiting interaction logs.'
       };
 
+      const docRef = await addDoc(collection(db, 'contacts'), payload);
+      const added: Contact = { id: docRef.id, ...payload };
+
       setContacts(prev => [added, ...prev]);
       setIsModalOpen(false);
       setNewContactForm({ name: '', title: '', company: '', email: '', phone: '', location: 'Bangalore' });
-      toast.success('Contact registered in CRM.');
+      toast.success('Contact registered in CRM and stored in Firestore.');
     } catch (err) {
-      toast.error('Failed to register contact');
+      console.error(err);
+      toast.error('Failed to register contact in database.');
     }
   };
 
