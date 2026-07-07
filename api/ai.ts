@@ -7,7 +7,7 @@ dotenv.config();
 
 import * as fs from "fs";
 import * as path from "path";
-import { executeServerAITask, AICache, AIRequestQueue } from "./aiGateway";
+import { executeServerAITask, AICache, AIRequestQueue } from "./aiGateway.js";
 
 let db: Firestore | null = null;
 let adminApp: any = null;

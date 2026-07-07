@@ -136,7 +136,23 @@ export default function Vendors() {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [bulkStep, setBulkStep] = useState(1);
   const [bulkReqId, setBulkReqId] = useState('');
-  const [bulkResumes, setBulkResumes] = useState<{ id: string; name: string; size: string; status: 'pending' | 'parsing' | 'done' | 'failed'; text?: string; parsedData?: any; error?: string }[]>([]);
+  const [bulkResumes, setBulkResumes] = useState<{ 
+    id: string; 
+    name: string; 
+    size: string; 
+    status: 'pending' | 'parsing' | 'done' | 'failed'; 
+    text?: string; 
+    parsedData?: any; 
+    error?: string;
+    stages?: {
+      upload: 'pending' | 'success' | 'failed' | 'skipped';
+      parse: 'pending' | 'success' | 'failed' | 'skipped';
+      dupCheck: 'pending' | 'success' | 'failed' | 'skipped' | 'duplicate';
+      firestore: 'pending' | 'success' | 'failed' | 'skipped';
+    };
+    resultMessage?: string;
+  }[]>([]);
+  const [bulkStartTime, setBulkStartTime] = useState<number | null>(null);
   const [activeBulkTab, setActiveBulkTab] = useState<string>('');
   const [bulkCheckDeduplication, setBulkCheckDeduplication] = useState<boolean>(true);
   const [bulkUploadMode, setBulkUploadMode] = useState<'requirement' | 'talent-pool'>('requirement');
@@ -544,7 +560,14 @@ export default function Vendors() {
           noticePeriod: 'Immediate',
           expectedSalary: `${Math.floor(8 + Math.random() * 12)} LPA`,
           location: 'Bangalore'
-        }
+        },
+        stages: {
+          upload: 'success' as const,
+          parse: 'pending' as const,
+          dupCheck: 'pending' as const,
+          firestore: 'pending' as const
+        },
+        resultMessage: 'Ready'
       };
     });
     
@@ -565,11 +588,22 @@ export default function Vendors() {
   };
 
   const runAIParsing = async () => {
+    setBulkStartTime(Date.now());
     setBulkStep(3);
     const updated = [...bulkResumes];
     
     for (let i = 0; i < updated.length; i++) {
-      updated[i] = { ...updated[i], status: 'parsing' };
+      updated[i] = { 
+        ...updated[i], 
+        status: 'parsing',
+        stages: {
+          upload: 'success',
+          parse: 'pending',
+          dupCheck: 'pending',
+          firestore: 'pending'
+        },
+        resultMessage: 'Parsing...'
+      };
       setBulkResumes([...updated]);
       
       try {
@@ -584,6 +618,13 @@ export default function Vendors() {
           updated[i] = {
             ...updated[i],
             status: 'done',
+            stages: {
+              upload: 'success',
+              parse: 'success',
+              dupCheck: 'pending',
+              firestore: 'pending'
+            },
+            resultMessage: 'Parsed successfully',
             parsedData: {
               ...updated[i].parsedData,
               ...parsed,
@@ -591,10 +632,32 @@ export default function Vendors() {
             }
           };
         } else {
-          updated[i] = { ...updated[i], status: 'done' };
+          updated[i] = { 
+            ...updated[i], 
+            status: 'failed', 
+            error: 'AI Gateway unavailable',
+            stages: {
+              upload: 'success',
+              parse: 'failed',
+              dupCheck: 'skipped',
+              firestore: 'skipped'
+            },
+            resultMessage: 'AI Gateway unavailable'
+          };
         }
       } catch (err) {
-        updated[i] = { ...updated[i], status: 'done' };
+        updated[i] = { 
+          ...updated[i], 
+          status: 'failed', 
+          error: 'AI Gateway unavailable',
+          stages: {
+            upload: 'success',
+            parse: 'failed',
+            dupCheck: 'skipped',
+            firestore: 'skipped'
+          },
+          resultMessage: 'AI Gateway unavailable'
+        };
       }
       setBulkResumes([...updated]);
       await new Promise(r => setTimeout(r, 450)); // pipeline step-by-step aesthetic visual pace
@@ -607,16 +670,33 @@ export default function Vendors() {
     const collectionName = bulkUploadMode === 'talent-pool' ? 'vendor_candidate_pool' : 'candidates';
     
     for (let i = 0; i < updated.length; i++) {
+      if (updated[i].status === 'failed') {
+        if (updated[i].stages) {
+          updated[i].stages.dupCheck = 'skipped';
+        }
+        continue;
+      }
       const email = updated[i].parsedData?.email?.toLowerCase()?.trim();
-      if (!email) continue;
+      if (!email) {
+        if (updated[i].stages) {
+          updated[i].stages.dupCheck = 'skipped';
+        }
+        continue;
+      }
       
       try {
         const snap = await getDocs(collection(db, collectionName));
         const conflict = snap.docs.find(doc => doc.data().email?.toLowerCase() === email);
         if (conflict) {
-          const data = conflict.data();
           updated[i] = {
             ...updated[i],
+            stages: {
+              upload: 'success',
+              parse: 'success',
+              dupCheck: 'duplicate',
+              firestore: 'skipped'
+            },
+            resultMessage: 'Duplicate skipped',
             parsedData: {
               ...updated[i].parsedData,
               hasConflict: true,
@@ -626,11 +706,21 @@ export default function Vendors() {
         } else {
           updated[i] = {
             ...updated[i],
+            stages: {
+              upload: 'success',
+              parse: 'success',
+              dupCheck: 'success',
+              firestore: 'pending'
+            },
+            resultMessage: 'Identity unique',
             parsedData: { ...updated[i].parsedData, hasConflict: false }
           };
         }
       } catch (err) {
         console.error(err);
+        if (updated[i].stages) {
+          updated[i].stages.dupCheck = 'failed';
+        }
       }
       setBulkResumes([...updated]);
       await new Promise(r => setTimeout(r, 300));
@@ -647,11 +737,33 @@ export default function Vendors() {
         ? '/api/candidates?action=submitVendorCandidatePool'
         : '/api/candidates?action=submitVendorCandidate';
 
-      for (const cand of bulkResumes) {
-        if (bulkCheckDeduplication && cand.parsedData?.hasConflict) {
-          skippedCount++;
+      const updated = [...bulkResumes];
+
+      for (let i = 0; i < updated.length; i++) {
+        const cand = updated[i];
+        if (cand.status === 'failed') {
+          if (updated[i].stages) {
+            updated[i].stages.firestore = 'skipped';
+          }
           continue;
         }
+
+        if (bulkCheckDeduplication && cand.parsedData?.hasConflict) {
+          skippedCount++;
+          if (updated[i].stages) {
+            updated[i].stages.firestore = 'skipped';
+          }
+          updated[i].resultMessage = 'Duplicate skipped';
+          setBulkResumes([...updated]);
+          continue;
+        }
+
+        // Set state to syncing for this candidate
+        if (updated[i].stages) {
+          updated[i].stages.firestore = 'pending';
+        }
+        updated[i].resultMessage = 'Syncing...';
+        setBulkResumes([...updated]);
 
         const identityString = `${cand.parsedData?.email}-${cand.parsedData?.phone}`.toLowerCase().replace(/[^a-z0-9]/g, '');
         
@@ -687,30 +799,137 @@ export default function Vendors() {
               }
             };
 
-        const response = await apiFetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        try {
+          const response = await apiFetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-        if (response.ok) {
-          successCount++;
+          if (response.ok) {
+            successCount++;
+            if (updated[i].stages) {
+              updated[i].stages.firestore = 'success';
+            }
+            updated[i].resultMessage = 'Imported';
+          } else {
+            if (updated[i].stages) {
+              updated[i].stages.firestore = 'failed';
+            }
+            updated[i].resultMessage = 'Sync Failed';
+          }
+        } catch (err) {
+          if (updated[i].stages) {
+            updated[i].stages.firestore = 'failed';
+          }
+          updated[i].resultMessage = 'Write error';
         }
+        setBulkResumes([...updated]);
+        await new Promise(r => setTimeout(r, 150)); // aesthetic visual pace
       }
 
-      toast.success(`Bulk Upload Complete! ${successCount} candidates imported.${skippedCount > 0 ? ` ${skippedCount} duplicates skipped.` : ''}`);
-      setIsBulkUploadOpen(false);
-      setBulkStep(1);
-      setBulkResumes([]);
-      setBulkReqId('');
-      if (typeof refreshAll === 'function') {
-        await refreshAll();
+      // Track detailed metrics for ingestion_executions log
+      const totalFiles = bulkResumes.length;
+      const parsedResumesCount = bulkResumes.filter(r => r.status === 'done').length;
+      const failedResumesCount = bulkResumes.filter(r => r.status === 'failed').length;
+      const executionTime = Date.now() - (bulkStartTime || Date.now());
+      const traceId = crypto.randomUUID();
+
+      // Log execution metadata to dedicated ingestion_executions collection
+      try {
+        await addDoc(collection(db, 'ingestion_executions'), {
+          vendorId: selectedVendor?.id || 'UNKNOWN',
+          userId: (user as any)?.uid || (user as any)?.id || user?.email || 'SYSTEM',
+          timestamp: new Date().toISOString(),
+          totalFiles,
+          successfullyParsed: parsedResumesCount,
+          duplicates: skippedCount,
+          failed: failedResumesCount,
+          firestoreWrites: successCount,
+          gatewayUsed: 'Ollama/Gemini Fallback',
+          executionTimeMs: executionTime,
+          traceId
+        });
+      } catch (logErr) {
+        console.error("Failed to write ingestion execution ledger log:", logErr);
+      }
+
+      if (successCount === 0) {
+        toast.error(`Import Failed. Reason: AI Gateway unavailable or database write failed. No candidate profiles were created.`);
+      } else {
+        toast.success(`Bulk Upload Complete! ${successCount} candidates imported.${skippedCount > 0 ? ` ${skippedCount} duplicates skipped.` : ''}`);
+        setIsBulkUploadOpen(false);
+        setBulkStep(1);
+        setBulkResumes([]);
+        setBulkReqId('');
+        if (typeof refreshAll === 'function') {
+          await refreshAll();
+        }
       }
     } catch (err: any) {
       toast.error(err.message || 'Error occurred during bulk upload');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const renderExecutionLedgerTable = () => {
+    return (
+      <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-sm mt-3">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-150 text-slate-500 uppercase tracking-wider text-[9px] font-black">
+              <th className="px-4 py-3">Resume</th>
+              <th className="px-3 py-3 text-center">Upload</th>
+              <th className="px-3 py-3 text-center">Parse</th>
+              <th className="px-3 py-3 text-center">Dup Check</th>
+              <th className="px-3 py-3 text-center">Firestore</th>
+              <th className="px-4 py-3 text-right">Result</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+            {bulkResumes.map(r => {
+              const stages = r.stages || { upload: 'success', parse: 'pending', dupCheck: 'pending', firestore: 'pending' };
+              const getStageBadge = (val: string) => {
+                switch(val) {
+                  case 'success': 
+                    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 font-extrabold text-[10px]">✓</span>;
+                  case 'failed': 
+                    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-50 text-rose-600 font-extrabold text-[10px]">✗</span>;
+                  case 'pending': 
+                    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-50 text-indigo-500 font-bold animate-pulse text-[10px]">⏳</span>;
+                  case 'duplicate': 
+                    return <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[9px] font-extrabold border border-amber-100 uppercase">Dup</span>;
+                  case 'skipped':
+                  default: 
+                    return <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-400 text-[9px] font-bold uppercase">Skip</span>;
+                }
+              };
+
+              const getResultBadge = () => {
+                if (r.status === 'failed') return <span className="text-red-600 font-extrabold text-[9px] bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full uppercase">AI Failed</span>;
+                if (stages.dupCheck === 'duplicate') return <span className="text-amber-600 font-extrabold text-[9px] bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full uppercase">Duplicate</span>;
+                if (stages.firestore === 'success') return <span className="text-emerald-600 font-extrabold text-[9px] bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full uppercase">Imported</span>;
+                if (stages.firestore === 'failed') return <span className="text-red-600 font-extrabold text-[9px] bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full uppercase">Sync Failed</span>;
+                if (r.status === 'done') return <span className="text-indigo-600 font-extrabold text-[9px] bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full uppercase">Parsed</span>;
+                return <span className="text-slate-500 text-[9px] uppercase font-bold">Ready</span>;
+              };
+
+              return (
+                <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-4 py-2.5 font-bold text-slate-800 max-w-[120px] truncate">{r.name}</td>
+                  <td className="px-3 py-2.5 text-center">{getStageBadge(stages.upload)}</td>
+                  <td className="px-3 py-2.5 text-center">{getStageBadge(stages.parse)}</td>
+                  <td className="px-3 py-2.5 text-center">{getStageBadge(stages.dupCheck)}</td>
+                  <td className="px-3 py-2.5 text-center">{getStageBadge(stages.firestore)}</td>
+                  <td className="px-4 py-2.5 text-right">{getResultBadge()}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   // Filter lists
@@ -1943,7 +2162,7 @@ export default function Vendors() {
                       <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Gemini Parsing Engine Pipeline</span>
                       <span className="text-[10px] font-mono text-indigo-400">gemini-2.5-flash online</span>
                     </div>
-
+ 
                     <div className="space-y-3 font-mono text-xs">
                       <p className="flex justify-between"><span>● STEP 1: OCR Document Buffer</span> <span className="text-emerald-400">100% SUCCESS</span></p>
                       <p className="flex justify-between"><span>● STEP 2: HTML Page Layout Noise Filter</span> <span className="text-emerald-400">100% SUCCESS</span></p>
@@ -1955,19 +2174,12 @@ export default function Vendors() {
                       <p className="flex justify-between"><span>● STEP 8: Firestore Sync</span> <span className="text-emerald-400">100% SUCCESS</span></p>
                     </div>
                   </div>
-
+ 
                   <div className="space-y-2">
-                    {bulkResumes.map(r => (
-                      <div key={r.id} className="p-3 bg-white border rounded-xl flex justify-between items-center text-xs">
-                        <span className="truncate">{r.name}</span>
-                        <span className={cn(
-                          "text-[10px] font-bold uppercase tracking-wider",
-                          r.status === 'done' ? 'text-emerald-600' : 'text-indigo-600 animate-pulse'
-                        )}>{r.status === 'done' ? '✔ Parsed' : '⏳ Extracting...'}</span>
-                      </div>
-                    ))}
+                    <h4 className="text-xs font-black uppercase text-slate-500 tracking-widest mb-1">Per-Resume Ingestion Ledger</h4>
+                    {renderExecutionLedgerTable()}
                   </div>
-
+ 
                   <div className="flex justify-end pt-4 border-t">
                     <button
                       onClick={runDeduplicationCheck}
@@ -1979,7 +2191,7 @@ export default function Vendors() {
                   </div>
                 </div>
               )}
-
+ 
               {/* Step 4: Deduplication Check */}
               {bulkStep === 4 && (
                 <div className="space-y-6">
@@ -1991,25 +2203,12 @@ export default function Vendors() {
                     </h4>
                     Checking SHA-256 hashes for all parsed emails/contacts against the global FireStore record directory to prevent overlapping claim locks.
                   </div>
-
+ 
                   <div className="space-y-2">
-                    {bulkResumes.map(r => (
-                      <div key={r.id} className="p-4 bg-white border rounded-xl flex items-center justify-between text-xs">
-                        <div>
-                          <p className="font-bold text-slate-800">{r.parsedData?.name}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">{r.parsedData?.email}</p>
-                        </div>
-                        <div className="text-right">
-                          {r.parsedData?.hasConflict ? (
-                            <span className="text-red-600 font-bold">● Duplication Detected</span>
-                          ) : (
-                            <span className="text-emerald-600 font-bold">✔ Identity Unique</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                    <h4 className="text-xs font-black uppercase text-slate-500 tracking-widest mb-1">Per-Resume Identity Check</h4>
+                    {renderExecutionLedgerTable()}
                   </div>
-
+ 
                   <div className="flex justify-between pt-4 border-t">
                     <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
                       <input
@@ -2020,7 +2219,7 @@ export default function Vendors() {
                       />
                       Enforce Duplicate Locking (Skip overlapping claims)
                     </label>
-
+ 
                     <button
                       onClick={() => setBulkStep(5)}
                       className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all"
@@ -2030,7 +2229,7 @@ export default function Vendors() {
                   </div>
                 </div>
               )}
-
+ 
               {/* Step 5: Save/Submit candidates */}
               {bulkStep === 5 && (
                 <div className="space-y-6 text-center py-6">
@@ -2042,6 +2241,11 @@ export default function Vendors() {
                     Everything is verified, checked for compliance duplicates, and formatted securely. Click the button below to sync structure payloads to the FireStore Single Source of Truth ledger.
                   </p>
 
+                  <div className="space-y-2 text-left max-w-2xl mx-auto">
+                    <h4 className="text-xs font-black uppercase text-slate-500 tracking-widest mb-1">Final Sync Ledger Summary</h4>
+                    {renderExecutionLedgerTable()}
+                  </div>
+ 
                   <div className="flex justify-center gap-3 pt-6 border-t">
                     <button
                       onClick={() => setBulkStep(4)}

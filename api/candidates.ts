@@ -6,7 +6,7 @@ import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
-import { executeServerAITask } from "./aiGateway";
+import { executeServerAITask } from "./aiGateway.js";
 dotenv.config();
 
 let db: Firestore | null = null;
