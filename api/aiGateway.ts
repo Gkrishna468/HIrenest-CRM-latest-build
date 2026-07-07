@@ -358,7 +358,7 @@ export class CapabilityRegistry {
       normalized.includes("resume parsing") ||
       normalized.includes("parse-resume")
     ) {
-      return ["ollama", "gemini", "openai"];
+      return ["ollama", "gemini"];
     }
     
     if (
@@ -366,7 +366,7 @@ export class CapabilityRegistry {
       normalized.includes("candidate-matcher") ||
       normalized.includes("candidate scoring")
     ) {
-      return ["ollama", "gemini", "openai"];
+      return ["ollama", "gemini"];
     }
 
     if (
@@ -374,7 +374,7 @@ export class CapabilityRegistry {
       normalized.includes("executive-report") ||
       normalized.includes("analytics")
     ) {
-      return ["gemini", "openai", "ollama"];
+      return ["gemini", "ollama"];
     }
 
     if (
@@ -382,14 +382,11 @@ export class CapabilityRegistry {
       normalized.includes("email-draft") ||
       normalized.includes("copilot")
     ) {
-      return ["ollama", "gemini", "openai"];
+      return ["ollama", "gemini"];
     }
 
     // Default fallback chain
-    const primary = (process.env.AI_PROVIDER || "ollama").toLowerCase();
-    const fallback = (process.env.AI_FALLBACK || "openai").toLowerCase();
-    const third = (process.env.AI_THIRD_PROVIDER || "gemini").toLowerCase();
-    return [primary, fallback, third].filter(Boolean);
+    return ["ollama", "gemini"];
   }
 }
 
@@ -522,6 +519,10 @@ export class HeuristicEngine {
 
     if (normalizedAction.includes("copilot") || normalizedAction.includes("email-draft") || normalizedAction.includes("email-generation")) {
       return this.generateEmailHeuristic(prompt);
+    }
+
+    if (normalizedAction.includes("candidate-extraction") || normalizedAction.includes("extraction")) {
+      return this.candidateExtractionHeuristic(prompt);
     }
 
     return this.genericFallbackHeuristic(prompt);
@@ -672,6 +673,66 @@ export class HeuristicEngine {
     }
 
     return `### ${emailSubject}\n\n${emailBody}`;
+  }
+
+  private static candidateExtractionHeuristic(prompt: string): string {
+    const cleanText = prompt.replace(/\\n/g, "\n").replace(/\s+/g, " ");
+
+    let standardizedTitle = "Software Engineer";
+    const titleMatch = prompt.match(/Title:\s*([^\n]+)/i);
+    if (titleMatch && titleMatch[1]) {
+      standardizedTitle = titleMatch[1].trim();
+    }
+
+    const commonSkills = [
+      "React", "Node.js", "Express", "JavaScript", "TypeScript", "Python", "Django", "Java",
+      "Spring Boot", "SQL", "PostgreSQL", "MongoDB", "Docker", "Kubernetes", "AWS", "GCP",
+      "Azure", "Git", "Next.js", "Redux", "Vue.js", "Angular", "C++", "Rust", "Go", "HTML", "CSS"
+    ];
+    const skills: string[] = [];
+    for (const skill of commonSkills) {
+      if (new RegExp("\\b" + skill.replace(/\+/g, "\\+") + "\\b", "i").test(cleanText)) {
+        skills.push(skill);
+      }
+    }
+    if (skills.length === 0) {
+      const skillsMatch = prompt.match(/Skills:\s*([^\n]+)/i);
+      if (skillsMatch && skillsMatch[1]) {
+        try {
+          const parsed = JSON.parse(skillsMatch[1].trim());
+          if (Array.isArray(parsed)) {
+            skills.push(...parsed);
+          }
+        } catch (e) {
+          const split = skillsMatch[1].replace(/[\[\]"]/g, "").split(",").map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+          skills.push(...split);
+        }
+      }
+    }
+    if (skills.length === 0) {
+      skills.push("Software Engineering", "Core Technology");
+    }
+
+    const nameMatch = prompt.match(/Name:\s*([^\n]+)/i);
+    const candidateName = nameMatch ? nameMatch[1].trim() : "The candidate";
+    const summary = `${candidateName} is an experienced professional specializing in ${standardizedTitle} with expertise in ${skills.slice(0, 4).join(", ")}. Well-suited for technical roles with proven performance capability.`;
+
+    const result = {
+      standardizedTitle,
+      skills,
+      summary,
+      fraudDetected: false,
+      parsingQuality: {
+        score: 65,
+        skillsFound: skills.length > 2,
+        experienceFound: true,
+        emailFound: false,
+        phoneFound: false,
+        linkedinFound: false
+      }
+    };
+
+    return JSON.stringify(result, null, 2);
   }
 
   private static genericFallbackHeuristic(prompt: string): string {

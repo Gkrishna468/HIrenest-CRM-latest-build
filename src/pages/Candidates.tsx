@@ -119,6 +119,7 @@ export default function Candidates() {
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-black uppercase tracking-widest text-slate-500">
                 <th className="p-4">Candidate & Source</th>
                 <th className="p-4">Contact</th>
+                <th className="p-4">AI Score</th>
                 <th className="p-4">Requirement</th>
                 <th className="p-4 text-right">Stage</th>
               </tr>
@@ -126,6 +127,7 @@ export default function Candidates() {
             <tbody className="divide-y divide-slate-100">
               {filteredCandidates.map((cand) => {
                 const associatedJob = jobs.find((j) => j.id === cand.jobId);
+                const qualityScore = cand.parsingQuality?.score;
                 return (
                   <tr
                     key={cand.id}
@@ -161,6 +163,22 @@ export default function Candidates() {
                           </div>
                         )}
                       </div>
+                    </td>
+                    <td className="p-4">
+                      {qualityScore !== undefined ? (
+                         <div className="flex items-center gap-1.5">
+                            <div className={cn(
+                               "px-2 py-0.5 rounded text-[10px] font-bold border",
+                               qualityScore > 80 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                               qualityScore > 50 ? "bg-amber-50 text-amber-700 border-amber-200" :
+                               "bg-rose-50 text-rose-700 border-rose-200"
+                            )}>
+                               Parse Q: {qualityScore}
+                            </div>
+                         </div>
+                      ) : (
+                         <span className="text-xs italic text-slate-400">N/A</span>
+                      )}
                     </td>
                     <td className="p-4">
                       {associatedJob ? (

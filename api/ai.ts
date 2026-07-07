@@ -876,6 +876,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(500).json({ error: error.message });
         }
       })();
+    case 'ingestion-metrics':
+      return await (async () => {
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method Not Allowed' });
+        }
+        try {
+          if (!db) throw new Error("Database not initialized");
+          const snapshot = await db.collection("ingestion_executions").orderBy("timestamp", "desc").limit(50).get();
+          
+          let todayUploads = 0;
+          let imported = 0;
+          let duplicates = 0;
+          let aiFailures = 0;
+          let syncFailures = 0;
+          let totalParseTime = 0;
+          let parseCount = 0;
+          let ollamaCount = 0;
+          let geminiCount = 0;
+          let fallbackCount = 0;
+          
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const ts = new Date(data.timestamp);
+            
+            if (ts >= today) {
+              todayUploads += (data.totalFiles || 0);
+              imported += (data.firestoreWrites || 0);
+              duplicates += (data.duplicates || 0);
+              aiFailures += (data.failed || 0);
+              
+              const gw = data.gatewayUsed || "";
+              if (gw.includes("Ollama")) ollamaCount++;
+              if (gw.includes("Gemini")) geminiCount++;
+              if (gw.includes("Fallback")) fallbackCount++;
+              
+              if (data.executionTimeMs && data.totalFiles > 0) {
+                 totalParseTime += (data.executionTimeMs / data.totalFiles);
+                 parseCount++;
+              }
+            }
+          });
+
+          const totalSuccessModels = ollamaCount + geminiCount;
+          
+          return res.status(200).json({
+            todayUploads,
+            imported,
+            duplicates,
+            aiFailures,
+            syncFailures: Math.max(0, todayUploads - imported - duplicates - aiFailures), // Simple derived error count
+            averageParseTimeSec: parseCount > 0 ? (totalParseTime / parseCount / 1000).toFixed(1) : "0",
+            ollamaSuccessRate: totalSuccessModels > 0 ? Math.round((ollamaCount / totalSuccessModels) * 100) : 0,
+            geminiFallbackRate: totalSuccessModels > 0 ? Math.round((geminiCount / totalSuccessModels) * 100) : 0,
+            executions: snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+          });
+        } catch (error: any) {
+          return res.status(500).json({ error: error.message });
+        }
+      })();
     case 'gateway-inference':
       return await (async () => {
         if (req.method !== 'POST') {

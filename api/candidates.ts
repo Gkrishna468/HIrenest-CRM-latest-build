@@ -259,6 +259,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // Validate done - create ownership if not already claimed
+      let vaultDocRefId = null;
       if (existingQuery.empty) {
         const payload = {
           candidateHash,
@@ -269,10 +270,22 @@ export default async function handler(req: any, res: any) {
           identityData,
         };
         await ownershipRef.add(payload);
+        
+        // Identity Vault Doc for global lock
+        const vaultDocRef = db.collection("candidate_identity_vault").doc();
+        vaultDocRefId = vaultDocRef.id;
+        await vaultDocRef.set({
+          candidateHash,
+          vendorId,
+          candidateName,
+          ownershipLocked: true,
+          createdAt: new Date().toISOString()
+        });
       }
       
       // Create Firebase Candidates Pool
-      const candRef = await db.collection("candidates").add({
+      const candRef = db.collection("candidates").doc();
+      await candRef.set({
         name: candidateName,
         vendorId: vendorId,
         vendor_company_id: vendorId,
@@ -289,6 +302,32 @@ export default async function handler(req: any, res: any) {
         ownerUserId: vendorId,
         submittedVia: "Vendor Portal",
         ownershipLocked: true,
+        candidateHash,
+        ...identityData
+      });
+
+      if (vaultDocRefId) {
+         await db.collection("candidate_identity_vault").doc(vaultDocRefId).update({
+           candidateId: candRef.id,
+         });
+      }
+
+      // Vendor Candidate Pool entry
+      await db.collection("vendor_candidate_pool").add({
+        name: candidateName,
+        vendorId,
+        stage: "submission",
+        currentTitle: identityData.current_title || "Candidate",
+        skills: skillsList,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        notes: aiSummary,
+        fraudDetected,
+        candidateId: candRef.id,
+        candidateHash,
+        lastSyncedAt: new Date().toISOString(),
+        syncSource: "vendor_submit",
+        syncVersion: 1,
         ...identityData
       });
 
@@ -397,6 +436,7 @@ export default async function handler(req: any, res: any) {
       let parsedSummary = identityData.cover_note || "Vetted talent pool candidate registered for active rotation.";
       let fraudDetected = false;
       let aiStatus = "pending";
+      let parsingQuality = null;
 
       // Execute AI Gateway
       let aiPassed = false;
@@ -416,13 +456,22 @@ export default async function handler(req: any, res: any) {
           2. Extract skills list as a JSON array of strings.
           3. Formulate a 2-3 sentence professional summary / profile highlights.
           4. Detect potential fraud markers (return true or false).
+          5. Score the parsing quality based on completeness (score 0-100).
 
           RETURN ONLY VALID JSON:
           {
             "standardizedTitle": "e.g. Senior React Developer",
             "skills": ["skill1", "skill2"],
             "summary": "Summary text",
-            "fraudDetected": false
+            "fraudDetected": false,
+            "parsingQuality": {
+              "score": 98,
+              "skillsFound": true,
+              "experienceFound": true,
+              "emailFound": true,
+              "phoneFound": true,
+              "linkedinFound": false
+            }
           }
         `;
 
@@ -442,6 +491,8 @@ export default async function handler(req: any, res: any) {
         if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
         if (parsed.summary) parsedSummary = parsed.summary;
         if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
+        if (parsed.parsingQuality) parsingQuality = parsed.parsingQuality;
+        
         aiPassed = true;
         aiStatus = "parsed";
       } catch (err) {
@@ -516,6 +567,7 @@ export default async function handler(req: any, res: any) {
               ownershipLocked: true,
               candidateHash,
               aiStatus,
+              parsingQuality,
               lastSyncedAt: new Date().toISOString(),
               syncSource: "vendor_pool",
               syncVersion: 1,
@@ -532,6 +584,7 @@ export default async function handler(req: any, res: any) {
               fraudDetected,
               updatedAt: new Date().toISOString(),
               aiStatus,
+              parsingQuality,
               lastSyncedAt: new Date().toISOString(),
               syncSource: "vendor_pool",
               syncVersion: FieldValue.increment(1),
@@ -564,6 +617,7 @@ export default async function handler(req: any, res: any) {
             candidateId,
             candidateHash,
             aiStatus,
+            parsingQuality,
             lastSyncedAt: new Date().toISOString(),
             syncSource: "vendor_pool",
             syncVersion: FieldValue.increment(1),
@@ -720,6 +774,7 @@ export default async function handler(req: any, res: any) {
         ownershipLocked: true,
         candidateHash,
         aiStatus,
+        parsingQuality,
         lastSyncedAt: new Date().toISOString(),
         syncSource: "vendor_pool",
         syncVersion: 1,
@@ -752,6 +807,7 @@ export default async function handler(req: any, res: any) {
         candidateId,
         candidateHash,
         aiStatus,
+        parsingQuality,
         lastSyncedAt: new Date().toISOString(),
         syncSource: "vendor_pool",
         syncVersion: 1,

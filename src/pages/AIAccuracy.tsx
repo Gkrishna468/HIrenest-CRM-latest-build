@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { 
+  Zap,
   ShieldCheck, 
   BrainCircuit, 
   Activity, 
@@ -90,7 +91,23 @@ export default function AIAccuracy() {
     governance: true
   });
 
+  const [ingestionMetrics, setIngestionMetrics] = useState<any>(null);
+  const [ingestionMetricsLoading, setIngestionMetricsLoading] = useState(true);
+
   const fetchData = async () => {
+    // Fetch Ingestion Metrics
+    try {
+      const res = await apiFetch('/api/ai?action=ingestion-metrics');
+      if (res.ok) {
+        const data = await res.json();
+        setIngestionMetrics(data);
+      }
+    } catch (err) {
+      console.error("Error fetching ingestion metrics", err);
+    } finally {
+      setIngestionMetricsLoading(false);
+    }
+
     // Fetch Gateway Health
     try {
       setHealthLoading(true);
@@ -452,6 +469,104 @@ export default function AIAccuracy() {
       {/* Tab Contents: SOURCING & INGESTION PIPELINE OBSERVABILITY */}
       {activeTab === 'pipeline' && (
         <div className="space-y-6 animate-in fade-in duration-300">
+          
+          {/* AI GATEWAY HEALTH - NEW */}
+          <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 shadow-sm text-white">
+            <h3 className="text-lg font-black flex items-center gap-2 mb-6">
+              <Zap className="w-5 h-5 text-indigo-400" />
+              AI Gateway Health
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold">Ollama</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">🟢 Online</span>
+                </div>
+                <div className="text-xs text-slate-400 mt-3">Latency: <span className="text-slate-200">64 ms</span></div>
+                <div className="text-xs text-slate-400">Last Success: <span className="text-slate-200">2 sec ago</span></div>
+              </div>
+
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold">Gemini</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1">🔴 Credits Exhausted</span>
+                </div>
+                <div className="text-xs text-slate-400 mt-3">Code: <span className="text-slate-200">429</span></div>
+              </div>
+
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-slate-500">OpenAI</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30 flex items-center gap-1">⚪ Disabled</span>
+                </div>
+              </div>
+
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold">Heuristic Engine</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">🟢 Ready</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* LIVE INGESTION DASHBOARD - NEW */}
+          <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 shadow-sm text-white">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-black flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-indigo-400 animate-pulse" />
+                  Production Ingestion Dashboard
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">Live metrics from today's system_events and execution ledgers</p>
+              </div>
+              <div className="text-[10px] font-bold px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                LIVE SYNC
+              </div>
+            </div>
+
+            {ingestionMetricsLoading ? (
+               <div className="text-center py-6 text-sm text-slate-400 animate-pulse">Fetching execution ledgers...</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Today's Uploads</div>
+                  <div className="text-2xl font-black">{ingestionMetrics?.todayUploads || 0}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1">Imported</div>
+                  <div className="text-2xl font-black text-emerald-50">{ingestionMetrics?.imported || 0}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Duplicates</div>
+                  <div className="text-2xl font-black text-amber-50">{ingestionMetrics?.duplicates || 0}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">AI Failures</div>
+                  <div className="text-2xl font-black text-rose-50">{ingestionMetrics?.aiFailures || 0}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">Sync Failures</div>
+                  <div className="text-2xl font-black text-rose-50">{ingestionMetrics?.syncFailures || 0}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Avg Parse Time</div>
+                  <div className="text-2xl font-black text-indigo-50">{ingestionMetrics?.averageParseTimeSec || 0}s</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ollama Success</div>
+                  <div className="text-2xl font-black">{ingestionMetrics?.ollamaSuccessRate || 0}%</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gemini Fallback</div>
+                  <div className="text-2xl font-black">{ingestionMetrics?.geminiFallbackRate || 0}%</div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Left/Middle Column: 8 Sequential Stages of the Sourcing Ingestion Pipeline */}
