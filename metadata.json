@@ -6,6 +6,7 @@
     "recruitment",
     "ai-agents",
     "workflow-automation",
-    "marketplace"
+    "marketplace",
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }
