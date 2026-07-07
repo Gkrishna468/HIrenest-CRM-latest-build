@@ -74,7 +74,7 @@ const navGroups = [
     adminOnly: true,
     items: [
        { icon: Zap, label: 'Financials', path: '/revenue' },
-       { icon: TrendingUp, label: 'Analytics', path: '/ai-accuracy' },
+       { icon: TrendingUp, label: 'AI Operations', path: '/ai-accuracy' },
        { icon: ShieldCheck, label: 'Governance', path: '/migration' },
        { icon: Settings, label: 'Settings', path: '/settings' },
     ]

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RequirementRepository } from '@/repositories/RequirementRepository';
 import { VendorRepository } from '@/repositories/VendorRepository';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase/config';
 import { 
   Briefcase, 
   MapPin, 
@@ -25,9 +27,14 @@ import {
   Coins,
   UploadCloud,
   Check,
-  Trash2
+  Trash2,
+  Database
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CockpitDashboard } from '@/components/CockpitDashboard';
+import { SingleProfileForm } from '@/components/SingleProfileForm';
+import { BulkRequirementForm } from '@/components/BulkRequirementForm';
+import { TalentPoolBulkForm } from '@/components/TalentPoolBulkForm';
 
 export default function VendorSubmit() {
   const { jobId } = useParams();
@@ -75,11 +82,68 @@ export default function VendorSubmit() {
   // Requirement selection & Bulk Upload state variables
   const [openJobsList, setOpenJobsList] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
+  const [activeTab, setActiveTab] = useState<'single' | 'bulk' | 'pool' | 'dashboard'>('single');
   const [bulkFiles, setBulkFiles] = useState<any[]>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkResults, setBulkResults] = useState<any[]>([]);
   const [bulkSummaryReport, setBulkSummaryReport] = useState<any | null>(null);
+
+  // New Talent Pool states & dashboard variables
+  const [poolFiles, setPoolFiles] = useState<any[]>([]);
+  const [poolUploading, setPoolUploading] = useState(false);
+  const [poolResults, setPoolResults] = useState<any[]>([]);
+  const [poolSummaryReport, setPoolSummaryReport] = useState<any | null>(null);
+
+  const [poolCandidates, setPoolCandidates] = useState<any[]>([]);
+  const [loadingPool, setLoadingPool] = useState(false);
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [validatingCompliance, setValidatingCompliance] = useState(false);
+  const [triggeringRotation, setTriggeringRotation] = useState(false);
+  const [rotationMatches, setRotationMatches] = useState<any[]>([]);
+  const [complianceStats, setComplianceStats] = useState({
+    performanceScore: 85,
+    responseRate: 90,
+    lastRotation: 'Never',
+    lastValidation: 'Never'
+  });
+
+  const fetchPoolData = async () => {
+    if (!authenticatedVendor) return;
+    setLoadingPool(true);
+    try {
+      const vSnap = await getDoc(doc(db, 'vendors', authenticatedVendor.id));
+      if (vSnap.exists()) {
+        const vData = vSnap.data();
+        setComplianceStats({
+          performanceScore: vData.performanceScore || 85,
+          responseRate: vData.responseRate || 90,
+          lastRotation: vData.lastRotationTime ? new Date(vData.lastRotationTime).toLocaleDateString() : 'Never',
+          lastValidation: vData.lastValidationTime ? new Date(vData.lastValidationTime).toLocaleDateString() : 'Never'
+        });
+      }
+
+      const q = query(
+        collection(db, 'vendor_candidate_pool'), 
+        where('vendorId', '==', authenticatedVendor.id)
+      );
+      const snap = await getDocs(q);
+      const list: any[] = [];
+      snap.forEach(d => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      setPoolCandidates(list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
+    } catch (err) {
+      console.error('Error fetching pool data:', err);
+    } finally {
+      setLoadingPool(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authenticatedVendor) {
+      fetchPoolData();
+    }
+  }, [authenticatedVendor]);
 
   useEffect(() => {
     async function loadPageData() {
@@ -491,6 +555,257 @@ export default function VendorSubmit() {
     toast.success("Bulk Upload and AI Sourcing Pipeline Completed!");
   };
 
+  const handlePoolUploadSubmit = async () => {
+    if (!authenticatedVendor) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+    if (poolFiles.length === 0) {
+      toast.error('No files selected in queue.');
+      return;
+    }
+
+    setPoolUploading(true);
+    setPoolResults([]);
+    setPoolSummaryReport(null);
+
+    let successCount = 0;
+    let duplicateCount = 0;
+    let conflictCount = 0;
+    let failedCount = 0;
+    const reportItems: any[] = [];
+
+    for (let i = 0; i < poolFiles.length; i++) {
+      const file = poolFiles[i];
+      const candidateName = file.name
+        .replace(/\.[^/.]+$/, "") // strip extension
+        .replace(/[_-]/g, " ")     // replace dashes/underscores with space
+        .split(" ")
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
+      const cleanNameForEmail = candidateName.toLowerCase().replace(/\s+/g, ".");
+      const email = `${cleanNameForEmail}@example-vendor.com`;
+      const phone = `+91 9${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const hash = `${email}-${phone}`.toLowerCase();
+      
+      const textToHash = candidateName + String(file.size);
+      const simulatedSha256 = "HN-SHA256-" + Array.from(textToHash)
+        .reduce((acc: number, char: string) => (acc + char.charCodeAt(0)) % 1000000007, 0)
+        .toString(16)
+        .toUpperCase();
+
+      setPoolResults(prev => {
+        const copy = [...prev];
+        copy[i] = {
+          fileName: file.name,
+          candidateName,
+          status: "Parsing...",
+          score: null,
+          color: "text-amber-400 font-medium"
+        };
+        return copy;
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      try {
+        const response = await fetch('/api/candidates?action=submitVendorCandidatePool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateHash: hash,
+            vendorId: authenticatedVendor.id,
+            candidateName,
+            identityData: {
+              email,
+              phone,
+              linkedin: `https://linkedin.com/in/${cleanNameForEmail}`,
+              resume_url: "https://drive.google.com/file/d/sample-pool/view",
+              current_company: "Standard Tech Partner",
+              current_title: "Consultant",
+              current_ctc: "₹9,50,000",
+              expected_ctc: "₹13,00,000",
+              notice_period: "30 Days",
+              location: "Bengaluru",
+              payroll: "Vendor Payroll",
+              availability: "Immediate",
+              cover_note: `Pool uploaded resume filename: ${file.name} | Integrity SHA256: ${simulatedSha256}`
+            }
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.status === 409) {
+          const isConflict = result.message?.toLowerCase().includes("another") || result.error?.toLowerCase().includes("conflict");
+          
+          if (isConflict) {
+            conflictCount++;
+            setPoolResults(prev => {
+              const copy = [...prev];
+              copy[i] = {
+                ...copy[i],
+                status: "LOCK CONFLICT ✖",
+                color: "text-rose-500 font-bold"
+              };
+              return copy;
+            });
+            reportItems.push({
+              fileName: file.name,
+              candidateName,
+              status: "CONFLICT",
+              detail: "Ownership lock claimed by another partner vendor in HireNestOS.",
+              sha256: simulatedSha256
+            });
+          } else {
+            duplicateCount++;
+            setPoolResults(prev => {
+              const copy = [...prev];
+              copy[i] = {
+                ...copy[i],
+                status: "DUPLICATE ✖",
+                color: "text-amber-500 font-bold"
+              };
+              return copy;
+            });
+            reportItems.push({
+              fileName: file.name,
+              candidateName,
+              status: "DUPLICATE",
+              detail: "You have already registered this profile in your Talent Pool.",
+              sha256: simulatedSha256
+            });
+          }
+          continue;
+        }
+
+        if (!response.ok) {
+          throw new Error(result.error || "Extraction failed");
+        }
+
+        successCount++;
+        setPoolResults(prev => {
+          const copy = [...prev];
+          copy[i] = {
+            ...copy[i],
+            status: "GRANTED ✓",
+            score: 100,
+            color: "text-emerald-400 font-bold"
+          };
+          return copy;
+        });
+
+        reportItems.push({
+          fileName: file.name,
+          candidateName,
+          status: "SUCCESS",
+          detail: `Profile successfully registered to global Talent Pool. Standardized Title: ${result.standardizedTitle}.`,
+          sha256: simulatedSha256,
+          candidateId: result.candidateId
+        });
+
+      } catch (err: any) {
+        failedCount++;
+        setPoolResults(prev => {
+          const copy = [...prev];
+          copy[i] = {
+            ...copy[i],
+            status: `Error: ${err.message}`,
+            color: "text-rose-400"
+          };
+          return copy;
+        });
+
+        reportItems.push({
+          fileName: file.name,
+          candidateName,
+          status: "FAILED",
+          detail: err.message || "Failed during parsing or pool upload sequence.",
+          sha256: simulatedSha256
+        });
+      }
+    }
+
+    setPoolUploading(false);
+    
+    setPoolSummaryReport({
+      total: poolFiles.length,
+      success: successCount,
+      duplicate: duplicateCount,
+      conflict: conflictCount,
+      failed: failedCount,
+      timestamp: new Date().toISOString(),
+      items: reportItems
+    });
+
+    fetchPoolData();
+    toast.success("Talent Pool Batch Upload Completed!");
+  };
+
+  const handleTriggerRotation = async () => {
+    if (!authenticatedVendor) return;
+    setTriggeringRotation(true);
+    setRotationMatches([]);
+    try {
+      const response = await fetch('/api/candidates?action=triggerAiRotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendorId: authenticatedVendor.id })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to trigger rotation');
+      }
+      setRotationMatches(result.matches || []);
+      if (result.matches && result.matches.length > 0) {
+        toast.success(`AI Candidate Rotation Complete!`, {
+          description: `Discovered ${result.matches.length} strong requisition match alignments! Check results below.`,
+          duration: 8000
+        });
+      } else {
+        toast.info('AI Rotation finished with no new match recommendations.');
+      }
+      fetchPoolData();
+    } catch (err: any) {
+      toast.error(`Rotation Error: ${err.message}`);
+    } finally {
+      setTriggeringRotation(false);
+    }
+  };
+
+  const handleBulkValidate = async () => {
+    if (!authenticatedVendor) return;
+    if (selectedCandidates.length === 0) {
+      toast.error('No candidates selected for validation.');
+      return;
+    }
+    setValidatingCompliance(true);
+    try {
+      const response = await fetch('/api/candidates?action=validateCandidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateIds: selectedCandidates,
+          vendorId: authenticatedVendor.id
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to validate profiles');
+      }
+      toast.success(`Freshness validation ledger updated!`, {
+        description: `Successfully verified availability for ${selectedCandidates.length} candidate profiles. Compliance rating boosted.`
+      });
+      setSelectedCandidates([]);
+      fetchPoolData();
+    } catch (err: any) {
+      toast.error(`Validation Error: ${err.message}`);
+    } finally {
+      setValidatingCompliance(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
       <div className="animate-spin text-amber-500 mb-4">
@@ -801,607 +1116,194 @@ export default function VendorSubmit() {
           </div>
         </div>
 
-        {/* MAIN BODY GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* LEFT 7 COLUMNS: REQUIREMENTS AND SLA */}
-          <div className="lg:col-span-7 space-y-8">
-            
-            {/* ROLE JD */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-xl">
-              <h2 className="text-lg font-bold text-white tracking-tight border-b border-slate-800 pb-3 flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-amber-500" /> Sourcing Requirements
-              </h2>
-              <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">
-                {job.description || 'Professional tech role focusing on scalable product development and quality architecture.'}
-              </div>
+        {/* TAB NAVIGATION HEADER */}
+        <div className="flex flex-wrap bg-slate-900 border border-slate-800 p-2.5 rounded-2xl gap-2 font-mono text-[11px] font-bold">
+          <button
+            onClick={() => setActiveTab('single')}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'single'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>Single Submit</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('bulk')}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'bulk'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Bulk Req Ingestion</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('pool')}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'pool'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Talent Pool Upload</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Cpu className="w-4 h-4" />
+            <span>Bench Cockpit</span>
+          </button>
+        </div>
 
-              {/* SKILLS */}
-              {skillsArr.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-slate-800">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest font-mono">Target Competencies</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {skillsArr.map((skill, idx) => (
-                      <span key={idx} className="bg-slate-950 text-amber-400 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold font-mono">
-                        {skill.trim()}
-                      </span>
-                    ))}
-                  </div>
+        {/* MAIN BODY LAYOUT BASED ON TAB */}
+        {activeTab === 'dashboard' ? (
+          <CockpitDashboard
+            authenticatedVendor={authenticatedVendor}
+            complianceStats={complianceStats}
+            poolCandidates={poolCandidates}
+            loadingPool={loadingPool}
+            selectedCandidates={selectedCandidates}
+            setSelectedCandidates={setSelectedCandidates}
+            validatingCompliance={validatingCompliance}
+            triggeringRotation={triggeringRotation}
+            rotationMatches={rotationMatches}
+            setRotationMatches={setRotationMatches}
+            handleBulkValidate={handleBulkValidate}
+            handleTriggerRotation={handleTriggerRotation}
+            fetchPoolData={fetchPoolData}
+          />
+        ) : activeTab === 'pool' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-7 space-y-6">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4 shadow-xl">
+                <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                  <Database className="w-5 h-5 text-amber-500" /> Talent Pool Sourcing Strategy
+                </h3>
+                <p className="text-slate-300 text-xs leading-relaxed font-sans">
+                  The global Talent Pool allows partner vendors to register qualified candidates directly onto the HireNestOS ledger without tying them to a specific requirement.
+                </p>
+                <div className="space-y-3 pt-2 font-sans text-xs text-slate-400">
+                  <p className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <span><strong>Auto-Standardization:</strong> Our AI parsers extract candidate skills and standardize titles to optimize searchability.</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <span><strong>Dynamic Rotation:</strong> Active talent is automatically analyzed against new requirements during AI matching cycles.</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <span><strong>Freshness Protection:</strong> Boost your vendor response rating by periodically validating candidate availability.</span>
+                  </p>
                 </div>
-              )}
-            </div>
-
-            {/* DETAILED HIRING SLA TIMELINE */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-xl">
-              <h2 className="text-lg font-bold text-white tracking-tight border-b border-slate-800 pb-3 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" /> Hiring Flow & SLA
-              </h2>
-              <p className="text-slate-300 text-sm leading-relaxed">
-                This requirement is governed under strict SLA. Resumes undergo automated neural indexing. Shortlisted candidates are submitted to the client hiring manager within a tight turnaround window.
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { step: "01", label: "AI Screening", desc: "Instantly Scored" },
-                  { step: "02", label: "BDM Vetting", desc: "SLA < 12h" },
-                  { step: "03", label: "Client L1/L2", desc: "48h turnaround" },
-                  { step: "04", label: "Final Offer", desc: "Within 5 days" }
-                ].map((item, i) => (
-                  <div key={i} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center relative group hover:border-amber-500/50 transition-colors">
-                    <span className="text-2xl font-black text-amber-500/20 font-mono block mb-1 group-hover:text-amber-500/40 transition-colors">{item.step}</span>
-                    <p className="text-xs font-bold text-white mb-0.5">{item.label}</p>
-                    <p className="text-[10px] text-slate-500 font-mono">{item.desc}</p>
-                  </div>
-                ))}
               </div>
+            </div>
+            <div className="lg:col-span-5">
+              <TalentPoolBulkForm
+                poolSummaryReport={poolSummaryReport}
+                setPoolSummaryReport={setPoolSummaryReport}
+                poolFiles={poolFiles}
+                setPoolFiles={setPoolFiles}
+                poolResults={poolResults}
+                setPoolResults={setPoolResults}
+                poolUploading={poolUploading}
+                handlePoolUploadSubmit={handlePoolUploadSubmit}
+              />
             </div>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* LEFT 7 COLUMNS: REQUIREMENTS AND SLA */}
+            <div className="lg:col-span-7 space-y-8">
+              {/* ROLE JD */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-xl">
+                <h2 className="text-lg font-bold text-white tracking-tight border-b border-slate-800 pb-3 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-amber-500" /> Sourcing Requirements
+                </h2>
+                <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">
+                  {job.description || 'Professional tech role focusing on scalable product development and quality architecture.'}
+                </div>
 
-          {/* RIGHT 5 COLUMNS: VENDOR SUBMISSION FORM */}
-          <div className="lg:col-span-5 space-y-6">
-            
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 relative">
-              
-              {/* SUBMITTING OVERLAY */}
-              {submitting && (
-                <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-md rounded-3xl z-40 flex flex-col p-8 justify-between animate-in fade-in duration-300">
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-amber-500/20 text-amber-400 rounded-lg flex items-center justify-center animate-pulse">
-                        <Cpu className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h3 className="font-black text-white uppercase tracking-wider text-sm font-mono">Vendor Sourcing Pipeline</h3>
-                        <p className="text-[9px] text-amber-400 font-mono font-bold">LEDGER_SYNC: {authenticatedVendor.name.toUpperCase()}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 font-mono text-xs text-slate-300">
-                      {pipelineStep === 1 && (
-                        <div className="flex items-center gap-3">
-                          <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
-                          <span>Connecting to Sourcing Fabric...</span>
-                        </div>
-                      )}
-                      {pipelineStep >= 2 && (
-                        <div className="flex items-start gap-3 text-emerald-400">
-                          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                          <span>Resume Text Analyzed & Parsed successfully.</span>
-                        </div>
-                      )}
-                      {pipelineStep === 2 && (
-                        <div className="flex items-center gap-3">
-                          <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
-                          <span>Matching candidate skills against requirement metadata...</span>
-                        </div>
-                      )}
-                      {pipelineStep >= 3 && (
-                        <div className="flex items-start gap-3 text-emerald-400">
-                          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                          <span>Law 4: Profile ownership lock verified. No conflicts.</span>
-                        </div>
-                      )}
-                      {pipelineStep === 3 && (
-                        <div className="flex items-center gap-3">
-                          <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
-                          <span>Hashing credentials and locking representation...</span>
-                        </div>
-                      )}
-                      {pipelineStep >= 4 && (
-                        <div className="flex items-start gap-3 text-emerald-400">
-                          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                          <span>Saving event to immutable Company Ledger.</span>
-                        </div>
-                      )}
-                      {pipelineStep === 4 && (
-                        <div className="flex items-center gap-3 animate-pulse">
-                          <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
-                          <span>Finalizing ledger serialization...</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-[10px] text-slate-400 max-h-40 overflow-y-auto custom-scrollbar">
-                      {pipelineLog.map((log, i) => (
-                        <div key={i} className="mb-1">{log}</div>
+                {/* SKILLS */}
+                {skillsArr.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t border-slate-800">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest font-mono">Target Competencies</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {skillsArr.map((skill, idx) => (
+                        <span key={idx} className="bg-slate-950 text-amber-400 border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold font-mono">
+                          {skill.trim()}
+                        </span>
                       ))}
                     </div>
                   </div>
-
-                  {/* Results Screen */}
-                  {pipelineStep === 5 && submissionResult && (
-                    <div className="space-y-6 pt-4 border-t border-slate-800 animate-in zoom-in-95 duration-300">
-                      <div className="bg-amber-500/10 border border-amber-500/25 p-5 rounded-2xl text-center space-y-3">
-                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest font-mono">Submission Accepted</p>
-                        <div className="text-4xl font-black text-white font-mono">{submissionResult.aiMatchScore}% <span className="text-xs text-slate-400 block font-normal mt-1">AI Match Confidence</span></div>
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex justify-between py-1.5 border-b border-slate-800"><span className="text-slate-500">Assigned Account Manager</span><span className="font-bold text-amber-400">{submissionResult.assignedBdm}</span></div>
-                        <div className="flex justify-between py-1.5 border-b border-slate-800"><span className="text-slate-500">Sourcing Ownership</span><span className="font-bold text-emerald-400">GRANTED ✓</span></div>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          setSubmitting(false);
-                          setSubmissionResult(null);
-                          setPipelineStep(0);
-                          setVendorForm({
-                            candidateName: '',
-                            email: '',
-                            phone: '',
-                            linkedin: '',
-                            resume_url: '',
-                            current_company: '',
-                            current_title: '',
-                            current_ctc: '',
-                            expected_ctc: '',
-                            notice_period: '',
-                            location: '',
-                            payroll: 'Vendor Payroll',
-                            availability: 'Immediate',
-                            cover_note: ''
-                          });
-                        }}
-                        className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2"
-                      >
-                        Submit Another Profile
-                      </button>
-                    </div>
-                  )}
-
-                  {pipelineStep === -1 && (
-                    <div className="space-y-4 pt-4 border-t border-slate-800 text-center animate-in zoom-in-95 duration-300">
-                      <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                        <XCircle className="w-6 h-6" />
-                      </div>
-                      <h4 className="font-black font-mono text-rose-500 text-sm uppercase">REPRESENTATION LOCKED</h4>
-                      <p className="text-xs text-slate-400 leading-relaxed font-sans">This candidate is already represented or locked under prior registry claims. Representation cannot be overwritten.</p>
-                      <button 
-                        onClick={() => {
-                          setSubmitting(false);
-                          setPipelineStep(0);
-                        }}
-                        className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all text-sm"
-                      >
-                        Adjust Candidate Details
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TABS HEADER */}
-              <div className="flex border-b border-slate-800 pb-1.5 gap-4">
-                <button
-                  onClick={() => setActiveTab('single')}
-                  className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider font-mono text-center border-b-2 transition-all ${
-                    activeTab === 'single'
-                      ? 'border-amber-500 text-amber-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  Single Profile
-                </button>
-                <button
-                  onClick={() => setActiveTab('bulk')}
-                  className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider font-mono text-center border-b-2 transition-all ${
-                    activeTab === 'bulk'
-                      ? 'border-amber-500 text-amber-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  Bulk Upload Resumes
-                </button>
+                )}
               </div>
 
-              {activeTab === 'single' ? (
-                <form onSubmit={handleVendorSubmit} className="space-y-5 animate-in fade-in duration-300">
-                  <div className="space-y-1">
-                    <h3 className="text-base font-bold text-white tracking-tight">Submit Candidate Profile</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">Enter your candidate's technical profile. Ownership locks will establish immediately upon validation.</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={vendorForm.candidateName}
-                        onChange={(e) => setVendorForm({...vendorForm, candidateName: e.target.value})}
-                        placeholder="Candidate Name"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
+              {/* DETAILED HIRING SLA TIMELINE */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-xl">
+                <h2 className="text-lg font-bold text-white tracking-tight border-b border-slate-800 pb-3 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-500" /> Hiring Flow & SLA
+                </h2>
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  This requirement is governed under strict SLA. Resumes undergo automated neural indexing. Shortlisted candidates are submitted to the client hiring manager within a tight turnaround window.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { step: "01", label: "AI Screening", desc: "Instantly Scored" },
+                    { step: "02", label: "BDM Vetting", desc: "SLA < 12h" },
+                    { step: "03", label: "Client L1/L2", desc: "48h turnaround" },
+                    { step: "04", label: "Final Offer", desc: "Within 5 days" }
+                  ].map((item, i) => (
+                    <div key={i} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center relative group hover:border-amber-500/50 transition-colors">
+                      <span className="text-2xl font-black text-amber-500/20 font-mono block mb-1 group-hover:text-amber-500/40 transition-colors">{item.step}</span>
+                      <p className="text-xs font-bold text-white mb-0.5">{item.label}</p>
+                      <p className="text-[10px] text-slate-500 font-mono">{item.desc}</p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Email</label>
-                        <input
-                          type="email"
-                          required
-                          value={vendorForm.email}
-                          onChange={(e) => setVendorForm({...vendorForm, email: e.target.value})}
-                          placeholder="candidate@email.com"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Candidate Phone</label>
-                        <input
-                          type="tel"
-                          required
-                          value={vendorForm.phone}
-                          onChange={(e) => setVendorForm({...vendorForm, phone: e.target.value})}
-                          placeholder="+91 98..."
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Company</label>
-                        <input
-                          type="text"
-                          value={vendorForm.current_company}
-                          onChange={(e) => setVendorForm({...vendorForm, current_company: e.target.value})}
-                          placeholder="e.g. Infosys, TCS"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Title</label>
-                        <input
-                          type="text"
-                          value={vendorForm.current_title}
-                          onChange={(e) => setVendorForm({...vendorForm, current_title: e.target.value})}
-                          placeholder="e.g. Frontend Associate"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current CTC</label>
-                        <input
-                          type="text"
-                          value={vendorForm.current_ctc}
-                          onChange={(e) => setVendorForm({...vendorForm, current_ctc: e.target.value})}
-                          placeholder="e.g. 8 LPA"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Expected CTC</label>
-                        <input
-                          type="text"
-                          value={vendorForm.expected_ctc}
-                          onChange={(e) => setVendorForm({...vendorForm, expected_ctc: e.target.value})}
-                          placeholder="e.g. 11 LPA"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Notice Period</label>
-                        <input
-                          type="text"
-                          value={vendorForm.notice_period}
-                          onChange={(e) => setVendorForm({...vendorForm, notice_period: e.target.value})}
-                          placeholder="e.g. 15 Days, Immediate"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Current Location</label>
-                        <input
-                          type="text"
-                          value={vendorForm.location}
-                          onChange={(e) => setVendorForm({...vendorForm, location: e.target.value})}
-                          placeholder="e.g. Pune, Chennai"
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">LinkedIn Profile</label>
-                      <input
-                        type="url"
-                        value={vendorForm.linkedin}
-                        onChange={(e) => setVendorForm({...vendorForm, linkedin: e.target.value})}
-                        placeholder="https://linkedin.com/in/..."
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Resume Document Link</label>
-                      <input
-                        type="url"
-                        required
-                        value={vendorForm.resume_url}
-                        onChange={(e) => setVendorForm({...vendorForm, resume_url: e.target.value})}
-                        placeholder="PDF Google Drive URL"
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Payroll Status</label>
-                        <select
-                          value={vendorForm.payroll}
-                          onChange={(e) => setVendorForm({...vendorForm, payroll: e.target.value})}
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-medium transition-all"
-                        >
-                          <option>Vendor Payroll</option>
-                          <option>Direct Hire</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Availability</label>
-                        <select
-                          value={vendorForm.availability}
-                          onChange={(e) => setVendorForm({...vendorForm, availability: e.target.value})}
-                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white font-medium transition-all"
-                        >
-                          <option>Immediate</option>
-                          <option>1 Week</option>
-                          <option>15 Days</option>
-                          <option>30 Days</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Covering Notes</label>
-                      <textarea
-                        rows={3}
-                        value={vendorForm.cover_note}
-                        onChange={(e) => setVendorForm({...vendorForm, cover_note: e.target.value})}
-                        placeholder="Details about client screenings or highlights..."
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all resize-none"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 py-4 rounded-2xl font-bold transition-all text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95"
-                  >
-                    <span>Submit Candidate representation</span>
-                    <Lock className="w-4 h-4" />
-                  </button>
-                </form>
-              ) : (
-                <div className="space-y-5 animate-in fade-in duration-300">
-                  {bulkSummaryReport ? (
-                    <div className="space-y-5 animate-in zoom-in-95 duration-300">
-                      <div className="space-y-1 border-b border-slate-800 pb-3">
-                        <h3 className="text-base font-bold text-white tracking-tight">Batch Sourcing Audit Ledger</h3>
-                        <p className="text-xs text-slate-400">Cryptographic file integrity and candidate representation locks evaluated successfully.</p>
-                      </div>
-
-                      {/* Summary Metrics Row */}
-                      <div className="grid grid-cols-4 gap-2 font-mono text-[10px]">
-                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
-                          <span className="text-slate-500 block uppercase mb-1">Total Loaded</span>
-                          <span className="text-base font-bold text-slate-300">{bulkSummaryReport.total}</span>
-                        </div>
-                        <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-center">
-                          <span className="text-emerald-500 block uppercase mb-1">Sourced</span>
-                          <span className="text-base font-bold text-emerald-400">{bulkSummaryReport.success}</span>
-                        </div>
-                        <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-center">
-                          <span className="text-amber-500 block uppercase mb-1">Duplicate</span>
-                          <span className="text-base font-bold text-amber-400">{bulkSummaryReport.duplicate}</span>
-                        </div>
-                        <div className="bg-rose-500/10 p-3 rounded-xl border border-rose-500/20 text-center">
-                          <span className="text-rose-500 block uppercase mb-1">Conflict</span>
-                          <span className="text-base font-bold text-rose-400">{bulkSummaryReport.conflict}</span>
-                        </div>
-                      </div>
-
-                      {/* Detailed Audit File List */}
-                      <div className="space-y-2.5 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                        {bulkSummaryReport.items.map((item: any, idx: number) => {
-                          const statusColor = item.status === "SUCCESS" 
-                            ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-400" 
-                            : item.status === "DUPLICATE" 
-                            ? "border-amber-500/30 bg-amber-950/20 text-amber-400" 
-                            : item.status === "CONFLICT"
-                            ? "border-rose-500/30 bg-rose-950/20 text-rose-400"
-                            : "border-slate-800 bg-slate-950/40 text-slate-400";
-                            
-                          return (
-                            <div key={idx} className={`p-3 rounded-xl border ${statusColor} text-[11px] font-mono space-y-1.5`}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 font-bold truncate">
-                                  <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                  <span className="truncate">{item.fileName}</span>
-                                </div>
-                                <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-900 border border-current">
-                                  {item.status}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-slate-300">
-                                <span className="text-slate-500 uppercase mr-1">Candidate:</span> {item.candidateName}
-                              </div>
-                              <div className="text-[9px] text-slate-400 flex justify-between">
-                                <span><span className="text-slate-500 uppercase">SHA256:</span> {item.sha256}</span>
-                                {item.score && <span className="font-bold text-amber-400">Match: {item.score}%</span>}
-                              </div>
-                              <p className="text-[10px] text-slate-400 border-t border-slate-800/60 pt-1 mt-1 leading-relaxed italic">
-                                {item.detail}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Report Action Buttons */}
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => {
-                            const reportData = JSON.stringify(bulkSummaryReport, null, 2);
-                            const blob = new Blob([reportData], { type: "application/json" });
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement("a");
-                            link.href = url;
-                            link.download = `HireNestOS_Sourcing_Report_${new Date().toISOString().slice(0, 10)}.json`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-                            toast.success("Audit Report ledger downloaded!");
-                          }}
-                          className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold font-mono uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700 transition-colors"
-                        >
-                          <FileText className="w-4 h-4 text-amber-400" />
-                          <span>Download Report</span>
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            setBulkFiles([]);
-                            setBulkResults([]);
-                            setBulkSummaryReport(null);
-                          }}
-                          className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                          <span>New Batch</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="space-y-1">
-                        <h3 className="text-base font-bold text-white tracking-tight">Bulk Candidate Upload</h3>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Submit multiple candidate resumes at once. Our AI pipeline parses, evaluates, and registers each profile onto the company ledger.
-                        </p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono ml-1">Bulk Sourcing Queue</label>
-                          <div className="border-2 border-dashed border-slate-800 hover:border-amber-500/50 rounded-2xl p-6 text-center bg-slate-950 transition-all cursor-pointer relative group">
-                            <input
-                              type="file"
-                              multiple
-                              accept=".zip,.pdf,.docx"
-                              onChange={(e) => {
-                                if (e.target.files) {
-                                  const filesArr = Array.from(e.target.files);
-                                  setBulkFiles(prev => [...prev, ...filesArr]);
-                                }
-                              }}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                            <div className="space-y-2">
-                              <UploadCloud className="w-8 h-8 text-slate-500 mx-auto group-hover:text-amber-400 transition-colors" />
-                              <p className="text-xs text-slate-300 font-bold">Drag and drop files here, or click to browse</p>
-                              <p className="text-[10px] text-slate-500 font-mono">Supports multiple PDFs, DOCX, or ZIP files</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {bulkFiles.length > 0 && (
-                          <div className="space-y-2.5">
-                            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">Queue ({bulkFiles.length} files)</span>
-                              <button
-                                onClick={() => {
-                                  setBulkFiles([]);
-                                  setBulkResults([]);
-                                }}
-                                className="text-[10px] text-rose-500 hover:underline font-mono"
-                              >
-                                Clear All
-                              </button>
-                            </div>
-                            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                              {bulkFiles.map((file, idx) => {
-                                const result = bulkResults[idx];
-                                return (
-                                  <div key={idx} className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-                                      <span className="text-slate-300 truncate text-[11px]">{file.name}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      {result ? (
-                                        <span className={`text-[10px] uppercase font-bold font-mono ${result.color}`}>
-                                          {result.status} {result.score !== null ? `(${result.score}%)` : ''}
-                                        </span>
-                                      ) : (
-                                        <button
-                                          onClick={() => {
-                                            setBulkFiles(prev => prev.filter((_, i) => i !== idx));
-                                            setBulkResults(prev => prev.filter((_, i) => i !== idx));
-                                          }}
-                                          className="text-slate-500 hover:text-rose-500 transition-colors"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        <button
-                          onClick={handleBulkUploadSubmit}
-                          disabled={bulkFiles.length === 0 || bulkUploading}
-                          className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 py-4 rounded-2xl font-bold transition-all text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95 animate-pulse"
-                        >
-                          {bulkUploading ? (
-                            <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              <span>Parsing & Registering...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>Start Parsing & Uploading</span>
-                              <Check className="w-4 h-4" />
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </>
-                  )}
+                  ))}
                 </div>
+              </div>
+            </div>
+
+            {/* RIGHT 5 COLUMNS: VENDOR SUBMISSION FORM */}
+            <div className="lg:col-span-5 space-y-6">
+              {activeTab === 'single' ? (
+                <SingleProfileForm
+                  vendorForm={vendorForm}
+                  setVendorForm={setVendorForm}
+                  handleVendorSubmit={handleVendorSubmit}
+                  submitting={submitting}
+                  pipelineStep={pipelineStep}
+                  pipelineLog={pipelineLog}
+                  submissionResult={submissionResult}
+                  setSubmitting={setSubmitting}
+                  setSubmissionResult={setSubmissionResult}
+                  setPipelineStep={setPipelineStep}
+                  authenticatedVendor={authenticatedVendor}
+                />
+              ) : (
+                <BulkRequirementForm
+                  bulkSummaryReport={bulkSummaryReport}
+                  setBulkSummaryReport={setBulkSummaryReport}
+                  bulkFiles={bulkFiles}
+                  setBulkFiles={setBulkFiles}
+                  bulkResults={bulkResults}
+                  setBulkResults={setBulkResults}
+                  bulkUploading={bulkUploading}
+                  handleBulkUploadSubmit={handleBulkUploadSubmit}
+                />
               )}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

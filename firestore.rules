@@ -5,21 +5,25 @@ service cloud.firestore {
     // ==========================================
     // ENTERPRISE GOVERNANCE & ACCESS CONTROL
     // ==========================================
-    // Supports signed-in users, role-based checks,
-    // and the local executive-root bypass session.
     
     function isSignedIn() {
       return request.auth != null;
     }
     
-    function getUserRole() {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-        : 'viewer';
-    }
-    
     function isAdmin() {
-      return isSignedIn() && (getUserRole() == 'admin' || request.auth.uid == 'executive-root');
+      return isSignedIn() && (
+        request.auth.uid == 'executive-root' || 
+        request.auth.token.role == 'admin'
+      );
+    }
+
+    // Checking organization boundaries
+    function isVendor() {
+      return isSignedIn() && request.auth.token.role == 'vendor';
+    }
+
+    function getOrgId() {
+      return request.auth.token.organizationId;
     }
 
     // ==========================================
@@ -28,139 +32,203 @@ service cloud.firestore {
 
     // Users & User Profiles
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     // Clients collection (CRM Domain)
     match /clients/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // Accounts collection (CRM Domain)
     match /accounts/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // Contacts collection (CRM Domain)
     match /contacts/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // Vendors collection (CRM Domain)
     match /vendors/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (isVendor() && id == getOrgId());
     }
 
     // Requirements & Job Requisitions (OS Domain)
     match /requirements/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /requirements_private/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
+    }
+    match /requirements_public/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // Candidates & Candidate Pool (OS Domain)
     match /candidates/{id} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isVendor() && resource.data.organizationId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.organizationId == getOrgId()));
     }
     match /candidatePool/{id} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isVendor() && resource.data.organizationId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.organizationId == getOrgId()));
     }
     match /resumes/{id} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
     match /candidateOwnership/{id} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isVendor() && resource.data.organizationId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.organizationId == getOrgId()));
+    }
+
+    // New inventory-driven staffing operating system collections
+    match /vendor_candidate_pool/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.vendorId == getOrgId()));
+    }
+    match /candidate_identity_vault/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.vendorId == getOrgId()));
+    }
+    match /candidate_versions/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.vendorId == getOrgId()));
+    }
+    match /candidate_assignments/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.vendorId == getOrgId()));
+    }
+    match /candidate_availability/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.vendorId == getOrgId()));
+    }
+    match /candidate_activity/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.vendorId == getOrgId()));
+    }
+    match /candidate_feedback/{id} {
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getOrgId());
+      allow write: if isAdmin();
     }
 
     // Submissions, Batches, Feedbacks & Interviews (OS Domain)
     match /submissions/{id} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isVendor() && resource.data.organizationId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.organizationId == getOrgId()));
     }
     match /interviews/{id} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isVendor() && resource.data.organizationId == getOrgId());
+      allow write: if isAdmin();
     }
 
     // Pricing & Margin approvals
     match /deals/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /revenue_pipeline/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // Communications & Gmail Connections
     match /communications/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
     match /gmail_connections/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
     match /gmail_messages/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
     match /email_threads/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
     match /email_attachments/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
     match /email_entity_links/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
 
     // Broadcasts
     match /broadcasts/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /vendor_broadcasts/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /vendor_responses/{id} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isVendor() && resource.data.organizationId == getOrgId());
+      allow write: if isAdmin() || (isVendor() && (resource == null || request.resource.data.organizationId == getOrgId()));
     }
 
     // Immutable system event ledger (Company Ledger)
     match /system_events/{id} {
-      allow read, create: if true;
+      allow read, create: if isSignedIn();
       allow update, delete: if false; // Law 1: Immutable ledger
     }
 
     // Audit logs & metrics
     match /audit_logs/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /agent_logs/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /agent_tasks/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /agent_executions/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /agent_activities/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /activity_ledger/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /submission_ledger/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /migration_metrics/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /outreach_logs/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /candidate_outcomes/{id} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /classification_audit/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // Global Fallback
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
   }
 }

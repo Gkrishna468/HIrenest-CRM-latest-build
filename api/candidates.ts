@@ -316,6 +316,370 @@ export default async function handler(req: any, res: any) {
       console.error(e);
       return res.status(500).json({ error: e.message });
     }
+  } else if (action === "submitVendorCandidatePool") {
+    try {
+      if (!db) throw new Error("Database not initialized");
+
+      const { candidateHash, vendorId, candidateName, identityData } = req.body;
+
+      if (!candidateHash || !vendorId || !candidateName) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // 1. Check candidate_identity_vault for global double-submission lock (duplicate check)
+      const vaultRef = db.collection("candidate_identity_vault");
+      const existingQuery = await vaultRef.where("candidateHash", "==", candidateHash).get();
+
+      if (!existingQuery.empty) {
+        const existing = existingQuery.docs[0].data();
+        if (existing.vendorId !== vendorId) {
+          return res.status(409).json({ 
+            error: "Candidate Ownership Conflict", 
+            message: `This profile is already locked under prior registry claims by another vendor.` 
+          });
+        } else {
+          return res.status(409).json({ 
+            error: "Duplicate Submission", 
+            message: `You have already registered this candidate in your global Talent Pool.` 
+          });
+        }
+      }
+
+      // 2. Perform AI screening/extraction with Gemini
+      let parsedTitle = identityData.current_title || "Technical Specialist";
+      let parsedSkills = identityData.skills || [];
+      let parsedSummary = "Talent Pool asset available for redeployment.";
+      let fraudDetected = false;
+
+      if (ai) {
+        try {
+          const extractionPrompt = `
+            Act as the Staffing Intelligence Analyzer for HireNestOS.
+            Extract key parameters from this candidate profile.
+
+            CANDIDATE:
+            Name: ${candidateName}
+            Title: ${identityData.current_title || ""}
+            Skills: ${JSON.stringify(identityData.skills || [])}
+            Notes: ${identityData.cover_note || ""}
+
+            TASK:
+            1. Suggest the best standardized Technical Job Title.
+            2. Extract skills list as a JSON array of strings.
+            3. Formulate a 2-3 sentence professional summary / profile highlights.
+            4. Detect potential fraud markers (return true or false).
+
+            RETURN ONLY VALID JSON:
+            {
+              "standardizedTitle": "e.g. Senior React Developer",
+              "skills": ["skill1", "skill2"],
+              "summary": "Summary text",
+              "fraudDetected": false
+            }
+          `;
+
+          const result = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: extractionPrompt,
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+
+          const cleanText = (result.text || "")
+            .replace(/\`\`\`json|\`\`\`/g, "")
+            .trim();
+          const parsed = JSON.parse(cleanText);
+
+          if (parsed.standardizedTitle) parsedTitle = parsed.standardizedTitle;
+          if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
+          if (parsed.summary) parsedSummary = parsed.summary;
+          if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
+        } catch (err) {
+          console.error("Gemini pool extraction failed, using fallbacks:", err);
+        }
+      }
+
+      // 3. Create document in candidate_identity_vault
+      const vaultDoc = {
+        candidateHash,
+        vendorId,
+        candidateName,
+        ownershipLocked: true,
+        createdAt: new Date().toISOString()
+      };
+      await vaultRef.add(vaultDoc);
+
+      // 4. Create document in vendor_candidate_pool
+      const poolRef = await db.collection("vendor_candidate_pool").add({
+        name: candidateName,
+        vendorId,
+        stage: "Available",
+        currentTitle: parsedTitle,
+        skills: parsedSkills,
+        createdAt: new Date().toISOString(),
+        notes: parsedSummary,
+        fraudDetected,
+        ...identityData
+      });
+
+      // 5. Create document in candidate_versions
+      await db.collection("candidate_versions").add({
+        candidateId: poolRef.id,
+        resumeUrl: identityData.resume_url || "",
+        parsedSkills,
+        updatedAt: new Date().toISOString(),
+        dataSnapshot: {
+          name: candidateName,
+          title: parsedTitle,
+          email: identityData.email || "",
+          phone: identityData.phone || "",
+          ...identityData
+        }
+      });
+
+      // 6. Create document in candidate_availability
+      await db.collection("candidate_availability").add({
+        candidateId: poolRef.id,
+        status: "Available",
+        noticePeriod: identityData.notice_period || "Immediate",
+        lastCheckedAt: new Date().toISOString()
+      });
+
+      // 7. Create document in candidate_activity
+      await db.collection("candidate_activity").add({
+        candidateId: poolRef.id,
+        activityType: "INGESTION",
+        performedBy: vendorId,
+        description: `Candidate registered into passive Talent Pool as Available.`,
+        timestamp: new Date().toISOString()
+      });
+
+      // 8. LAW 1: Immutable Company Ledger system_events
+      await db.collection("system_events").add({
+        type: "CANDIDATE_POOL_INGESTED",
+        message: `Vendor ingested candidate ${candidateName} into the global Talent Pool as Available.`,
+        timestamp: new Date().toISOString(),
+        entityType: "vendor_candidate",
+        entityId: poolRef.id,
+        role: "vendor",
+        data: {
+          candidateName,
+          vendorId,
+          standardizedTitle: parsedTitle,
+          skills: parsedSkills,
+          fraudDetected
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        candidateId: poolRef.id,
+        standardizedTitle: parsedTitle,
+        skills: parsedSkills,
+        summary: parsedSummary,
+        fraudDetected
+      });
+
+    } catch (e: any) {
+      console.error(e);
+      return res.status(500).json({ error: e.message });
+    }
+  } else if (action === "triggerAiRotation") {
+    try {
+      if (!db) throw new Error("Database not initialized");
+
+      const { vendorId } = req.body;
+      if (!vendorId) {
+        return res.status(400).json({ error: "Missing vendorId" });
+      }
+
+      // Fetch all "Available" candidates in vendor_candidate_pool for this vendor
+      const poolQuery = await db.collection("vendor_candidate_pool")
+        .where("vendorId", "==", vendorId)
+        .where("stage", "==", "Available")
+        .get();
+
+      if (poolQuery.empty) {
+        return res.status(200).json({ success: true, matches: [], message: "No active available candidates in your pool to rotate." });
+      }
+
+      // Fetch active requirements
+      const reqQuery = await db.collection("requirements_private").get();
+      const requirements: any[] = [];
+      reqQuery.forEach(doc => {
+        requirements.push({ id: doc.id, ...doc.data() });
+      });
+
+      const pubQuery = await db.collection("requirements_public").get();
+      pubQuery.forEach(doc => {
+        requirements.push({ id: doc.id, ...doc.data() });
+      });
+
+      if (requirements.length === 0) {
+        return res.status(200).json({ success: true, matches: [], message: "No active job requirements found for matching." });
+      }
+
+      const matches: any[] = [];
+
+      // Run rotation matcher for each candidate
+      for (const candDoc of poolQuery.docs) {
+        const candidate = { id: candDoc.id, ...candDoc.data() as any };
+
+        for (const reqItem of requirements) {
+          const candSkills = candidate.skills || [];
+          const reqSkills = reqItem.skills || [];
+          const overlap = candSkills.filter((s: string) => 
+            reqSkills.some((rs: string) => rs.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(rs.toLowerCase()))
+          );
+
+          let score = Math.round((overlap.length / Math.max(reqSkills.length, 1)) * 100);
+          if (score < 40) {
+            if (reqItem.title && candidate.currentTitle && reqItem.title.toLowerCase().includes(candidate.currentTitle.toLowerCase())) {
+              score += 45;
+            }
+          }
+
+          // If a solid candidate rotation match is identified
+          if (score > 60) {
+            const assignmentRef = await db.collection("candidate_assignments").add({
+              candidateId: candidate.id,
+              requirementId: reqItem.id,
+              assignedBy: "AI_ROTATION_ENGINE",
+              assignedAt: new Date().toISOString(),
+              status: "Proposed",
+              score: Math.min(score, 100)
+            });
+
+            await db.collection("candidate_activity").add({
+              candidateId: candidate.id,
+              activityType: "ROTATION_MATCHED",
+              performedBy: "AI_ROTATION_ENGINE",
+              description: `Candidate automatically matched and proposed to Requirement: "${reqItem.title}" (Match Score: ${score}%).`,
+              timestamp: new Date().toISOString()
+            });
+
+            await db.collection("system_events").add({
+              type: "CANDIDATE_ROTATION_PROPOSED",
+              message: `AI Rotation Engine proposed Candidate ${candidate.name} for Requirement ${reqItem.title} with match score ${score}%.`,
+              timestamp: new Date().toISOString(),
+              entityType: "candidate_assignment",
+              entityId: assignmentRef.id,
+              role: "system",
+              data: {
+                candidateId: candidate.id,
+                requirementId: reqItem.id,
+                score
+              }
+            });
+
+            matches.push({
+              candidateId: candidate.id,
+              candidateName: candidate.name,
+              requirementId: reqItem.id,
+              requirementTitle: reqItem.title,
+              score: Math.min(score, 100)
+            });
+          }
+        }
+      }
+
+      // Update Vendor compliance and performance score for triggering active deployment!
+      const vendorDoc = await db.collection("vendors").doc(vendorId).get();
+      if (vendorDoc.exists) {
+        const vData = vendorDoc.data() || {};
+        const newScore = Math.min((vData.performanceScore || 85) + 3, 100);
+        await db.collection("vendors").doc(vendorId).update({
+          performanceScore: newScore,
+          lastRotationTime: new Date().toISOString()
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        matches,
+        message: `Successfully executed AI Candidate Rotation. Proposed ${matches.length} matches.`
+      });
+
+    } catch (e: any) {
+      console.error(e);
+      return res.status(500).json({ error: e.message });
+    }
+  } else if (action === "validateCandidates") {
+    try {
+      if (!db) throw new Error("Database not initialized");
+
+      const { candidateIds, vendorId } = req.body;
+      if (!Array.isArray(candidateIds) || !vendorId) {
+        return res.status(400).json({ error: "Missing candidateIds or vendorId" });
+      }
+
+      for (const id of candidateIds) {
+        const availQuery = await db.collection("candidate_availability")
+          .where("candidateId", "==", id)
+          .get();
+
+        if (!availQuery.empty) {
+          const docId = availQuery.docs[0].id;
+          await db.collection("candidate_availability").doc(docId).update({
+            lastCheckedAt: new Date().toISOString()
+          });
+        } else {
+          await db.collection("candidate_availability").add({
+            candidateId: id,
+            status: "Available",
+            noticePeriod: "Immediate",
+            lastCheckedAt: new Date().toISOString()
+          });
+        }
+
+        await db.collection("candidate_activity").add({
+          candidateId: id,
+          activityType: "MONTHLY_VALIDATION",
+          performedBy: vendorId,
+          description: `Vendor manually validated candidate freshness and active availability.`,
+          timestamp: new Date().toISOString()
+        });
+
+        await db.collection("vendor_candidate_pool").doc(id).update({
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      // Update Vendor performance score and response rate
+      const vendorDoc = await db.collection("vendors").doc(vendorId).get();
+      if (vendorDoc.exists) {
+        const vData = vendorDoc.data() || {};
+        const currentScore = vData.performanceScore || 85;
+        const currentRate = vData.responseRate || 90;
+        await db.collection("vendors").doc(vendorId).update({
+          performanceScore: Math.min(currentScore + 4, 100),
+          responseRate: Math.min(currentRate + 2, 100),
+          lastValidationTime: new Date().toISOString()
+        });
+      }
+
+      await db.collection("system_events").add({
+        type: "VENDOR_COMPLIANCE_VALIDATED",
+        message: `Vendor ${vendorId} validated freshness for ${candidateIds.length} candidate profiles in their Talent Pool.`,
+        timestamp: new Date().toISOString(),
+        entityType: "vendor",
+        entityId: vendorId,
+        role: "vendor",
+        data: {
+          count: candidateIds.length
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Successfully validated ${candidateIds.length} profiles and updated vendor compliance metrics.`
+      });
+
+    } catch (e: any) {
+      console.error(e);
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   return res.status(400).json({ error: "Invalid action" });

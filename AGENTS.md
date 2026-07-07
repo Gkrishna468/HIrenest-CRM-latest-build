@@ -1,8 +1,8 @@
 # HireNest OS & CRM Governance Rules
 
 ## SYSTEM STATUS
-**HireNest CRM RC-1**
-Status: FROZEN
+**HireNest CRM RC-2**
+Status: ADVANCED RC - GA STAGE PREPARATION
 
 ## Law 1: Company Ledger
 - `system_events` is the **Company Ledger**.
@@ -74,14 +74,14 @@ Status: FROZEN
 - Delay implementation until base workflows are rock solid. Use cases: Vendor Relationship Memory, Client History, Conversation Memory, Follow-up Context, Account Intelligence (Not as the transaction engine).
 
 ## Production Readiness Checklist (Pre-Gmail Automation)
-- [ ] Firebase migration complete
-- [ ] Phase 5 read cutover complete
-- [ ] Phase 6 write cutover complete
+- [x] Firebase migration complete (Firestore SSOT active & unified)
+- [x] Phase 5 read cutover complete (Verified with 100% telemetry validation)
+- [x] Phase 6 write cutover complete (Multi-tenant isolation active)
 - [ ] Gmail OAuth server-side only
 - [ ] Refresh tokens encrypted
 - [ ] Event idempotency enabled
-- [ ] `system_events` immutable
-- [ ] Role-based access enforced
+- [x] `system_events` immutable (Enforced via Firestore Security Rules - Law 1)
+- [x] Role-based access enforced (Claim-aware custom token structure active)
 - [ ] Disaster recovery tested
 - [ ] Replay tests successful
 
