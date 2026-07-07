@@ -6,6 +6,7 @@ import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
+import { executeServerAITask } from "./aiGateway";
 dotenv.config();
 
 let db: Firestore | null = null;
@@ -181,82 +182,66 @@ export default async function handler(req: any, res: any) {
         assignedBdm = "Rahul";
       }
 
-      // 3. Perform AI Resume Screening using Gemini
+      // 3. Perform AI Resume Screening using the AI Gateway
       let aiMatchScore = 75;
       let aiSummary = "Vetted profile awaiting BDM review.";
       let fraudDetected = false;
       let skillsList = identityData.skills || [];
+      let aiPassed = false;
 
-      if (ai) {
-        try {
-          const evaluationPrompt = `
-            Act as the Staffing Intelligence Analyzer for HireNestOS.
-            Evaluate the candidate's details against the job requirement and return a structured JSON evaluation.
+      try {
+        const evaluationPrompt = `
+          Act as the Staffing Intelligence Analyzer for HireNestOS.
+          Evaluate the candidate's details against the job requirement and return a structured JSON evaluation.
 
-            CANDIDATE DETAILS:
-            Name: ${candidateName}
-            Email: ${identityData.email || ""}
-            Phone: ${identityData.phone || ""}
-            Current Title: ${identityData.current_title || ""}
-            Skills Provided: ${JSON.stringify(identityData.skills || [])}
-            Cover Note: ${identityData.cover_note || ""}
+          CANDIDATE DETAILS:
+          Name: ${candidateName}
+          Email: ${identityData.email || ""}
+          Phone: ${identityData.phone || ""}
+          Current Title: ${identityData.current_title || ""}
+          Skills Provided: ${JSON.stringify(identityData.skills || [])}
+          Cover Note: ${identityData.cover_note || ""}
 
-            JOB REQUIREMENT DETAILS:
-            Title: ${jobTitle}
-            Description: ${jobDescription}
-            Required Skills: ${JSON.stringify(jobSkills)}
+          JOB REQUIREMENT DETAILS:
+          Title: ${jobTitle}
+          Description: ${jobDescription}
+          Required Skills: ${JSON.stringify(jobSkills)}
 
-            TASK:
-            1. Calculate a match percentage (0 to 100) based on skill overlap, experience level, and relevance.
-            2. Formulate a 2-3 sentence AI candidate profile summary / evaluation.
-            3. Detect potential fraud markers (disposable emails, mismatched phone numbers, or extreme text anomalies). Return fraudDetected as true or false.
-            4. Extract skills list as a JSON array of strings.
+          TASK:
+          1. Calculate a match percentage (0 to 100) based on skill overlap, experience level, and relevance.
+          2. Formulate a 2-3 sentence AI candidate profile summary / evaluation.
+          3. Detect potential fraud markers (disposable emails, mismatched phone numbers, or extreme text anomalies). Return fraudDetected as true or false.
+          4. Extract skills list as a JSON array of strings.
 
-            RETURN ONLY VALID JSON MATCHING THIS SCHEMA:
-            {
-              "matchScore": 85,
-              "summary": "Evaluation text here",
-              "fraudDetected": false,
-              "skills": ["skill1", "skill2"]
-            }
-          `;
-
-          const result = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: evaluationPrompt,
-            config: {
-              responseMimeType: "application/json",
-            },
-          });
-
-          const cleanText = (result.text || "")
-            .replace(/\`\`\`json|\`\`\`/g, "")
-            .trim();
-          const evaluation = JSON.parse(cleanText);
-
-          if (evaluation.matchScore !== undefined) aiMatchScore = Number(evaluation.matchScore);
-          if (evaluation.summary) aiSummary = evaluation.summary;
-          if (evaluation.fraudDetected !== undefined) fraudDetected = !!evaluation.fraudDetected;
-          if (Array.isArray(evaluation.skills)) skillsList = evaluation.skills;
-
-        } catch (err) {
-          console.error("Gemini processing failed, using fallbacks:", err);
-          const fb = fallbackExtractData(candidateName, identityData);
-          if (skillsList.length === 0) skillsList = fb.skills;
-          aiSummary = `Vetted talent profile: ${fb.summary}`;
-          fraudDetected = fb.fraud;
-          let matchCount = 0;
-          const lowerJobSkills = jobSkills.map(s => s.toLowerCase());
-          for (const s of skillsList) {
-            if (lowerJobSkills.includes(s.toLowerCase())) matchCount++;
+          RETURN ONLY VALID JSON MATCHING THIS SCHEMA:
+          {
+            "matchScore": 85,
+            "summary": "Evaluation text here",
+            "fraudDetected": false,
+            "skills": ["skill1", "skill2"]
           }
-          if (jobSkills.length > 0) {
-            aiMatchScore = Math.min(100, Math.max(50, Math.round((matchCount / jobSkills.length) * 100)));
-          } else {
-            aiMatchScore = 75;
-          }
-        }
-      } else {
+        `;
+
+        const gatewayResult = await executeServerAITask({
+          action: "candidate-evaluation",
+          prompt: evaluationPrompt,
+          responseFormatJson: true,
+          complexity: "simple"
+        });
+
+        const cleanText = (gatewayResult.text || "")
+          .replace(/\`\`\`json|\`\`\`/g, "")
+          .trim();
+        const evaluation = JSON.parse(cleanText);
+
+        if (evaluation.matchScore !== undefined) aiMatchScore = Number(evaluation.matchScore);
+        if (evaluation.summary) aiSummary = evaluation.summary;
+        if (evaluation.fraudDetected !== undefined) fraudDetected = !!evaluation.fraudDetected;
+        if (Array.isArray(evaluation.skills)) skillsList = evaluation.skills;
+        aiPassed = true;
+
+      } catch (err) {
+        console.error("AI Gateway screening failed, using fallbacks:", err);
         const fb = fallbackExtractData(candidateName, identityData);
         if (skillsList.length === 0) skillsList = fb.skills;
         aiSummary = `Vetted talent profile: ${fb.summary}`;
@@ -413,58 +398,55 @@ export default async function handler(req: any, res: any) {
       let fraudDetected = false;
       let aiStatus = "pending";
 
-      // Execute Gemini
+      // Execute AI Gateway
       let aiPassed = false;
-      if (ai) {
-        try {
-          const extractionPrompt = `
-            Act as the Staffing Intelligence Analyzer for HireNestOS.
-            Extract key parameters from this candidate profile.
+      try {
+        const extractionPrompt = `
+          Act as the Staffing Intelligence Analyzer for HireNestOS.
+          Extract key parameters from this candidate profile.
 
-            CANDIDATE:
-            Name: ${candidateName}
-            Title: ${parsedTitle}
-            Skills: ${JSON.stringify(parsedSkills)}
-            Notes: ${identityData.cover_note || ""}
+          CANDIDATE:
+          Name: ${candidateName}
+          Title: ${parsedTitle}
+          Skills: ${JSON.stringify(parsedSkills)}
+          Notes: ${identityData.cover_note || ""}
 
-            TASK:
-            1. Suggest the best standardized Technical Job Title.
-            2. Extract skills list as a JSON array of strings.
-            3. Formulate a 2-3 sentence professional summary / profile highlights.
-            4. Detect potential fraud markers (return true or false).
+          TASK:
+          1. Suggest the best standardized Technical Job Title.
+          2. Extract skills list as a JSON array of strings.
+          3. Formulate a 2-3 sentence professional summary / profile highlights.
+          4. Detect potential fraud markers (return true or false).
 
-            RETURN ONLY VALID JSON:
-            {
-              "standardizedTitle": "e.g. Senior React Developer",
-              "skills": ["skill1", "skill2"],
-              "summary": "Summary text",
-              "fraudDetected": false
-            }
-          `;
+          RETURN ONLY VALID JSON:
+          {
+            "standardizedTitle": "e.g. Senior React Developer",
+            "skills": ["skill1", "skill2"],
+            "summary": "Summary text",
+            "fraudDetected": false
+          }
+        `;
 
-          const result = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: extractionPrompt,
-            config: {
-              responseMimeType: "application/json",
-            },
-          });
+        const gatewayResult = await executeServerAITask({
+          action: "candidate-extraction",
+          prompt: extractionPrompt,
+          responseFormatJson: true,
+          complexity: "simple"
+        });
 
-          const cleanText = (result.text || "")
-            .replace(/\`\`\`json|\`\`\`/g, "")
-            .trim();
-          const parsed = JSON.parse(cleanText);
+        const cleanText = (gatewayResult.text || "")
+          .replace(/\`\`\`json|\`\`\`/g, "")
+          .trim();
+        const parsed = JSON.parse(cleanText);
 
-          if (parsed.standardizedTitle) parsedTitle = parsed.standardizedTitle;
-          if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
-          if (parsed.summary) parsedSummary = parsed.summary;
-          if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
-          aiPassed = true;
-          aiStatus = "parsed";
-        } catch (err) {
-          console.error("Gemini pool extraction failed, falling back to smart regex/rule-based extractor:", err);
-          aiStatus = "pending";
-        }
+        if (parsed.standardizedTitle) parsedTitle = parsed.standardizedTitle;
+        if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
+        if (parsed.summary) parsedSummary = parsed.summary;
+        if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
+        aiPassed = true;
+        aiStatus = "parsed";
+      } catch (err) {
+        console.error("AI Gateway pool extraction failed, falling back to smart regex/rule-based extractor:", err);
+        aiStatus = "pending";
       }
 
       if (!aiPassed) {
@@ -900,52 +882,51 @@ export default async function handler(req: any, res: any) {
         let fraudDetected = false;
         let aiPassed = false;
 
-        if (ai) {
-          try {
-            const extractionPrompt = `
-              Act as the Staffing Intelligence Analyzer for HireNestOS.
-              Extract key parameters from this candidate profile.
+        try {
+          const extractionPrompt = `
+            Act as the Staffing Intelligence Analyzer for HireNestOS.
+            Extract key parameters from this candidate profile.
 
-              CANDIDATE:
-              Name: ${candidateName}
-              Title: ${parsedTitle}
-              Skills: ${JSON.stringify(parsedSkills)}
-              Notes: ${identityData.cover_note || ""}
+            CANDIDATE:
+            Name: ${candidateName}
+            Title: ${parsedTitle}
+            Skills: ${JSON.stringify(parsedSkills)}
+            Notes: ${identityData.cover_note || ""}
 
-              TASK:
-              1. Suggest the best standardized Technical Job Title.
-              2. Extract skills list as a JSON array of strings.
-              3. Formulate a 2-3 sentence professional summary / profile highlights.
-              4. Detect potential fraud markers (return true or false).
+            TASK:
+            1. Suggest the best standardized Technical Job Title.
+            2. Extract skills list as a JSON array of strings.
+            3. Formulate a 2-3 sentence professional summary / profile highlights.
+            4. Detect potential fraud markers (return true or false).
 
-              RETURN ONLY VALID JSON:
-              {
-                "standardizedTitle": "e.g. Senior React Developer",
-                "skills": ["skill1", "skill2"],
-                "summary": "Summary text",
-                "fraudDetected": false
-              }
-            `;
+            RETURN ONLY VALID JSON:
+            {
+              "standardizedTitle": "e.g. Senior React Developer",
+              "skills": ["skill1", "skill2"],
+              "summary": "Summary text",
+              "fraudDetected": false
+            }
+          `;
 
-            const result = await ai.models.generateContent({
-              model: "gemini-3.5-flash",
-              contents: extractionPrompt,
-              config: { responseMimeType: "application/json" }
-            });
+          const gatewayResult = await executeServerAITask({
+            action: "candidate-reprocessing",
+            prompt: extractionPrompt,
+            responseFormatJson: true,
+            complexity: "simple"
+          });
 
-            const cleanText = (result.text || "")
-              .replace(/\`\`\`json|\`\`\`/g, "")
-              .trim();
-            const parsed = JSON.parse(cleanText);
+          const cleanText = (gatewayResult.text || "")
+            .replace(/\`\`\`json|\`\`\`/g, "")
+            .trim();
+          const parsed = JSON.parse(cleanText);
 
-            if (parsed.standardizedTitle) parsedTitle = parsed.standardizedTitle;
-            if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
-            if (parsed.summary) parsedSummary = parsed.summary;
-            if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
-            aiPassed = true;
-          } catch (err) {
-            console.error(`Gemini reprocessing failed for candidate ${candidateId}:`, err);
-          }
+          if (parsed.standardizedTitle) parsedTitle = parsed.standardizedTitle;
+          if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
+          if (parsed.summary) parsedSummary = parsed.summary;
+          if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
+          aiPassed = true;
+        } catch (err) {
+          console.error(`AI Gateway reprocessing failed for candidate ${candidateId}:`, err);
         }
 
         const batch = db.batch();

@@ -7,6 +7,7 @@ dotenv.config();
 
 import * as fs from "fs";
 import * as path from "path";
+import { executeServerAITask, AICache, AIRequestQueue } from "./aiGateway";
 
 let db: Firestore | null = null;
 let adminApp: any = null;
@@ -259,15 +260,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    
-const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
-if (apiKey.includes("\"")) {
-    console.error("API KEY INCLUDES QUOTES");
-}
-
-    const aiClient = new GoogleGenAI({ apiKey });
-
     const prompt = `
     Act as the "Unified Intelligence Brain" for HireNest Enterprise IT Staffing OS.
     Analyze the following interaction (Email, text, JD, or WhatsApp) and extract staffing workflows.
@@ -346,15 +338,14 @@ if (apiKey.includes("\"")) {
     }
   `;
 
-    const result = await aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
+    const gatewayResult = await executeServerAITask({
+      action: "classify",
+      prompt,
+      responseFormatJson: true,
+      complexity: "simple"
     });
 
-    const cleanText = (result.text || "")
+    const cleanText = (gatewayResult.text || "")
       .replace(/\`\`\`json|\`\`\`/g, "")
       .trim();
     const insight = JSON.parse(cleanText);
@@ -520,15 +511,6 @@ if (apiKey.includes("\"")) {
   }
 
   try {
-    
-const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
-if (apiKey.includes("\"")) {
-    console.error("API KEY INCLUDES QUOTES");
-}
-
-    const aiClient = new GoogleGenAI({ apiKey });
-
     const systemPrompt = `
     Act as the HireNestOS MailOS Copilot, an AI-native staffing communication engine.
     You are generating a highly contextual response based on the staffing lifecycle.
@@ -558,12 +540,14 @@ if (apiKey.includes("\"")) {
 
     const optimization = optimizePromptContext(systemPrompt, 'copilot');
 
-    const result = await aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: optimization.finalPrompt,
+    const gatewayResult = await executeServerAITask({
+      action: "copilot",
+      prompt: optimization.finalPrompt,
+      responseFormatJson: false,
+      complexity: "complex"
     });
 
-    const draft = result.text || "";
+    const draft = gatewayResult.text || "";
 
     // Log the generation
     if (db) {
@@ -611,11 +595,6 @@ if (apiKey.includes("\"")) {
         const { name, skills, experience, currentCompany, currentTitle, notes } = req.body;
 
         try {
-          const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-          if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
-
-          const aiClient = new GoogleGenAI({ apiKey });
-
           const prompt = `
           Act as the "Unified Intelligence Brain" for HireNest Enterprise IT Staffing OS.
           Analyze the candidate details provided and generate a complete Candidate 360 Workspace analysis.
@@ -645,15 +624,14 @@ if (apiKey.includes("\"")) {
 
           const optimization = optimizePromptContext(prompt, "candidate-summary");
 
-          const result = await aiClient.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: optimization.finalPrompt,
-            config: {
-              responseMimeType: "application/json",
-            },
+          const gatewayResult = await executeServerAITask({
+            action: "candidate-summary",
+            prompt: optimization.finalPrompt,
+            responseFormatJson: true,
+            complexity: "simple"
           });
 
-          const cleanText = (result.text || "")
+          const cleanText = (gatewayResult.text || "")
             .replace(/\`\`\`json|\`\`\`/g, "")
             .trim();
           const data = JSON.parse(cleanText);
@@ -681,11 +659,6 @@ if (apiKey.includes("\"")) {
         const { resumeText } = req.body;
 
         try {
-          const apiKey = ((process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) || "").replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-          if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
-
-          const aiClient = new GoogleGenAI({ apiKey });
-
           const prompt = `
           Act as an Elite AI Staffing Agent and Resume Parsing Engine.
           Analyze the resume text provided and extract structured info into valid JSON.
@@ -711,15 +684,14 @@ if (apiKey.includes("\"")) {
 
           const optimization = optimizePromptContext(prompt, "parse-resume");
 
-          const result = await aiClient.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: optimization.finalPrompt,
-            config: {
-              responseMimeType: "application/json",
-            },
+          const gatewayResult = await executeServerAITask({
+            action: "parse-resume",
+            prompt: optimization.finalPrompt,
+            responseFormatJson: true,
+            complexity: "simple"
           });
 
-          const cleanText = (result.text || "")
+          const cleanText = (gatewayResult.text || "")
             .replace(/\`\`\`json|\`\`\`/g, "")
             .trim();
           const data = JSON.parse(cleanText);
@@ -777,23 +749,35 @@ if (apiKey.includes("\"")) {
             return res.status(500).json({ error: 'Database not initialized' });
           }
           const auditSnapshot = await db.collection('classification_audit').get();
-          const totalCalls = auditSnapshot.size || 15;
+          const totalCallsFromAudit = auditSnapshot.size || 15;
           const validatedCalls = auditSnapshot.docs.filter(d => d.data().validated).length;
-          
-          // Cost and Token Estimates based on actual token rates ($0.000075 / 1k input, $0.0003 / 1k output)
-          const estInputTokens = totalCalls * 1250;
-          const estOutputTokens = totalCalls * 280;
-          const estCost = (estInputTokens * 0.000075 / 1000) + (estOutputTokens * 0.0003 / 1000);
-          
-          const p50Latency = 680; 
-          const p90Latency = 1120; 
-          const p99Latency = 1850; 
-          
+
+          // Fetch dynamic AI Gateway telemetry metrics (Law 2 / SSOT alignment)
+          const telDoc = await db.collection('ingestion_telemetry').doc('overall').get();
+          const telData = telDoc.exists ? telDoc.data() : {};
+
+          const totalAiCalls = telData?.totalAiCalls || totalCallsFromAudit;
+          const ollamaCalls = telData?.ai_provider_calls_ollama || 0;
+          const openaiCalls = telData?.ai_provider_calls_openai || 0;
+          const geminiCalls = telData?.ai_provider_calls_gemini || 0;
+          const totalLatency = telData?.totalAiLatency || 0;
+          const fallbackCount = telData?.aiFallbackCount || 0;
+
+          const p50Latency = totalAiCalls > 0 ? Math.round(totalLatency / totalAiCalls) : 680;
+          const p90Latency = Math.round(p50Latency * 1.5) || 1120;
+          const p99Latency = Math.round(p50Latency * 2.5) || 1850;
+
+          // Cost calculation: Ollama = ₹0, Gemini = $0.0001, OpenAI = $0.0005
+          const estCost = (openaiCalls * 0.0005) + (geminiCalls * 0.0001);
+
+          const estInputTokens = totalAiCalls * 1250;
+          const estOutputTokens = totalAiCalls * 280;
+
           const eventsSnapshot = await db.collection('system_events').get();
           const totalEvents = eventsSnapshot.size || 42;
 
           return res.status(200).json({
-            totalCalls,
+            totalCalls: totalAiCalls,
             validatedCalls,
             estInputTokens,
             estOutputTokens,
@@ -803,7 +787,13 @@ if (apiKey.includes("\"")) {
             p99Latency,
             totalEvents,
             cacheHitPercentage: 74,
-            modelAvailability: 100
+            modelAvailability: 100,
+            providerStats: {
+              ollama: ollamaCalls,
+              openai: openaiCalls,
+              gemini: geminiCalls,
+              fallbackCount
+            }
           });
         } catch (error: any) {
           return res.status(500).json({ error: error.message });
@@ -860,6 +850,46 @@ if (apiKey.includes("\"")) {
           const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           return res.status(200).json(list);
         } catch (error: any) {
+          return res.status(500).json({ error: error.message });
+        }
+      })();
+    case 'health':
+      return await (async () => {
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method Not Allowed' });
+        }
+        try {
+          const cacheStats = AICache.getStats();
+          const queueStats = AIRequestQueue.getStats();
+          
+          const status = {
+            gateway: "healthy",
+            ollama: process.env.OLLAMA_API_URL ? "online" : "offline",
+            gemini: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) ? "configured" : "unconfigured",
+            openai: process.env.OPENAI_API_KEY ? "configured" : "unconfigured",
+            cache: cacheStats,
+            queue: queueStats,
+            timestamp: new Date().toISOString()
+          };
+          return res.status(200).json(status);
+        } catch (error: any) {
+          return res.status(500).json({ error: error.message });
+        }
+      })();
+    case 'gateway-inference':
+      return await (async () => {
+        if (req.method !== 'POST') {
+          return res.status(405).json({ error: 'Method Not Allowed' });
+        }
+        try {
+          const { options } = req.body;
+          if (!options || !options.prompt) {
+            return res.status(400).json({ error: 'Missing options or prompt parameter' });
+          }
+          const result = await executeServerAITask(options);
+          return res.status(200).json(result);
+        } catch (error: any) {
+          console.error('[GATEWAY INFERENCE ERROR]', error);
           return res.status(500).json({ error: error.message });
         }
       })();
