@@ -51,7 +51,9 @@ import {
   AlertCircle,
   Send,
   Users,
-  Fingerprint
+  Fingerprint,
+  Database,
+  ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { safeArray, safeString } from '@/utils/safe';
@@ -137,6 +139,7 @@ export default function Vendors() {
   const [bulkResumes, setBulkResumes] = useState<{ id: string; name: string; size: string; status: 'pending' | 'parsing' | 'done' | 'failed'; text?: string; parsedData?: any; error?: string }[]>([]);
   const [activeBulkTab, setActiveBulkTab] = useState<string>('');
   const [bulkCheckDeduplication, setBulkCheckDeduplication] = useState<boolean>(true);
+  const [bulkUploadMode, setBulkUploadMode] = useState<'requirement' | 'talent-pool'>('requirement');
 
   // Sourcing & AI requirement match suggestions
   const [matchedInventoryCandidates, setMatchedInventoryCandidates] = useState<any[]>([]);
@@ -601,12 +604,14 @@ export default function Vendors() {
   const runDeduplicationCheck = async () => {
     setBulkStep(4);
     const updated = [...bulkResumes];
+    const collectionName = bulkUploadMode === 'talent-pool' ? 'vendor_candidate_pool' : 'candidates';
+    
     for (let i = 0; i < updated.length; i++) {
       const email = updated[i].parsedData?.email?.toLowerCase()?.trim();
       if (!email) continue;
       
       try {
-        const snap = await getDocs(collection(db, 'candidates'));
+        const snap = await getDocs(collection(db, collectionName));
         const conflict = snap.docs.find(doc => doc.data().email?.toLowerCase() === email);
         if (conflict) {
           const data = conflict.data();
@@ -615,7 +620,7 @@ export default function Vendors() {
             parsedData: {
               ...updated[i].parsedData,
               hasConflict: true,
-              conflictDetails: `Conflict: Already exists in database submitted via ${data.submittedVia || 'System'}.`
+              conflictDetails: `Conflict: Already exists in ${collectionName === 'vendor_candidate_pool' ? 'Vendor Talent Pool' : 'database'}.`
             }
           };
         } else {
@@ -638,6 +643,10 @@ export default function Vendors() {
       let successCount = 0;
       let skippedCount = 0;
 
+      const endpoint = bulkUploadMode === 'talent-pool'
+        ? '/api/candidates?action=submitVendorCandidatePool'
+        : '/api/candidates?action=submitVendorCandidate';
+
       for (const cand of bulkResumes) {
         if (bulkCheckDeduplication && cand.parsedData?.hasConflict) {
           skippedCount++;
@@ -645,23 +654,43 @@ export default function Vendors() {
         }
 
         const identityString = `${cand.parsedData?.email}-${cand.parsedData?.phone}`.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const response = await apiFetch('/api/candidates?action=submitVendorCandidate', {
+        
+        const payload = bulkUploadMode === 'talent-pool'
+          ? {
+              candidateHash: identityString,
+              vendorId: selectedVendor.id,
+              candidateName: cand.parsedData?.name,
+              identityData: {
+                email: cand.parsedData?.email,
+                phone: cand.parsedData?.phone,
+                linkedin: '',
+                resume_url: '',
+                current_title: cand.parsedData?.currentTitle || 'Software Engineer',
+                skills: cand.parsedData?.skills || [],
+                location: cand.parsedData?.location || 'Bengaluru',
+                notice_period: cand.parsedData?.noticePeriod || 'Immediate',
+                current_company: cand.parsedData?.currentCompany || 'Apex Tech Solutions',
+              }
+            }
+          : {
+              candidateHash: identityString,
+              vendorId: selectedVendor.id,
+              candidateName: cand.parsedData?.name,
+              requirementId: bulkReqId || 'UNKNOWN',
+              identityData: {
+                email: cand.parsedData?.email,
+                phone: cand.parsedData?.phone,
+                linkedin: '',
+                resume_url: '',
+                current_title: cand.parsedData?.currentTitle || 'Software Engineer',
+                skills: cand.parsedData?.skills || []
+              }
+            };
+
+        const response = await apiFetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidateHash: identityString,
-            vendorId: selectedVendor.id,
-            candidateName: cand.parsedData?.name,
-            requirementId: bulkReqId || 'UNKNOWN',
-            identityData: {
-              email: cand.parsedData?.email,
-              phone: cand.parsedData?.phone,
-              linkedin: '',
-              resume_url: '',
-              current_title: cand.parsedData?.currentTitle,
-              skills: cand.parsedData?.skills
-            }
-          })
+          body: JSON.stringify(payload)
         });
 
         if (response.ok) {
@@ -1724,7 +1753,7 @@ export default function Vendors() {
             {/* Step indicators */}
             <div className="bg-white border-b border-slate-150 px-8 py-3 flex justify-between items-center gap-2 font-mono text-[10px] font-bold text-slate-400 shrink-0">
               {[
-                { s: 1, label: 'Select Requirement' },
+                { s: 1, label: bulkUploadMode === 'talent-pool' ? 'Sourcing Mode' : 'Select Requirement' },
                 { s: 2, label: 'Upload Files' },
                 { s: 3, label: 'AI Gemini Parsing' },
                 { s: 4, label: 'Deduplication' },
@@ -1745,28 +1774,101 @@ export default function Vendors() {
             {/* Step Body */}
             <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
               
-              {/* Step 1: Select Requirement */}
+              {/* Step 1: Mode Selection & Setup */}
               {bulkStep === 1 && (
-                <div className="space-y-4">
-                  <label className="block text-xs font-black uppercase tracking-widest text-slate-500">Choose Mapped Broadcast Job</label>
-                  <select
-                    value={bulkReqId}
-                    onChange={e => setBulkReqId(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
-                  >
-                    <option value="">Select an active client requirement...</option>
-                    {openRequirementList.map(j => (
-                      <option key={j.id} value={j.id}>{j.title || j.name} ({j.client || 'Enterprise Client'})</option>
-                    ))}
-                  </select>
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500">Sourcing Ingestion Mode</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Option 1: Requirement Submission */}
+                      <div 
+                        onClick={() => setBulkUploadMode('requirement')}
+                        className={cn(
+                          "p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-2",
+                          bulkUploadMode === 'requirement' 
+                            ? "bg-indigo-50/50 border-indigo-600" 
+                            : "bg-slate-50 border-slate-150 hover:bg-slate-100"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            bulkUploadMode === 'requirement' ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
+                          )}>
+                            <Briefcase className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-xs text-slate-900">Requirement Submission</p>
+                            <p className="text-[10px] text-slate-500 font-mono">Bind to open job</p>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-sans leading-relaxed">
+                          Upload candidates to represent them against a specific client mandate. Triggers SLA delivery tracking and client feedback cycles.
+                        </p>
+                      </div>
 
-                  <div className="pt-4 flex justify-end">
+                      {/* Option 2: Talent Pool Bulk Upload */}
+                      <div 
+                        onClick={() => setBulkUploadMode('talent-pool')}
+                        className={cn(
+                          "p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-2",
+                          bulkUploadMode === 'talent-pool' 
+                            ? "bg-indigo-50/50 border-indigo-600" 
+                            : "bg-slate-50 border-slate-150 hover:bg-slate-100"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            bulkUploadMode === 'talent-pool' ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
+                          )}>
+                            <Database className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-xs text-slate-900">Talent Pool Ingestion</p>
+                            <p className="text-[10px] text-slate-500 font-mono">Permanent inventory</p>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-sans leading-relaxed">
+                          Register active bench candidates to the vendor's permanent talent pool. Synthesizes into global OS for continuous automated AI matching.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {bulkUploadMode === 'requirement' ? (
+                    <div className="space-y-2 pt-2">
+                      <label className="block text-xs font-black uppercase tracking-widest text-slate-500">Choose Mapped Broadcast Job</label>
+                      <select
+                        value={bulkReqId}
+                        onChange={e => setBulkReqId(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none font-mono"
+                      >
+                        <option value="">Select an active client requirement...</option>
+                        {openRequirementList.map(j => (
+                          <option key={j.id} value={j.id}>[{j.vendorCode || j.jobCode || 'REQ'}] {j.title || j.name} ({j.client || 'Enterprise Client'})</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100 flex items-start gap-3 text-xs leading-relaxed">
+                      <Sparkles className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Inventory-Driven Staffing Engine Active</p>
+                        <p className="text-slate-600 text-[11px] mt-0.5">
+                          No requirement mapping needed. Resumes will be parsed, registered in candidate identity vault, and continuously matched against all active mandates.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-4 flex justify-end border-t border-slate-100">
                     <button
                       onClick={() => setBulkStep(2)}
-                      disabled={!bulkReqId}
-                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-all"
+                      disabled={bulkUploadMode === 'requirement' && !bulkReqId}
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      Continue
+                      Continue to Upload <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
