@@ -11,6 +11,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { subscribeToAgentActivities, AgentActivity } from "@/lib/api/agentActivities";
 import { SystemRepository } from "@/repositories/SystemRepository";
 import { cn } from "@/lib/utils";
+import { collection, getDocs, getDoc, doc, query, where } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
 import {
   Briefcase,
   Users,
@@ -51,6 +53,82 @@ export default function Dashboard() {
   
   // Dashboard Role Mode: "founder" or "bdm"
   const [dashboardMode, setDashboardMode] = useState<"founder" | "bdm">("founder");
+
+  const [telemetry, setTelemetry] = useState<any>({
+    successfulUploads: 0,
+    updates: 0,
+    newCandidates: 0,
+    duplicates: 0,
+    conflicts: 0,
+    fallbackUsage: 0,
+    retryQueueSize: 0,
+    reprocessSuccessCount: 0,
+    reprocessFailCount: 0
+  });
+  const [queue, setQueue] = useState<any[]>([]);
+  const [reprocessing, setReprocessing] = useState(false);
+
+  const fetchIngestionData = async () => {
+    try {
+      const telDoc = await getDoc(doc(db, "ingestion_telemetry", "overall"));
+      if (telDoc.exists()) {
+        setTelemetry(telDoc.data());
+      } else {
+        // If not initialized yet, let's keep defaults
+        setTelemetry({
+          successfulUploads: 0,
+          updates: 0,
+          newCandidates: 0,
+          duplicates: 0,
+          conflicts: 0,
+          fallbackUsage: 0,
+          retryQueueSize: 0,
+          reprocessSuccessCount: 0,
+          reprocessFailCount: 0
+        });
+      }
+      const q = query(collection(db, "ai_reprocessing_queue"), where("status", "==", "pending"));
+      const snap = await getDocs(q);
+      const queueItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setQueue(queueItems);
+    } catch (err: any) {
+      console.log("Failed to fetch ingestion telemetry:", err.message);
+    }
+  };
+
+  const handleReprocessQueue = async () => {
+    if (reprocessing) return;
+    setReprocessing(true);
+    try {
+      await toast.promise(
+        fetch("/api/candidates?action=reprocessAiQueue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        }).then(async (res) => {
+          if (!res.ok) throw new Error("Reprocessing queue failed");
+          const data = await res.json();
+          await fetchIngestionData();
+          return data;
+        }),
+        {
+          loading: "Contacting Gemini API, performing structured extraction reprocessing...",
+          success: (data) => `Reprocessed queue items successfully! ${data.message || ""}`,
+          error: "Failed to reprocess queue items."
+        }
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setReprocessing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchIngestionData();
+    // Poll every 15s to keep real-time updates of the pipeline on active cockpit view
+    const interval = setInterval(fetchIngestionData, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
   const [systemEvents, setSystemEvents] = useState<any[]>([]);
@@ -423,6 +501,127 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* TALENT POOL INGESTION PIPELINE TELEMETRY */}
+      <div className="skeuo-card p-6 relative z-10 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <Layers className="w-5 h-5 text-indigo-600" />
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Talent Pool Ingestion Telemetry</h2>
+              <p className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">Passive Inventory pipeline health & AI enrichment cockpit</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border">
+              Sync Provider: pxpipe (active)
+            </span>
+            <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+              Sync Threshold: 80,000 chars
+            </span>
+          </div>
+        </div>
+
+        {/* Telemetry Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1 shadow-sm">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Ingested</span>
+            <span className="text-xl font-black text-slate-800 font-mono">{telemetry.successfulUploads || 0}</span>
+            <span className="text-[9px] text-slate-400 mt-1">Sum of all incoming streams</span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1 shadow-sm">
+            <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Fresh Talents</span>
+            <span className="text-xl font-black text-indigo-600 font-mono">{telemetry.newCandidates || 0}</span>
+            <span className="text-[9px] text-slate-400 mt-1">Brand new profiles parsed</span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1 shadow-sm">
+            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Updates Ingested</span>
+            <span className="text-xl font-black text-emerald-600 font-mono">{telemetry.updates || 0}</span>
+            <span className="text-[9px] text-slate-400 mt-1">Same-vendor synchronizations</span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1 shadow-sm">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Duplicates Checked</span>
+            <span className="text-xl font-black text-slate-700 font-mono">{telemetry.duplicates || 0}</span>
+            <span className="text-[9px] text-slate-400 mt-1">Identical hashes (no bloat)</span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1 shadow-sm">
+            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Claims Rejected</span>
+            <span className="text-xl font-black text-rose-600 font-mono">{telemetry.conflicts || 0}</span>
+            <span className="text-[9px] text-slate-400 mt-1">Multi-vendor blockages (409)</span>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1 shadow-sm col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">AI Fallback Uses</span>
+            <span className="text-xl font-black text-amber-600 font-mono">{telemetry.fallbackUsage || 0}</span>
+            <span className="text-[9px] text-slate-400 mt-1">Gemini API 429 rate fallbacks</span>
+          </div>
+        </div>
+
+        {/* Deferred Enrichment Queue Section */}
+        <div className="border-t border-slate-100 pt-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Bot className="w-4 h-4 text-indigo-500" />
+                Deferred AI Reprocessing Queue ({queue.length})
+              </h3>
+              <p className="text-xs text-slate-500">
+                Candidates waiting for high-fidelity Gemini 3.5 structured enrichment when rate limits clear.
+              </p>
+            </div>
+            {queue.length > 0 && (
+              <button
+                onClick={handleReprocessQueue}
+                disabled={reprocessing}
+                className={cn(
+                  "px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all duration-300",
+                  reprocessing 
+                    ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed" 
+                    : "skeuo-btn-primary hover:scale-[1.02] active:scale-95 text-white"
+                )}
+              >
+                <Zap className={cn("w-4 h-4", reprocessing && "animate-spin")} />
+                {reprocessing ? "Reprocessing..." : "Force Process Queue"}
+              </button>
+            )}
+          </div>
+
+          {queue.length === 0 ? (
+            <div className="bg-slate-50 border border-slate-200/60 p-5 rounded-2xl text-center space-y-1">
+              <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
+              <h4 className="text-xs font-bold text-slate-800">Queue Completely Clear</h4>
+              <p className="text-[11px] text-slate-500">
+                All candidates successfully parsed via high-fidelity Gemini enrichment. Ingestion pipeline is healthy.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+              {queue.map((item: any) => (
+                <div key={item.id} className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex items-center justify-between text-xs font-mono shadow-sm">
+                  <div className="space-y-1 col-span-2">
+                    <h4 className="font-black text-slate-800 uppercase tracking-wide truncate max-w-[200px]" title={item.candidateName}>
+                      {item.candidateName}
+                    </h4>
+                    <p className="text-[10px] text-slate-400">
+                      ID: {item.candidateId?.slice(0, 8)}... • Hash: {item.candidateHash?.slice(0, 10)}...
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Registered: {new Date(item.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">
+                      AI RETRY PENDING
+                    </span>
+                    <span className="text-[9px] text-slate-400">
+                      Attempts: {item.attempts || 0}/3
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* RECENT EVENT TIMELINE LEDGER */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 flex-1">

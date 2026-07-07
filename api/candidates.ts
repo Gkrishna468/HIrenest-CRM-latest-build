@@ -1,10 +1,11 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { getApps, initializeApp, applicationDefault, cert } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getFirestore, Firestore, FieldValue } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 dotenv.config();
 
 let db: Firestore | null = null;
@@ -54,6 +55,49 @@ const ai = apiKey ? new GoogleGenAI({
   }
 }) : null;
 
+export function fallbackExtractData(candidateName: string, identityData: any) {
+  let title = identityData.current_title || identityData.currentTitle || "Software Engineer";
+  let skills: string[] = identityData.skills || [];
+  let summary = identityData.cover_note || "Vetted talent pool candidate registered for active rotation.";
+  let fraud = false;
+
+  const textToScan = `${candidateName} ${title} ${JSON.stringify(skills)} ${identityData.cover_note || ""} ${identityData.resume_url || ""}`.toLowerCase();
+
+  // Basic skills extraction (safe)
+  const commonSkills = [
+    "React", "Node.js", "TypeScript", "JavaScript", "Python", "Java", "AWS", "Docker", "Kubernetes", "SQL",
+    "PostgreSQL", "MongoDB", "Express", "Next.js", "Redux", "Tailwind", "Git", "DevOps", "CI/CD", "Angular",
+    "Vue", "Spring Boot", "Django", "FastAPI", "Go", "Rust", "C++", "C#", "Azure", "GCP", "HTML", "CSS"
+  ];
+
+  if (skills.length === 0) {
+    for (const skill of commonSkills) {
+      if (textToScan.includes(skill.toLowerCase())) {
+        skills.push(skill);
+      }
+    }
+  }
+
+  // Prevent empty skills
+  if (skills.length === 0) {
+    skills = ["Software Engineering", "Full Stack Development"];
+  }
+
+  // Safe parameters extraction
+  const noticePeriod = identityData.notice_period || identityData.noticePeriod || "Immediate";
+  const location = identityData.location || "Bengaluru";
+  const experience = identityData.experience || "Not Specified";
+
+  // Obvious test emails or dummy numbers can be flagged as fraud, but avoid high-confidence fraud claims
+  const email = (identityData.email || "").toLowerCase();
+  const phone = (identityData.phone || "");
+  if (email.includes("test@") || email.includes("example.com") || phone.includes("1234567890")) {
+    fraud = true;
+  }
+
+  return { title, skills, summary, fraud, noticePeriod, location, experience };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -82,12 +126,8 @@ export default async function handler(req: any, res: any) {
             error: "Candidate Ownership Conflict", 
             message: `This profile is already owned by another entity across our network.` 
           });
-        } else {
-          return res.status(409).json({ 
-            error: "Duplicate Submission", 
-            message: `You have already claimed ownership of this profile.` 
-          });
         }
+        // If same vendor, we DO NOT throw 409. We let it proceed to allow multi-requirement submission or updates.
       }
 
       // 1. Fetch Job / Requirement Details to perform BDM Routing & AI Screening
@@ -201,20 +241,50 @@ export default async function handler(req: any, res: any) {
 
         } catch (err) {
           console.error("Gemini processing failed, using fallbacks:", err);
+          const fb = fallbackExtractData(candidateName, identityData);
+          if (skillsList.length === 0) skillsList = fb.skills;
+          aiSummary = `Vetted talent profile: ${fb.summary}`;
+          fraudDetected = fb.fraud;
+          let matchCount = 0;
+          const lowerJobSkills = jobSkills.map(s => s.toLowerCase());
+          for (const s of skillsList) {
+            if (lowerJobSkills.includes(s.toLowerCase())) matchCount++;
+          }
+          if (jobSkills.length > 0) {
+            aiMatchScore = Math.min(100, Math.max(50, Math.round((matchCount / jobSkills.length) * 100)));
+          } else {
+            aiMatchScore = 75;
+          }
+        }
+      } else {
+        const fb = fallbackExtractData(candidateName, identityData);
+        if (skillsList.length === 0) skillsList = fb.skills;
+        aiSummary = `Vetted talent profile: ${fb.summary}`;
+        fraudDetected = fb.fraud;
+        let matchCount = 0;
+        const lowerJobSkills = jobSkills.map(s => s.toLowerCase());
+        for (const s of skillsList) {
+          if (lowerJobSkills.includes(s.toLowerCase())) matchCount++;
+        }
+        if (jobSkills.length > 0) {
+          aiMatchScore = Math.min(100, Math.max(50, Math.round((matchCount / jobSkills.length) * 100)));
+        } else {
+          aiMatchScore = 75;
         }
       }
 
-      // Validate done - create ownership
-      const payload = {
-        candidateHash,
-        vendorId,
-        candidateName,
-        createdAt: new Date().toISOString(),
-        source: "vendor",
-        identityData,
-      };
-
-      await ownershipRef.add(payload);
+      // Validate done - create ownership if not already claimed
+      if (existingQuery.empty) {
+        const payload = {
+          candidateHash,
+          vendorId,
+          candidateName,
+          createdAt: new Date().toISOString(),
+          source: "vendor",
+          identityData,
+        };
+        await ownershipRef.add(payload);
+      }
       
       // Create Firebase Candidates Pool
       const candRef = await db.collection("candidates").add({
@@ -326,31 +396,25 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
+      // Calculate SHA256 of the profile/resume content
+      const resumeHash = crypto
+        .createHash("sha256")
+        .update(identityData.resume_url || identityData.resumeText || JSON.stringify(identityData))
+        .digest("hex");
+
       // 1. Check candidate_identity_vault for global double-submission lock (duplicate check)
       const vaultRef = db.collection("candidate_identity_vault");
       const existingQuery = await vaultRef.where("candidateHash", "==", candidateHash).get();
 
-      if (!existingQuery.empty) {
-        const existing = existingQuery.docs[0].data();
-        if (existing.vendorId !== vendorId) {
-          return res.status(409).json({ 
-            error: "Candidate Ownership Conflict", 
-            message: `This profile is already locked under prior registry claims by another vendor.` 
-          });
-        } else {
-          return res.status(409).json({ 
-            error: "Duplicate Submission", 
-            message: `You have already registered this candidate in your global Talent Pool.` 
-          });
-        }
-      }
-
-      // 2. Perform AI screening/extraction with Gemini
-      let parsedTitle = identityData.current_title || "Technical Specialist";
+      // Resolve or compute extraction data
+      let parsedTitle = identityData.current_title || identityData.currentTitle || "Software Engineer";
       let parsedSkills = identityData.skills || [];
-      let parsedSummary = "Talent Pool asset available for redeployment.";
+      let parsedSummary = identityData.cover_note || "Vetted talent pool candidate registered for active rotation.";
       let fraudDetected = false;
+      let aiStatus = "pending";
 
+      // Execute Gemini
+      let aiPassed = false;
       if (ai) {
         try {
           const extractionPrompt = `
@@ -359,8 +423,8 @@ export default async function handler(req: any, res: any) {
 
             CANDIDATE:
             Name: ${candidateName}
-            Title: ${identityData.current_title || ""}
-            Skills: ${JSON.stringify(identityData.skills || [])}
+            Title: ${parsedTitle}
+            Skills: ${JSON.stringify(parsedSkills)}
             Notes: ${identityData.cover_note || ""}
 
             TASK:
@@ -395,37 +459,328 @@ export default async function handler(req: any, res: any) {
           if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
           if (parsed.summary) parsedSummary = parsed.summary;
           if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
+          aiPassed = true;
+          aiStatus = "parsed";
         } catch (err) {
-          console.error("Gemini pool extraction failed, using fallbacks:", err);
+          console.error("Gemini pool extraction failed, falling back to smart regex/rule-based extractor:", err);
+          aiStatus = "pending";
         }
       }
 
-      // 3. Create document in candidate_identity_vault
-      const vaultDoc = {
+      if (!aiPassed) {
+        // Run smart fallback parser
+        const fb = fallbackExtractData(candidateName, identityData);
+        parsedTitle = fb.title;
+        parsedSkills = fb.skills;
+        parsedSummary = fb.summary;
+        fraudDetected = fb.fraud;
+      }
+
+      // Initialize atomic batch write
+      const batch = db.batch();
+      const telRef = db.collection("ingestion_telemetry").doc("overall");
+
+      // Handle duplicate check
+      if (!existingQuery.empty) {
+        const existingDoc = existingQuery.docs[0];
+        const existing = existingDoc.data();
+        if (existing.vendorId !== vendorId) {
+          // Increment Conflict Counter in Telemetry
+          batch.set(telRef, {
+            conflicts: FieldValue.increment(1)
+          }, { merge: true });
+          await batch.commit();
+
+          return res.status(409).json({ 
+            error: "Candidate Ownership Conflict", 
+            message: `This profile is already locked under prior registry claims by another vendor.` 
+          });
+        } else {
+          // SAME VENDOR: Update existing gracefully
+          console.log(`[INGESTION] Existing talent pool candidate registered by same vendor ${vendorId}. Performing batched transaction update.`);
+
+          let candidateId = existing.candidateId;
+          if (!candidateId) {
+            const candSnap = await db.collection("candidates")
+              .where("candidateHash", "==", candidateHash)
+              .limit(1)
+              .get();
+            if (!candSnap.empty) {
+              candidateId = candSnap.docs[0].id;
+            }
+          }
+
+          if (!candidateId) {
+            const newCandRef = db.collection("candidates").doc();
+            candidateId = newCandRef.id;
+
+            batch.set(newCandRef, {
+              name: candidateName,
+              vendorId: vendorId,
+              vendor_company_id: vendorId,
+              stage: "Available",
+              source: "vendor_pool",
+              created_at: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              assignedBdm: "Ravi",
+              aiMatchScore: 85,
+              fraudDetected,
+              notes: parsedSummary,
+              skills: parsedSkills,
+              organizationId: vendorId,
+              ownerType: "Vendor",
+              ownerUserId: vendorId,
+              submittedVia: "Vendor Pool",
+              ownershipLocked: true,
+              candidateHash,
+              aiStatus,
+              lastSyncedAt: new Date().toISOString(),
+              syncSource: "vendor_pool",
+              syncVersion: 1,
+              ...identityData
+            });
+          } else {
+            batch.update(db.collection("candidates").doc(candidateId), {
+              name: candidateName,
+              skills: parsedSkills,
+              currentTitle: parsedTitle,
+              expectedSalary: identityData.expected_salary || identityData.expectedSalary || "",
+              location: identityData.location || "Bengaluru",
+              notes: parsedSummary,
+              fraudDetected,
+              updatedAt: new Date().toISOString(),
+              aiStatus,
+              lastSyncedAt: new Date().toISOString(),
+              syncSource: "vendor_pool",
+              syncVersion: FieldValue.increment(1),
+              ...identityData
+            });
+          }
+
+          // Update candidate_identity_vault with link
+          batch.update(vaultRef.doc(existingDoc.id), {
+            candidateId,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Create or update vendor_candidate_pool entry
+          const poolSnap = await db.collection("vendor_candidate_pool")
+            .where("vendorId", "==", vendorId)
+            .where("candidateHash", "==", candidateHash)
+            .limit(1)
+            .get();
+
+          const poolData = {
+            name: candidateName,
+            vendorId,
+            stage: "Available",
+            currentTitle: parsedTitle,
+            skills: parsedSkills,
+            updatedAt: new Date().toISOString(),
+            notes: parsedSummary,
+            fraudDetected,
+            candidateId,
+            candidateHash,
+            aiStatus,
+            lastSyncedAt: new Date().toISOString(),
+            syncSource: "vendor_pool",
+            syncVersion: FieldValue.increment(1),
+            ...identityData
+          };
+
+          if (!poolSnap.empty) {
+            batch.update(db.collection("vendor_candidate_pool").doc(poolSnap.docs[0].id), poolData);
+          } else {
+            const newPoolRef = db.collection("vendor_candidate_pool").doc();
+            batch.set(newPoolRef, {
+              ...poolData,
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          // Version check using Resume Content Hashing
+          const versionSnap = await db.collection("candidate_versions")
+            .where("candidateId", "==", candidateId)
+            .where("resumeHash", "==", resumeHash)
+            .limit(1)
+            .get();
+
+          let versionCreated = false;
+          if (versionSnap.empty) {
+            const versionRef = db.collection("candidate_versions").doc();
+            batch.set(versionRef, {
+              candidateId,
+              resumeHash,
+              resumeUrl: identityData.resume_url || "",
+              parsedSkills,
+              updatedAt: new Date().toISOString(),
+              dataSnapshot: {
+                name: candidateName,
+                title: parsedTitle,
+                email: identityData.email || "",
+                phone: identityData.phone || "",
+                ...identityData
+              }
+            });
+            versionCreated = true;
+          }
+
+          // Update candidate_availability
+          const availSnap = await db.collection("candidate_availability")
+            .where("candidateId", "==", candidateId)
+            .limit(1)
+            .get();
+
+          if (!availSnap.empty) {
+            batch.update(db.collection("candidate_availability").doc(availSnap.docs[0].id), {
+              status: "Available",
+              noticePeriod: identityData.notice_period || "Immediate",
+              lastCheckedAt: new Date().toISOString()
+            });
+          } else {
+            const newAvailRef = db.collection("candidate_availability").doc();
+            batch.set(newAvailRef, {
+              candidateId,
+              status: "Available",
+              noticePeriod: identityData.notice_period || "Immediate",
+              lastCheckedAt: new Date().toISOString()
+            });
+          }
+
+          // Activity logging
+          const actRef = db.collection("candidate_activity").doc();
+          batch.set(actRef, {
+            candidateId,
+            activityType: "INGESTION_UPDATE",
+            performedBy: vendorId,
+            description: `Candidate profile updated in passive Talent Pool as Available.${!versionCreated ? ' (Availability & metadata synced, resume unchanged)' : ' (New resume version registered)'}`,
+            timestamp: new Date().toISOString()
+          });
+
+          // Immutable Company Ledger
+          const sysEventRef = db.collection("system_events").doc();
+          batch.set(sysEventRef, {
+            type: "CANDIDATE_POOL_UPDATED",
+            message: `Vendor updated candidate ${candidateName} in the global Talent Pool as Available.`,
+            timestamp: new Date().toISOString(),
+            entityType: "vendor_candidate",
+            entityId: candidateId,
+            role: "vendor",
+            data: {
+              candidateName,
+              vendorId,
+              standardizedTitle: parsedTitle,
+              skills: parsedSkills,
+              fraudDetected
+            }
+          });
+
+          // Queue for reprocessing if Gemini failed/429
+          if (aiStatus === "pending") {
+            const queueRef = db.collection("ai_reprocessing_queue").doc();
+            batch.set(queueRef, {
+              candidateId,
+              candidateName,
+              vendorId,
+              candidateHash,
+              status: "pending",
+              createdAt: new Date().toISOString(),
+              attempts: 0,
+              identityData
+            });
+          }
+
+          // Update Telemetry
+          batch.set(telRef, {
+            successfulUploads: FieldValue.increment(1),
+            updates: FieldValue.increment(1),
+            duplicates: FieldValue.increment(versionCreated ? 0 : 1),
+            fallbackUsage: FieldValue.increment(aiStatus === "pending" ? 1 : 0),
+            retryQueueSize: FieldValue.increment(aiStatus === "pending" ? 1 : 0)
+          }, { merge: true });
+
+          await batch.commit();
+
+          return res.status(200).json({
+            success: true,
+            candidateId,
+            standardizedTitle: parsedTitle,
+            skills: parsedSkills,
+            summary: parsedSummary,
+            fraudDetected,
+            updated: true,
+            aiStatus
+          });
+        }
+      }
+
+      // BRAND NEW CANDIDATE INGESTION
+      const candRef = db.collection("candidates").doc();
+      const candidateId = candRef.id;
+
+      batch.set(candRef, {
+        name: candidateName,
+        vendorId: vendorId,
+        vendor_company_id: vendorId,
+        stage: "Available",
+        source: "vendor_pool",
+        created_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        assignedBdm: "Ravi",
+        aiMatchScore: 85,
+        fraudDetected,
+        notes: parsedSummary,
+        skills: parsedSkills,
+        organizationId: vendorId,
+        ownerType: "Vendor",
+        ownerUserId: vendorId,
+        submittedVia: "Vendor Pool",
+        ownershipLocked: true,
+        candidateHash,
+        aiStatus,
+        lastSyncedAt: new Date().toISOString(),
+        syncSource: "vendor_pool",
+        syncVersion: 1,
+        ...identityData
+      });
+
+      // Identity Vault Doc
+      const vaultDocRef = db.collection("candidate_identity_vault").doc();
+      batch.set(vaultDocRef, {
         candidateHash,
         vendorId,
         candidateName,
+        candidateId,
         ownershipLocked: true,
         createdAt: new Date().toISOString()
-      };
-      await vaultRef.add(vaultDoc);
+      });
 
-      // 4. Create document in vendor_candidate_pool
-      const poolRef = await db.collection("vendor_candidate_pool").add({
+      // Vendor Candidate Pool entry
+      const poolDocRef = db.collection("vendor_candidate_pool").doc();
+      batch.set(poolDocRef, {
         name: candidateName,
         vendorId,
         stage: "Available",
         currentTitle: parsedTitle,
         skills: parsedSkills,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         notes: parsedSummary,
         fraudDetected,
+        candidateId,
+        candidateHash,
+        aiStatus,
+        lastSyncedAt: new Date().toISOString(),
+        syncSource: "vendor_pool",
+        syncVersion: 1,
         ...identityData
       });
 
-      // 5. Create document in candidate_versions
-      await db.collection("candidate_versions").add({
-        candidateId: poolRef.id,
+      // Candidate versions
+      const versionRef = db.collection("candidate_versions").doc();
+      batch.set(versionRef, {
+        candidateId,
+        resumeHash,
         resumeUrl: identityData.resume_url || "",
         parsedSkills,
         updatedAt: new Date().toISOString(),
@@ -438,30 +793,33 @@ export default async function handler(req: any, res: any) {
         }
       });
 
-      // 6. Create document in candidate_availability
-      await db.collection("candidate_availability").add({
-        candidateId: poolRef.id,
+      // Candidate availability
+      const availRef = db.collection("candidate_availability").doc();
+      batch.set(availRef, {
+        candidateId,
         status: "Available",
         noticePeriod: identityData.notice_period || "Immediate",
         lastCheckedAt: new Date().toISOString()
       });
 
-      // 7. Create document in candidate_activity
-      await db.collection("candidate_activity").add({
-        candidateId: poolRef.id,
+      // Candidate activity
+      const actRef = db.collection("candidate_activity").doc();
+      batch.set(actRef, {
+        candidateId,
         activityType: "INGESTION",
         performedBy: vendorId,
         description: `Candidate registered into passive Talent Pool as Available.`,
         timestamp: new Date().toISOString()
       });
 
-      // 8. LAW 1: Immutable Company Ledger system_events
-      await db.collection("system_events").add({
+      // Immutable Event Ledger
+      const sysEventRef = db.collection("system_events").doc();
+      batch.set(sysEventRef, {
         type: "CANDIDATE_POOL_INGESTED",
         message: `Vendor ingested candidate ${candidateName} into the global Talent Pool as Available.`,
         timestamp: new Date().toISOString(),
         entityType: "vendor_candidate",
-        entityId: poolRef.id,
+        entityId: candidateId,
         role: "vendor",
         data: {
           candidateName,
@@ -472,13 +830,221 @@ export default async function handler(req: any, res: any) {
         }
       });
 
+      // Queue for reprocessing if Gemini failed/429
+      if (aiStatus === "pending") {
+        const queueRef = db.collection("ai_reprocessing_queue").doc();
+        batch.set(queueRef, {
+          candidateId,
+          candidateName,
+          vendorId,
+          candidateHash,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+          attempts: 0,
+          identityData
+        });
+      }
+
+      // Update Telemetry
+      batch.set(telRef, {
+        successfulUploads: FieldValue.increment(1),
+        newCandidates: FieldValue.increment(1),
+        fallbackUsage: FieldValue.increment(aiStatus === "pending" ? 1 : 0),
+        retryQueueSize: FieldValue.increment(aiStatus === "pending" ? 1 : 0)
+      }, { merge: true });
+
+      await batch.commit();
+
       return res.status(200).json({
         success: true,
-        candidateId: poolRef.id,
+        candidateId,
         standardizedTitle: parsedTitle,
         skills: parsedSkills,
         summary: parsedSummary,
-        fraudDetected
+        fraudDetected,
+        aiStatus
+      });
+
+    } catch (e: any) {
+      console.error(e);
+      return res.status(500).json({ error: e.message });
+    }
+  } else if (action === "reprocessAiQueue") {
+    try {
+      if (!db) throw new Error("Database not initialized");
+
+      // Fetch pending items from queue
+      const queueQuery = await db.collection("ai_reprocessing_queue")
+        .where("status", "==", "pending")
+        .limit(10) // Process in batches of 10 to keep API limits safe
+        .get();
+
+      if (queueQuery.empty) {
+        return res.status(200).json({ success: true, processedCount: 0, message: "No pending items in the AI reprocessing queue." });
+      }
+
+      let processedCount = 0;
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const queueDoc of queueQuery.docs) {
+        const queueData = queueDoc.data();
+        const { candidateId, candidateName, vendorId, candidateHash, identityData, attempts } = queueData;
+
+        processedCount++;
+
+        // Execute Gemini
+        let parsedTitle = identityData.current_title || identityData.currentTitle || "Software Engineer";
+        let parsedSkills = identityData.skills || [];
+        let parsedSummary = identityData.cover_note || "Talent Pool asset available for redeployment.";
+        let fraudDetected = false;
+        let aiPassed = false;
+
+        if (ai) {
+          try {
+            const extractionPrompt = `
+              Act as the Staffing Intelligence Analyzer for HireNestOS.
+              Extract key parameters from this candidate profile.
+
+              CANDIDATE:
+              Name: ${candidateName}
+              Title: ${parsedTitle}
+              Skills: ${JSON.stringify(parsedSkills)}
+              Notes: ${identityData.cover_note || ""}
+
+              TASK:
+              1. Suggest the best standardized Technical Job Title.
+              2. Extract skills list as a JSON array of strings.
+              3. Formulate a 2-3 sentence professional summary / profile highlights.
+              4. Detect potential fraud markers (return true or false).
+
+              RETURN ONLY VALID JSON:
+              {
+                "standardizedTitle": "e.g. Senior React Developer",
+                "skills": ["skill1", "skill2"],
+                "summary": "Summary text",
+                "fraudDetected": false
+              }
+            `;
+
+            const result = await ai.models.generateContent({
+              model: "gemini-3.5-flash",
+              contents: extractionPrompt,
+              config: { responseMimeType: "application/json" }
+            });
+
+            const cleanText = (result.text || "")
+              .replace(/\`\`\`json|\`\`\`/g, "")
+              .trim();
+            const parsed = JSON.parse(cleanText);
+
+            if (parsed.standardizedTitle) parsedTitle = parsed.standardizedTitle;
+            if (Array.isArray(parsed.skills)) parsedSkills = parsed.skills;
+            if (parsed.summary) parsedSummary = parsed.summary;
+            if (parsed.fraudDetected !== undefined) fraudDetected = !!parsed.fraudDetected;
+            aiPassed = true;
+          } catch (err) {
+            console.error(`Gemini reprocessing failed for candidate ${candidateId}:`, err);
+          }
+        }
+
+        const batch = db.batch();
+        const queueDocRef = db.collection("ai_reprocessing_queue").doc(queueDoc.id);
+        const candRef = db.collection("candidates").doc(candidateId);
+        
+        const poolQuery = await db.collection("vendor_candidate_pool")
+          .where("candidateId", "==", candidateId)
+          .limit(1)
+          .get();
+
+        const telRef = db.collection("ingestion_telemetry").doc("overall");
+
+        if (aiPassed) {
+          successCount++;
+          // Update candidate as parsed
+          batch.update(candRef, {
+            currentTitle: parsedTitle,
+            skills: parsedSkills,
+            notes: parsedSummary,
+            fraudDetected,
+            aiStatus: "parsed",
+            updatedAt: new Date().toISOString()
+          });
+
+          // Update vendor pool
+          if (!poolQuery.empty) {
+            batch.update(db.collection("vendor_candidate_pool").doc(poolQuery.docs[0].id), {
+              currentTitle: parsedTitle,
+              skills: parsedSkills,
+              notes: parsedSummary,
+              fraudDetected,
+              aiStatus: "parsed",
+              updatedAt: new Date().toISOString()
+            });
+          }
+
+          // Mark queue item as completed
+          batch.update(queueDocRef, {
+            status: "completed",
+            updatedAt: new Date().toISOString()
+          });
+
+          // Update Telemetry
+          batch.set(telRef, {
+            retryQueueSize: FieldValue.increment(-1),
+            reprocessSuccessCount: FieldValue.increment(1)
+          }, { merge: true });
+
+          // Ledger event
+          const sysEventRef = db.collection("system_events").doc();
+          batch.set(sysEventRef, {
+            type: "CANDIDATE_REPROCESSED_SUCCESS",
+            message: `AI Reprocessing successfully enriched Candidate ${candidateName} (ID: ${candidateId}).`,
+            timestamp: new Date().toISOString(),
+            entityType: "candidate",
+            entityId: candidateId,
+            role: "system",
+            data: { candidateName, vendorId, standardizedTitle: parsedTitle }
+          });
+
+        } else {
+          failCount++;
+          const nextAttempts = (attempts || 0) + 1;
+          if (nextAttempts >= 3) {
+            // Permanently fail this queue doc
+            batch.update(queueDocRef, {
+              status: "failed",
+              attempts: nextAttempts,
+              updatedAt: new Date().toISOString()
+            });
+            batch.set(telRef, {
+              retryQueueSize: FieldValue.increment(-1),
+              reprocessFailCount: FieldValue.increment(1)
+            }, { merge: true });
+
+            // Mark candidate aiStatus as failed
+            batch.update(candRef, { aiStatus: "failed" });
+            if (!poolQuery.empty) {
+              batch.update(db.collection("vendor_candidate_pool").doc(poolQuery.docs[0].id), { aiStatus: "failed" });
+            }
+          } else {
+            // Keep pending, increment attempts
+            batch.update(queueDocRef, {
+              attempts: nextAttempts,
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
+
+        await batch.commit();
+      }
+
+      return res.status(200).json({
+        success: true,
+        processedCount,
+        successCount,
+        failCount,
+        message: `Processed ${processedCount} queue items. Successes: ${successCount}, Failures: ${failCount}`
       });
 
     } catch (e: any) {
